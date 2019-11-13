@@ -6,6 +6,8 @@
 #include "TabContainer.h"
 #include "Config.h"
 #include "Explorer++_internal.h"
+#include "Icon.h"
+#include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "Navigation.h"
 #include "RenameTabDialog.h"
@@ -26,9 +28,10 @@
 const UINT TAB_CONTROL_STYLES = WS_VISIBLE | WS_CHILD | TCS_FOCUSNEVER | TCS_SINGLELINE
 | TCS_TOOLTIPS | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
 
-const std::map<UINT, UINT> TAB_RIGHT_CLICK_MENU_IMAGE_MAPPINGS = {
-	{ IDM_FILE_NEWTAB, IDB_NEW_TAB_16 },
-	{ IDM_TAB_REFRESH, IDB_REFRESH_16 }
+const std::map<UINT, Icon> TAB_RIGHT_CLICK_MENU_IMAGE_MAPPINGS = {
+	{ IDM_FILE_NEWTAB, Icon::NewTab },
+	{ IDM_TAB_REFRESH, Icon::Refresh },
+	{ IDM_TAB_CLOSETAB, Icon::CloseTab }
 };
 
 TabContainer *TabContainer::Create(HWND parent, TabContainerInterface *tabContainer,
@@ -83,9 +86,8 @@ void TabContainer::Initialize(HWND parent)
 		SendMessage(m_hwnd, WM_SETFONT, reinterpret_cast<WPARAM>(m_hTabFont), MAKELPARAM(TRUE, 0));
 	}
 
-	int dpiScaledWidth = MulDiv(ICON_WIDTH_96DPI, dpi, USER_DEFAULT_SCREEN_DPI);
-	int dpiScaledHeight = MulDiv(ICON_HEIGHT_96DPI, dpi, USER_DEFAULT_SCREEN_DPI);
-	m_hTabCtrlImageList = ImageList_Create(dpiScaledWidth, dpiScaledHeight, ILC_COLOR32 | ILC_MASK, 0, 100);
+	int dpiScaledSize = MulDiv(ICON_SIZE_96DPI, dpi, USER_DEFAULT_SCREEN_DPI);
+	m_hTabCtrlImageList = ImageList_Create(dpiScaledSize, dpiScaledSize, ILC_COLOR32 | ILC_MASK, 0, 100);
 	AddDefaultTabIcons(m_hTabCtrlImageList);
 	TabCtrl_SetImageList(m_hwnd, m_hTabCtrlImageList);
 
@@ -108,8 +110,8 @@ void TabContainer::Initialize(HWND parent)
 
 void TabContainer::AddDefaultTabIcons(HIMAGELIST himlTab)
 {
-	/* TODO: Should scale with DPI. */
-	wil::unique_hbitmap bitmap = ImageHelper::LoadBitmapFromPNG(GetModuleHandle(nullptr), IDB_LOCK_16);
+	UINT dpi = m_dpiCompat.GetDpiForWindow(m_hwnd);
+	wil::unique_hbitmap bitmap = IconResourceLoader::LoadBitmapFromPNGForDpi(Icon::Lock, ICON_SIZE_96DPI, dpi);
 	m_tabIconLockIndex = ImageList_Add(himlTab, bitmap.get(), nullptr);
 }
 
@@ -385,9 +387,11 @@ void TabContainer::CreateTabContextMenu(Tab &tab, const POINT &pt)
 
 void TabContainer::AddImagesToTabContextMenu(HMENU menu, std::vector<wil::unique_hbitmap> &menuImages)
 {
+	UINT dpi = m_dpiCompat.GetDpiForWindow(m_hwnd);
+
 	for (const auto &mapping : TAB_RIGHT_CLICK_MENU_IMAGE_MAPPINGS)
 	{
-		SetMenuItemImage(menu, mapping.first, mapping.second, menuImages);
+		SetMenuItemImage(menu, mapping.first, mapping.second, dpi, menuImages);
 	}
 }
 
