@@ -51,7 +51,6 @@ CManageBookmarksDialog::~CManageBookmarksDialog()
 INT_PTR CManageBookmarksDialog::OnInitDialog()
 {
 	/* TODO: Enable drag and drop for listview and treeview. */
-	SetDialogIcon();
 	SetupToolbar();
 	SetupTreeView();
 	SetupListView();
@@ -65,11 +64,9 @@ INT_PTR CManageBookmarksDialog::OnInitDialog()
 	return 0;
 }
 
-void CManageBookmarksDialog::SetDialogIcon()
+wil::unique_hicon CManageBookmarksDialog::GetDialogIcon(int iconWidth, int iconHeight) const
 {
-	UINT dpi = m_dpiCompat.GetDpiForWindow(m_hDlg);
-	m_icon = IconResourceLoader::LoadIconFromPNGForDpi(Icon::Bookmarks, DIALOG_ICON_SIZE_96DPI, dpi);
-	SetClassLongPtr(m_hDlg,GCLP_HICONSM,reinterpret_cast<LONG_PTR>(m_icon.get()));
+	return IconResourceLoader::LoadIconFromPNGAndScale(Icon::Bookmarks, iconWidth, iconHeight);
 }
 
 void CManageBookmarksDialog::SetupToolbar()
@@ -81,11 +78,15 @@ void CManageBookmarksDialog::SetupToolbar()
 		TBSTYLE_EX_MIXEDBUTTONS|TBSTYLE_EX_DRAWDDARROWS|
 		TBSTYLE_EX_DOUBLEBUFFER|TBSTYLE_EX_HIDECLIPPEDBUTTONS);
 
-	SendMessage(m_hToolbar,TB_SETBITMAPSIZE,0,MAKELONG(16,16));
 	SendMessage(m_hToolbar,TB_BUTTONSTRUCTSIZE,static_cast<WPARAM>(sizeof(TBBUTTON)),0);
 
 	UINT dpi = m_dpiCompat.GetDpiForWindow(m_hToolbar);
-	std::tie(m_imageListToolbar, m_imageListToolbarMappings) = CreateIconImageList(16, dpi, { Icon::Back, Icon::Forward, Icon::Copy, Icon::Views});
+	int iconWidth = m_dpiCompat.GetSystemMetricsForDpi(SM_CXSMICON, dpi);
+	int iconHeight = m_dpiCompat.GetSystemMetricsForDpi(SM_CYSMICON, dpi);
+	SendMessage(m_hToolbar, TB_SETBITMAPSIZE, 0, MAKELONG(iconWidth, iconHeight));
+
+	std::tie(m_imageListToolbar, m_imageListToolbarMappings) = CreateIconImageList(iconWidth, iconHeight,
+		{ Icon::Back, Icon::Forward, Icon::Copy, Icon::Views});
 	SendMessage(m_hToolbar,TB_SETIMAGELIST,0,reinterpret_cast<LPARAM>(m_imageListToolbar.get()));
 
 	TBBUTTON tbb;
