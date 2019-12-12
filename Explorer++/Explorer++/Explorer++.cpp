@@ -32,22 +32,12 @@ const std::vector<std::wstring> Explorerplusplus::BLACKLISTED_BACKGROUND_MENU_CL
 	_T("{CB3D0F55-BC2C-4C1A-85ED-23ED75B5106B}")
 };
 
-const std::array<ViewMode, 8> Explorerplusplus::m_viewModes = {
-	ViewMode::ExtraLargeIcons,
-	ViewMode::LargeIcons,
-	ViewMode::Icons,
-	ViewMode::SmallIcons,
-	ViewMode::List,
-	ViewMode::Details,
-	ViewMode::Thumbnails,
-	ViewMode::Tiles
-};
-
 Explorerplusplus::Explorerplusplus(HWND hwnd) :
-m_hContainer(hwnd),
-m_pluginMenuManager(hwnd, MENU_PLUGIN_STARTID, MENU_PLUGIN_ENDID),
-m_acceleratorUpdater(&g_hAccl),
-m_pluginCommandManager(&g_hAccl, ACCELERATOR_PLUGIN_STARTID, ACCELERATOR_PLUGIN_ENDID)
+	m_hContainer(hwnd),
+	m_cachedIcons(MAX_CACHED_ICONS),
+	m_pluginMenuManager(hwnd, MENU_PLUGIN_STARTID, MENU_PLUGIN_ENDID),
+	m_acceleratorUpdater(&g_hAccl),
+	m_pluginCommandManager(&g_hAccl, ACCELERATOR_PLUGIN_STARTID, ACCELERATOR_PLUGIN_ENDID)
 {
 	m_hLanguageModule				= nullptr;
 
@@ -56,7 +46,6 @@ m_pluginCommandManager(&g_hAccl, ACCELERATOR_PLUGIN_STARTID, ACCELERATOR_PLUGIN_
 	/* Initial state. */
 	m_nSelected						= 0;
 	m_nSelectedOnInvert				= 0;
-	m_iMaxArrangeMenuItem			= 0;
 	m_bCountingUp					= FALSE;
 	m_bCountingDown					= FALSE;
 	m_bInverted						= FALSE;
@@ -83,10 +72,8 @@ m_pluginCommandManager(&g_hAccl, ACCELERATOR_PLUGIN_STARTID, ACCELERATOR_PLUGIN_
 	m_hLastActiveWindow				= NULL;
 	m_hActiveListView				= NULL;
 	m_hNextClipboardViewer			= NULL;
-	m_hLanguageModule				= NULL;
-	m_ListViewMButtonItem			= -1;
 	m_zDeltaTotal					= 0;
-	m_InitializationFinished		= false;
+	m_InitializationFinished.set(false);
 
 	m_bBlockNext = FALSE;
 
@@ -97,12 +84,6 @@ m_pluginCommandManager(&g_hAccl, ACCELERATOR_PLUGIN_STARTID, ACCELERATOR_PLUGIN_
 	m_pClipboardDataObject	= NULL;
 	m_iCutTabInternal		= 0;
 	m_hCutTreeViewItem		= NULL;
-
-	UINT dpi = m_dpiCompat.GetDpiForWindow(hwnd);
-	int iconWidth = m_dpiCompat.GetSystemMetricsForDpi(SM_CXSMICON, dpi);
-	int iconHeight = m_dpiCompat.GetSystemMetricsForDpi(SM_CYSMICON, dpi);
-	m_optionsDialogIcon = IconResourceLoader::LoadIconFromPNGForDpi(Icon::Options, iconWidth, iconHeight, dpi);
-	m_newTabDirectoryIcon = IconResourceLoader::LoadIconFromPNGForDpi(Icon::Folder, 16, 16, dpi);
 }
 
 Explorerplusplus::~Explorerplusplus()

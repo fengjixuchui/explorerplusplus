@@ -9,19 +9,20 @@
 #include "../Helper/iDataObject.h"
 #include "../Helper/iDropSource.h"
 #include "../Helper/ShellHelper.h"
+#include <wil/common.h>
+#include <wil/resource.h>
+#include <functional>
 
-AddressBar *AddressBar::Create(HWND parent, IExplorerplusplus *expp,
-	Navigation *navigation, MainToolbar *mainToolbar)
+AddressBar *AddressBar::Create(HWND parent, IExplorerplusplus *expp, MainToolbar *mainToolbar)
 {
-	return new AddressBar(parent, expp, navigation, mainToolbar);
+	return new AddressBar(parent, expp, mainToolbar);
 }
 
-AddressBar::AddressBar(HWND parent, IExplorerplusplus *expp, Navigation *navigation,
-	MainToolbar *mainToolbar) :
+AddressBar::AddressBar(HWND parent, IExplorerplusplus *expp, MainToolbar *mainToolbar) :
 	CBaseWindow(CreateAddressBar(parent)),
 	m_expp(expp),
-	m_navigation(navigation),
-	m_mainToolbar(mainToolbar)
+	m_mainToolbar(mainToolbar),
+	m_defaultFolderIconIndex(GetDefaultFolderIconIndex())
 {
 	Initialize(parent);
 }
@@ -39,25 +40,21 @@ void AddressBar::Initialize(HWND parent)
 	SendMessage(m_hwnd, CBEM_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(SmallIcons));
 
 	HWND hEdit = reinterpret_cast<HWND>(SendMessage(m_hwnd, CBEM_GETEDITCONTROL, 0, 0));
-	SetWindowSubclass(hEdit, EditSubclassStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(hEdit, EditSubclassStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	/* Turn on auto complete for the edit control within the combobox.
 	This will let the os complete paths as they are typed. */
 	SHAutoComplete(hEdit, SHACF_FILESYSTEM | SHACF_AUTOSUGGEST_FORCE_ON);
 
-	SetWindowSubclass(parent, ParentWndProcStub, PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(parent, ParentWndProcStub,
+		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	m_expp->AddTabsInitializedObserver([this] {
-		m_connections.push_back(m_expp->GetTabContainer()->tabSelectedSignal.AddObserver(boost::bind(&AddressBar::OnTabSelected, this, _1)));
+		m_connections.push_back(m_expp->GetTabContainer()->tabSelectedSignal.AddObserver(
+			boost::bind(&AddressBar::OnTabSelected, this, _1)));
+		m_connections.push_back(m_expp->GetTabContainer()->tabNavigationCompletedSignal.AddObserver(
+			boost::bind(&AddressBar::OnNavigationCompleted, this, _1)));
 	});
-
-	m_connections.push_back(m_navigation->navigationCompletedSignal.AddObserver(boost::bind(&AddressBar::OnNavigationCompleted, this, _1)));
-}
-
-AddressBar::~AddressBar()
-{
-	RemoveWindowSubclass(GetParent(m_hwnd), ParentWndProcStub, PARENT_SUBCLASS_ID);
 }
 
 LRESULT CALLBACK AddressBar::EditSubclassStub(HWND hwnd, UINT uMsg,
@@ -144,15 +141,14 @@ void AddressBar::OnGo()
 {
 	TCHAR szPath[MAX_PATH];
 	TCHAR szFullFilePath[MAX_PATH];
-	TCHAR szCurrentDirectory[MAX_PATH];
 
 	/* Retrieve the combobox text, and determine if it is a
 	valid path. */
 	SendMessage(m_hwnd, WM_GETTEXT, SIZEOF_ARRAY(szPath), (LPARAM)szPath);
 
 	const Tab &selectedTab = m_expp->GetTabContainer()->GetSelectedTab();
-	selectedTab.GetShellBrowser()->QueryCurrentDirectory(SIZEOF_ARRAY(szCurrentDirectory), szCurrentDirectory);
-	DecodePath(szPath, szCurrentDirectory, szFullFilePath, SIZEOF_ARRAY(szFullFilePath));
+	std::wstring currentDirectory = selectedTab.GetShellBrowser()->GetDirectory();
+	DecodePath(szPath, currentDirectory.c_str(), szFullFilePath, SIZEOF_ARRAY(szFullFilePath));
 
 	m_expp->OpenItem(szFullFilePath, FALSE, FALSE);
 }
@@ -173,7 +169,7 @@ void AddressBar::OnBeginDrag()
 		if (SUCCEEDED(hr))
 		{
 			const Tab &selectedTab = m_expp->GetTabContainer()->GetSelectedTab();
-			LPITEMIDLIST pidlDirectory = selectedTab.GetShellBrowser()->QueryCurrentDirectoryIdl();
+			auto pidlDirectory = selectedTab.GetShellBrowser()->GetDirectoryIdl();
 
 			FORMATETC ftc[2];
 			STGMEDIUM stg[2];
@@ -197,7 +193,7 @@ void AddressBar::OnBeginDrag()
 
 			/* The name of the file will be the folder name, followed by .lnk. */
 			TCHAR szDisplayName[MAX_PATH];
-			GetDisplayName(pidlDirectory, szDisplayName, SIZEOF_ARRAY(szDisplayName), SHGDN_INFOLDER);
+			GetDisplayName(pidlDirectory.get(), szDisplayName, SIZEOF_ARRAY(szDisplayName), SHGDN_INFOLDER);
 			StringCchCat(szDisplayName, SIZEOF_ARRAY(szDisplayName), _T(".lnk"));
 			StringCchCopy(pfd[0].cFileName, SIZEOF_ARRAY(pfd[0].cFileName), szDisplayName);
 
@@ -223,7 +219,7 @@ void AddressBar::OnBeginDrag()
 			{
 				TCHAR szPath[MAX_PATH];
 
-				GetDisplayName(pidlDirectory, szPath, SIZEOF_ARRAY(szPath), SHGDN_FORPARSING);
+				GetDisplayName(pidlDirectory.get(), szPath, SIZEOF_ARRAY(szPath), SHGDN_FORPARSING);
 
 				pShellLink->SetPath(szPath);
 
@@ -259,8 +255,6 @@ void AddressBar::OnBeginDrag()
 
 			DoDragDrop(pDataObject, pDropSource, DROPEFFECT_LINK, &dwEffect);
 
-			CoTaskMemFree(pidlDirectory);
-
 			pDataObject->Release();
 			pDropSource->Release();
 		}
@@ -284,36 +278,85 @@ void AddressBar::OnNavigationCompleted(const Tab &tab)
 
 void AddressBar::UpdateTextAndIcon(const Tab &tab)
 {
-	PIDLPointer pidl(tab.GetShellBrowser()->QueryCurrentDirectoryIdl());
+	// At this point, the text and icon in the address bar are being updated
+	// because the current folder has changed (e.g. because another tab has been
+	// selected). Therefore, any icon updates for the last history entry can be
+	// ignored. If that history entry becomes the current one again (e.g.
+	// because the original tab is re-selected), the listener can be set back up
+	// (if necessary).
+	m_historyEntryUpdatedConnection.disconnect();
 
-	auto text = GetFolderPathForDisplay(pidl.get());
+	auto entry = tab.GetNavigationController()->GetEntryAtIndex(tab.GetNavigationController()->GetCurrentIndex());
+
+	auto cachedFullPath = entry->GetFullPathForDisplay();
+	std::optional<std::wstring> text;
+
+	if (cachedFullPath)
+	{
+		text = cachedFullPath;
+	}
+	else
+	{
+		text = GetFolderPathForDisplay(entry->GetPidl().get());
+
+		if (text)
+		{
+			entry->SetFullPathForDisplay(*text);
+		}
+	}
 
 	if (!text)
 	{
 		return;
 	}
 
-	SHFILEINFO shfi;
-	DWORD_PTR dwRet = SHGetFileInfo(reinterpret_cast<LPTSTR>(pidl.get()), NULL, &shfi,
-		NULL, SHGFI_PIDL | SHGFI_SYSICONINDEX);
+	auto cachedIconIndex = entry->GetSystemIconIndex();
+	int iconIndex;
 
-	if (dwRet == 0)
+	if (cachedIconIndex)
 	{
-		return;
+		iconIndex = *cachedIconIndex;
+	}
+	else
+	{
+		iconIndex = m_defaultFolderIconIndex;
+
+		m_historyEntryUpdatedConnection = entry->historyEntryUpdatedSignal.AddObserver(
+			boost::bind(&AddressBar::OnHistoryEntryUpdated, this, _1, _2));
 	}
 
 	SendMessage(m_hwnd, CB_RESETCONTENT, 0, 0);
 
-	TCHAR displayText[MAX_PATH];
-	StringCchCopy(displayText, SIZEOF_ARRAY(displayText), text->c_str());
+	UpdateTextAndIconInUI(&*text, iconIndex);
+}
 
+void AddressBar::UpdateTextAndIconInUI(std::wstring *text, int iconIndex)
+{
 	COMBOBOXEXITEM cbItem;
-	cbItem.mask = CBEIF_TEXT | CBEIF_IMAGE | CBEIF_INDENT | CBEIF_SELECTEDIMAGE;
+	cbItem.mask = CBEIF_IMAGE | CBEIF_SELECTEDIMAGE | CBEIF_INDENT;
 	cbItem.iItem = -1;
-	cbItem.iImage = shfi.iIcon;
-	cbItem.iSelectedImage = shfi.iIcon;
+	cbItem.iImage = (iconIndex & 0x0FFF);
+	cbItem.iSelectedImage = (iconIndex & 0x0FFF);
 	cbItem.iIndent = 1;
-	cbItem.iOverlay = 1;
-	cbItem.pszText = displayText;
+
+	if (text)
+	{
+		WI_SetFlag(cbItem.mask, CBEIF_TEXT);
+		cbItem.pszText = text->data();
+	}
+
 	SendMessage(m_hwnd, CBEM_SETITEM, 0, reinterpret_cast<LPARAM>(&cbItem));
+}
+
+void AddressBar::OnHistoryEntryUpdated(const HistoryEntry &entry, HistoryEntry::PropertyType propertyType)
+{
+	switch (propertyType)
+	{
+	case HistoryEntry::PropertyType::SystemIconIndex:
+		if (entry.GetSystemIconIndex())
+		{
+			UpdateTextAndIconInUI(nullptr, *entry.GetSystemIconIndex());
+		}
+		break;
+	}
 }

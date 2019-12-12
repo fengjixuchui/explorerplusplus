@@ -4,8 +4,9 @@
 
 #pragma once
 
-#include "../Helper/PIDLWrapper.h"
+#include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
+#include <wil/resource.h>
 
 struct BasicItemInfo_t
 {
@@ -19,16 +20,18 @@ struct BasicItemInfo_t
 	// PIDLs.
 	BasicItemInfo_t(const BasicItemInfo_t &other)
 	{
-		pidlComplete.reset(ILClone(other.pidlComplete.get()));
-		pridl.reset(ILClone(other.pridl.get()));
+		pidlComplete.reset(ILCloneFull(other.pidlComplete.get()));
+		pridl.reset(ILCloneChild(other.pridl.get()));
 		wfd = other.wfd;
 		StringCchCopy(szDisplayName, SIZEOF_ARRAY(szDisplayName), other.szDisplayName);
+		isRoot = other.isRoot;
 	}
 
-	PIDLPointer		pidlComplete;
-	PIDLPointer		pridl;
-	WIN32_FIND_DATA	wfd;
-	TCHAR			szDisplayName[MAX_PATH];
+	unique_pidl_absolute pidlComplete;
+	unique_pidl_child pridl;
+	WIN32_FIND_DATA wfd;
+	TCHAR szDisplayName[MAX_PATH];
+	bool isRoot;
 
 	std::wstring getFullPath() const
 	{

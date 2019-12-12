@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "CoreInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ReferenceCount.h"
@@ -16,8 +17,6 @@ class CSplitFileDialog;
 class CSplitFileDialogPersistentSettings : public CDialogSettings
 {
 public:
-
-	~CSplitFileDialogPersistentSettings();
 
 	static CSplitFileDialogPersistentSettings &GetInstance();
 
@@ -75,7 +74,8 @@ class CSplitFileDialog : public CBaseDialog
 {
 public:
 
-	CSplitFileDialog(HINSTANCE hInstance,int iResource,HWND hParent,std::wstring strFullFilename);
+	CSplitFileDialog(HINSTANCE hInstance, int iResource, HWND hParent,
+		IExplorerplusplus *expp, std::wstring strFullFilename);
 	~CSplitFileDialog();
 
 protected:
@@ -125,6 +125,8 @@ private:
 	void	OnCancel();
 	void	OnChangeOutputDirectory();
 	void	OnSplitFinished();
+
+	IExplorerplusplus *m_expp;
 
 	std::wstring m_strFullFilename;
 	bool m_bSplittingFile;

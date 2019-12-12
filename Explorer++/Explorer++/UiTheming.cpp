@@ -13,11 +13,6 @@ UiTheming::UiTheming(IExplorerplusplus *expp, TabContainer *tabContainer) :
 	m_connections.push_back(m_tabContainer->tabCreatedSignal.AddObserver(boost::bind(&UiTheming::OnTabCreated, this, _1, _2)));
 }
 
-UiTheming::~UiTheming()
-{
-
-}
-
 void UiTheming::OnTabCreated(int tabId, BOOL switchToNewTab)
 {
 	UNREFERENCED_PARAMETER(switchToNewTab);
@@ -47,7 +42,7 @@ bool UiTheming::ApplyListViewColorsForAllTabs(COLORREF backgroundColor, COLORREF
 
 	for (const auto &item : m_tabContainer->GetAllTabs())
 	{
-		bool res = ApplyListViewColorsForTab(item.second, backgroundColor, textColor);
+		bool res = ApplyListViewColorsForTab(*item.second, backgroundColor, textColor);
 
 		if (!res)
 		{
@@ -60,11 +55,11 @@ bool UiTheming::ApplyListViewColorsForAllTabs(COLORREF backgroundColor, COLORREF
 
 bool UiTheming::ApplyListViewColorsForTab(const Tab &tab, COLORREF backgroundColor, COLORREF textColor)
 {
-	BOOL bkRes = ListView_SetBkColor(tab.listView, backgroundColor);
-	BOOL textBkRes = ListView_SetTextBkColor(tab.listView, backgroundColor);
-	BOOL textRes = ListView_SetTextColor(tab.listView, textColor);
+	BOOL bkRes = ListView_SetBkColor(tab.GetShellBrowser()->GetListView(), backgroundColor);
+	BOOL textBkRes = ListView_SetTextBkColor(tab.GetShellBrowser()->GetListView(), backgroundColor);
+	BOOL textRes = ListView_SetTextColor(tab.GetShellBrowser()->GetListView(), textColor);
 
-	InvalidateRect(tab.listView, nullptr, TRUE);
+	InvalidateRect(tab.GetShellBrowser()->GetListView(), nullptr, TRUE);
 
 	if (!bkRes || !textBkRes || !textRes)
 	{

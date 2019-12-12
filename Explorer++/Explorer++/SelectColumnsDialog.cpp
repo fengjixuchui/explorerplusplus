@@ -8,7 +8,7 @@
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/Helper.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
@@ -17,21 +17,14 @@
 
 const TCHAR CSelectColumnsDialogPersistentSettings::SETTINGS_KEY[] = _T("SelectColumns");
 
-CSelectColumnsDialog::CSelectColumnsDialog(HINSTANCE hInstance,
-	int iResource,HWND hParent,IExplorerplusplus *pexpp,
-	TabContainer *tabContainer, TabInterface *ti) :
-	CBaseDialog(hInstance,iResource,hParent,true),
+CSelectColumnsDialog::CSelectColumnsDialog(HINSTANCE hInstance, int iResource,
+	HWND hParent, IExplorerplusplus *pexpp, TabContainer *tabContainer) :
+	CBaseDialog(hInstance, iResource, hParent, true),
 	m_pexpp(pexpp),
 	m_tabContainer(tabContainer),
-	m_ti(ti),
 	m_bColumnsSwapped(FALSE)
 {
 	m_pscdps = &CSelectColumnsDialogPersistentSettings::GetInstance();
-}
-
-CSelectColumnsDialog::~CSelectColumnsDialog()
-{
-
 }
 
 INT_PTR CSelectColumnsDialog::OnInitDialog()
@@ -84,7 +77,7 @@ INT_PTR CSelectColumnsDialog::OnInitDialog()
 
 wil::unique_hicon CSelectColumnsDialog::GetDialogIcon(int iconWidth, int iconHeight) const
 {
-	return IconResourceLoader::LoadIconFromPNGAndScale(Icon::SelectColumns, iconWidth, iconHeight);
+	return m_pexpp->GetIconResourceLoader()->LoadIconFromPNGAndScale(Icon::SelectColumns, iconWidth, iconHeight);
 }
 
 bool CSelectColumnsDialog::CompareColumns(const Column_t &column1, const Column_t &column2)
@@ -218,6 +211,14 @@ INT_PTR CSelectColumnsDialog::OnNotify(NMHDR *pnmhdr)
 {
 	switch(pnmhdr->code)
 	{
+	case LVN_ITEMCHANGING:
+	{
+		BOOL res = OnLvnItemChanging(reinterpret_cast<NMLISTVIEW *>(pnmhdr));
+		SetWindowLongPtr(m_hDlg, DWLP_MSGRESULT, res);
+		return TRUE;
+	}
+		break;
+
 	case LVN_ITEMCHANGED:
 		OnLvnItemChanged(reinterpret_cast<NMLISTVIEW *>(pnmhdr));
 		break;
@@ -268,7 +269,8 @@ void CSelectColumnsDialog::OnOk()
 
 	if(m_bColumnsSwapped)
 	{
-		m_ti->RefreshTab(m_tabContainer->GetSelectedTab());
+		Tab &selectedTab = m_tabContainer->GetSelectedTab();
+		selectedTab.GetNavigationController()->Refresh();
 	}
 
 	EndDialog(m_hDlg,1);
@@ -279,7 +281,48 @@ void CSelectColumnsDialog::OnCancel()
 	EndDialog(m_hDlg,0);
 }
 
-void CSelectColumnsDialog::OnLvnItemChanged(NMLISTVIEW *pnmlv)
+BOOL CSelectColumnsDialog::OnLvnItemChanging(const NMLISTVIEW *nmlv)
+{
+	if (nmlv->uChanged != LVIF_STATE || (nmlv->uNewState & LVIS_STATEIMAGEMASK) == 0)
+	{
+		return FALSE;
+	}
+
+	BOOL checked = ((nmlv->uNewState & LVIS_STATEIMAGEMASK) >> 12) == 2;
+
+	if (checked)
+	{
+		return FALSE;
+	}
+
+	HWND listView = GetDlgItem(m_hDlg, IDC_COLUMNS_LISTVIEW);
+	int numItems = ListView_GetItemCount(listView);
+	bool anyOtherItemsChecked = false;
+
+	for (int i = 0; i < numItems; i++)
+	{
+		if (i == nmlv->iItem)
+		{
+			continue;
+		}
+
+		if (ListView_GetCheckState(listView, i))
+		{
+			anyOtherItemsChecked = true;
+			break;
+		}
+	}
+
+	if (!anyOtherItemsChecked)
+	{
+		// There should always be at least one column that's checked.
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+void CSelectColumnsDialog::OnLvnItemChanged(const NMLISTVIEW *pnmlv)
 {
 	if(pnmlv->uNewState & LVIS_SELECTED)
 	{
@@ -327,11 +370,6 @@ CSelectColumnsDialogPersistentSettings::CSelectColumnsDialogPersistentSettings()
 CDialogSettings(SETTINGS_KEY)
 {
 
-}
-
-CSelectColumnsDialogPersistentSettings::~CSelectColumnsDialogPersistentSettings()
-{
-	
 }
 
 CSelectColumnsDialogPersistentSettings& CSelectColumnsDialogPersistentSettings::GetInstance()

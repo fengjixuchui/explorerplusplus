@@ -6,7 +6,7 @@
 #include "WildcardSelectDialog.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/Helper.h"
 #include "../Helper/ListViewHelper.h"
@@ -27,11 +27,6 @@ CBaseDialog(hInstance,iResource,hParent,true)
 	m_pexpp = pexpp;
 
 	m_pwsdps = &CWildcardSelectDialogPersistentSettings::GetInstance();
-}
-
-CWildcardSelectDialog::~CWildcardSelectDialog()
-{
-
 }
 
 INT_PTR CWildcardSelectDialog::OnInitDialog()
@@ -153,7 +148,7 @@ void CWildcardSelectDialog::SelectItems(TCHAR *szPattern)
 	for(int i = 0;i < nItems;i++)
 	{
 		TCHAR szFilename[MAX_PATH];
-		m_pexpp->GetActiveShellBrowser()->QueryDisplayName(i,SIZEOF_ARRAY(szFilename),szFilename);
+		m_pexpp->GetActiveShellBrowser()->GetItemDisplayName(i,SIZEOF_ARRAY(szFilename),szFilename);
 
 		if(CheckWildcardMatch(szPattern,szFilename,FALSE) == 1)
 		{
@@ -187,11 +182,6 @@ CWildcardSelectDialogPersistentSettings::CWildcardSelectDialogPersistentSettings
 CDialogSettings(SETTINGS_KEY)
 {
 	StringCchCopy(m_szPattern,SIZEOF_ARRAY(m_szPattern),EMPTY_STRING);
-}
-
-CWildcardSelectDialogPersistentSettings::~CWildcardSelectDialogPersistentSettings()
-{
-	
 }
 
 CWildcardSelectDialogPersistentSettings& CWildcardSelectDialogPersistentSettings::GetInstance()

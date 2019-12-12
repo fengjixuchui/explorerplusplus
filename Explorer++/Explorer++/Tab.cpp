@@ -4,14 +4,48 @@
 
 #include "stdafx.h"
 #include "Tab.h"
+#include "Config.h"
+#include "PreservedTab.h"
+#include <wil/resource.h>
 
-Tab::Tab(int id) :
-	m_id(id),
+int Tab::idCounter = 1;
+
+Tab::Tab(IExplorerplusplus *expp, TabNavigationInterface *tabNavigation,
+	const FolderSettings *folderSettings, boost::optional<FolderColumns> initialColumns) :
+	m_id(idCounter++),
 	m_useCustomName(false),
-	m_locked(false),
-	m_addressLocked(false)
+	m_lockState(LockState::NotLocked)
 {
+	FolderSettings folderSettingsFinal;
 
+	if (folderSettings)
+	{
+		folderSettingsFinal = *folderSettings;
+	}
+	else
+	{
+		folderSettingsFinal = expp->GetConfig()->defaultFolderSettings;
+	}
+
+	m_shellBrowser = CShellBrowser::CreateNew(m_id, expp->GetLanguageModule(),
+		expp->GetMainWindow(), expp->GetCachedIcons(), expp->GetConfig(), tabNavigation,
+		folderSettingsFinal, initialColumns);
+
+	m_navigationController = std::make_unique<NavigationController>(m_shellBrowser, tabNavigation);
+}
+
+Tab::Tab(const PreservedTab &preservedTab, IExplorerplusplus *expp, TabNavigationInterface *tabNavigation) :
+	m_id(idCounter++),
+	m_useCustomName(preservedTab.useCustomName),
+	m_customName(preservedTab.customName),
+	m_lockState(preservedTab.lockState)
+{
+	m_shellBrowser = CShellBrowser::CreateNew(m_id, expp->GetLanguageModule(),
+		expp->GetMainWindow(), expp->GetCachedIcons(), expp->GetConfig(),
+		tabNavigation, preservedTab.preservedFolderState.folderSettings, boost::none);
+
+	m_navigationController = std::make_unique<NavigationController>(m_shellBrowser,
+		tabNavigation, preservedTab.history, preservedTab.currentEntry);
 }
 
 int Tab::GetId() const
@@ -19,16 +53,14 @@ int Tab::GetId() const
 	return m_id;
 }
 
+NavigationController *Tab::GetNavigationController() const
+{
+	return m_navigationController.get();
+}
+
 CShellBrowser *Tab::GetShellBrowser() const
 {
 	return m_shellBrowser;
-}
-
-/* TODO: Ideally, this method wouldn't exist (the value would be set
-during construction of the tab object). */
-void Tab::SetShellBrowser(CShellBrowser *shellBrowser)
-{
-	m_shellBrowser = shellBrowser;
 }
 
 // If a custom name has been set, that will be returned. Otherwise, the
@@ -40,7 +72,7 @@ std::wstring Tab::GetName() const
 		return m_customName;
 	}
 
-	PIDLPointer pidlDirectory(m_shellBrowser->QueryCurrentDirectoryIdl());
+	auto pidlDirectory = m_shellBrowser->GetDirectoryIdl();
 
 	TCHAR name[MAX_PATH];
 	HRESULT hr = GetDisplayName(pidlDirectory.get(), name, SIZEOF_ARRAY(name), SHGDN_INFOLDER);
@@ -63,7 +95,7 @@ void Tab::SetCustomName(const std::wstring &name)
 	m_useCustomName = true;
 	m_customName = name;
 
-	m_tabUpdatedSignal(*this, PropertyType::NAME);
+	m_tabUpdatedSignal(*this, PropertyType::Name);
 }
 
 void Tab::ClearCustomName()
@@ -71,53 +103,36 @@ void Tab::ClearCustomName()
 	m_useCustomName = false;
 	m_customName.erase();
 
-	m_tabUpdatedSignal(*this, PropertyType::NAME);
+	m_tabUpdatedSignal(*this, PropertyType::Name);
 }
 
-bool Tab::GetLocked() const
+Tab::LockState Tab::GetLockState() const
 {
-	return m_locked;
+	return m_lockState;
 }
 
-void Tab::SetLocked(bool locked)
+void Tab::SetLockState(LockState lockState)
 {
-	if (locked == m_locked)
+	if (lockState == m_lockState)
 	{
 		return;
 	}
 
-	m_locked = locked;
+	m_lockState = lockState;
 
-	/* The "Lock Tab" and "Lock Tab and Address" options are mutually
-	exclusive. */
-	if (locked)
+	switch (lockState)
 	{
-		m_addressLocked = false;
+	case Tab::LockState::NotLocked:
+		m_navigationController->SetNavigationMode(NavigationController::NavigationMode::Normal);
+		break;
+
+	case Tab::LockState::Locked:
+	case Tab::LockState::AddressLocked:
+		m_navigationController->SetNavigationMode(NavigationController::NavigationMode::ForceNewTab);
+		break;
 	}
 
-	m_tabUpdatedSignal(*this, PropertyType::LOCKED);
-}
-
-bool Tab::GetAddressLocked() const
-{
-	return m_addressLocked;
-}
-
-void Tab::SetAddressLocked(bool addressLocked)
-{
-	if (addressLocked == m_addressLocked)
-	{
-		return;
-	}
-
-	m_addressLocked = addressLocked;
-
-	if (addressLocked)
-	{
-		m_locked = false;
-	}
-
-	m_tabUpdatedSignal(*this, PropertyType::ADDRESS_LOCKED);
+	m_tabUpdatedSignal(*this, PropertyType::LockState);
 }
 
 boost::signals2::connection Tab::AddTabUpdatedObserver(const TabUpdatedSignal::slot_type &observer)

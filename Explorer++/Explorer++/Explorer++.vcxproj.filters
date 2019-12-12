@@ -148,9 +148,6 @@
     <ClCompile Include="TreeViewHandler.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="ArrangeMenuHandler.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
     <ClCompile Include="ShellContextMenuHandler.cpp">
       <Filter>Context Menu Support</Filter>
     </ClCompile>
@@ -214,15 +211,6 @@
     <ClCompile Include="ShellBrowser\iDropTarget.cpp">
       <Filter>ShellBrowser</Filter>
     </ClCompile>
-    <ClCompile Include="ShellBrowser\iFolderView.cpp">
-      <Filter>ShellBrowser</Filter>
-    </ClCompile>
-    <ClCompile Include="ShellBrowser\iPathManager.cpp">
-      <Filter>ShellBrowser</Filter>
-    </ClCompile>
-    <ClCompile Include="ShellBrowser\iShellBrowser.cpp">
-      <Filter>ShellBrowser</Filter>
-    </ClCompile>
     <ClCompile Include="ShellBrowser\SortManager.cpp">
       <Filter>ShellBrowser</Filter>
     </ClCompile>
@@ -240,9 +228,6 @@
     </ClCompile>
     <ClCompile Include="FileSelectionTests.cpp">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="ShellBrowser\IconRetrieval.cpp">
-      <Filter>ShellBrowser</Filter>
     </ClCompile>
     <ClCompile Include="ScriptingDialog.cpp">
       <Filter>General Dialogs</Filter>
@@ -322,9 +307,6 @@
     <ClCompile Include="AddressBar.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="ShellBrowser\CachedIcons.cpp">
-      <Filter>ShellBrowser</Filter>
-    </ClCompile>
     <ClCompile Include="StatusBar.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -360,6 +342,30 @@
     </ClCompile>
     <ClCompile Include="IconResourceLoader.cpp">
       <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellBrowser\SortHelper.cpp">
+      <Filter>ShellBrowser</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellBrowser\ShellBrowser.cpp">
+      <Filter>ShellBrowser</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellBrowser\TileView.cpp">
+      <Filter>ShellBrowser</Filter>
+    </ClCompile>
+    <ClCompile Include="SortMenuHandler.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="TabRestorer.cpp">
+      <Filter>Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="TabRestorerUI.cpp">
+      <Filter>Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="NavigationController.cpp">
+      <Filter>Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="HistoryEntry.cpp">
+      <Filter>Tabs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -516,15 +522,6 @@
     <ClInclude Include="HolderWindowInternal.h">
       <Filter>Holder Window</Filter>
     </ClInclude>
-    <ClInclude Include="ShellBrowser\iPathManager.h">
-      <Filter>ShellBrowser</Filter>
-    </ClInclude>
-    <ClInclude Include="ShellBrowser\iShellBrowser_internal.h">
-      <Filter>ShellBrowser</Filter>
-    </ClInclude>
-    <ClInclude Include="ShellBrowser\iShellView.h">
-      <Filter>ShellBrowser</Filter>
-    </ClInclude>
     <ClInclude Include="ShellBrowser\SortModes.h">
       <Filter>ShellBrowser</Filter>
     </ClInclude>
@@ -562,12 +559,6 @@
       <Filter>Plugins</Filter>
     </ClInclude>
     <ClInclude Include="Tab.h">
-      <Filter>Tabs</Filter>
-    </ClInclude>
-    <ClInclude Include="TabInterface.h">
-      <Filter>Tabs</Filter>
-    </ClInclude>
-    <ClInclude Include="TabContainerInterface.h">
       <Filter>Tabs</Filter>
     </ClInclude>
     <ClInclude Include="MenuApi.h">
@@ -645,9 +636,6 @@
     <ClInclude Include="AddressBar.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="ShellBrowser\CachedIcons.h">
-      <Filter>ShellBrowser</Filter>
-    </ClInclude>
     <ClInclude Include="ViewModeHelper.h">
       <Filter>Core</Filter>
     </ClInclude>
@@ -708,6 +696,51 @@
     <ClInclude Include="IconResourceLoader.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="IconMappingsWindows10.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="IconMappingsColor.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="IconMapping.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="OptionsDialog.h">
+      <Filter>General Dialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellBrowser\SortHelper.h">
+      <Filter>ShellBrowser</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellBrowser\ShellBrowser.h">
+      <Filter>ShellBrowser</Filter>
+    </ClInclude>
+    <ClInclude Include="ValueWrapper.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="PreservedTab.h">
+      <Filter>Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="TabRestorer.h">
+      <Filter>Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="TabRestorerUI.h">
+      <Filter>Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="NavigationController.h">
+      <Filter>Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellBrowser\PreservedFolderState.h">
+      <Filter>ShellBrowser</Filter>
+    </ClInclude>
+    <ClInclude Include="HistoryEntry.h">
+      <Filter>Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="PreservedHistoryEntry.h">
+      <Filter>Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="TabNavigationInterface.h">
+      <Filter>Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Explorer++.rc">
@@ -724,13 +757,7 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="res\About Image.bmp">
-      <Filter>Resource Files</Filter>
-    </None>
     <None Include="res\Display Window.ico">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="res\Explorer++ Small.ico">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="res\Explorer++.ico">
@@ -742,13 +769,7 @@
     <None Include="res\Folder Empty.bmp">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="res\Folder Locked.bmp">
-      <Filter>Resource Files</Filter>
-    </None>
     <None Include="res\Navigation Start.wav">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="res\Tab Close.bmp">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="res\No Preview Available.bmp">

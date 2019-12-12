@@ -9,7 +9,7 @@
 #include <stack>
 
 CBookmarkTreeView::CBookmarkTreeView(HWND hTreeView, HINSTANCE hInstance,
-	CBookmarkFolder *pAllBookmarks, const GUID &guidSelected,
+	IExplorerplusplus *expp, CBookmarkFolder *pAllBookmarks, const GUID &guidSelected,
 	const NBookmarkHelper::setExpansion_t &setExpansion) :
 	m_hTreeView(hTreeView),
 	m_instance(hInstance),
@@ -17,26 +17,21 @@ CBookmarkTreeView::CBookmarkTreeView(HWND hTreeView, HINSTANCE hInstance,
 	m_uIDCounter(0),
 	m_bNewFolderCreated(false)
 {
-	SetWindowSubclass(hTreeView, BookmarkTreeViewProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
-
-	SetWindowSubclass(GetParent(hTreeView), BookmarkTreeViewParentProcStub, PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(hTreeView, BookmarkTreeViewProcStub,
+		SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(GetParent(hTreeView), BookmarkTreeViewParentProcStub,
+		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	SetWindowTheme(hTreeView, L"Explorer", NULL);
 
 	UINT dpi = m_dpiCompat.GetDpiForWindow(hTreeView);
 	int iconWidth = m_dpiCompat.GetSystemMetricsForDpi(SM_CXSMICON, dpi);
 	int iconHeight = m_dpiCompat.GetSystemMetricsForDpi(SM_CYSMICON, dpi);
-	std::tie(m_imageList, m_imageListMappings) = CreateIconImageList(iconWidth, iconHeight, { Icon::Folder});
+	std::tie(m_imageList, m_imageListMappings) = ResourceHelper::CreateIconImageList(expp->GetIconResourceLoader(),
+		iconWidth, iconHeight, { Icon::Folder});
 	TreeView_SetImageList(hTreeView, m_imageList.get(), TVSIL_NORMAL);
 
 	SetupTreeView(guidSelected, setExpansion);
-}
-
-CBookmarkTreeView::~CBookmarkTreeView()
-{
-	RemoveWindowSubclass(m_hTreeView, BookmarkTreeViewParentProcStub, PARENT_SUBCLASS_ID);
-	RemoveWindowSubclass(m_hTreeView, BookmarkTreeViewProcStub, SUBCLASS_ID);
 }
 
 LRESULT CALLBACK CBookmarkTreeView::BookmarkTreeViewProcStub(HWND hwnd, UINT uMsg,

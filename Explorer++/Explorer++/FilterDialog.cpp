@@ -8,7 +8,7 @@
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/RegistrySettings.h"
@@ -28,11 +28,6 @@ CBaseDialog(hInstance,iResource,hParent,true)
 	m_pfdps = &CFilterDialogPersistentSettings::GetInstance();
 }
 
-CFilterDialog::~CFilterDialog()
-{
-
-}
-
 INT_PTR CFilterDialog::OnInitDialog()
 {
 	HWND hComboBox = GetDlgItem(m_hDlg,IDC_FILTER_COMBOBOX);
@@ -45,10 +40,9 @@ INT_PTR CFilterDialog::OnInitDialog()
 			reinterpret_cast<LPARAM>(strFilter.c_str()));
 	}
 
-	TCHAR szFilter[512];
-	m_pexpp->GetActiveShellBrowser()->GetFilter(szFilter,SIZEOF_ARRAY(szFilter));
+	std::wstring filter = m_pexpp->GetActiveShellBrowser()->GetFilter();
 
-	ComboBox_SelectString(hComboBox,-1,szFilter);
+	ComboBox_SelectString(hComboBox,-1,filter.c_str());
 
 	SendMessage(hComboBox,CB_SETEDITSEL,0,MAKELPARAM(0,-1));
 
@@ -62,7 +56,7 @@ INT_PTR CFilterDialog::OnInitDialog()
 
 wil::unique_hicon CFilterDialog::GetDialogIcon(int iconWidth, int iconHeight) const
 {
-	return IconResourceLoader::LoadIconFromPNGAndScale(Icon::Filter, iconWidth, iconHeight);
+	return m_pexpp->GetIconResourceLoader()->LoadIconFromPNGAndScale(Icon::Filter, iconWidth, iconHeight);
 }
 
 void CFilterDialog::GetResizableControlInformation(CBaseDialog::DialogSizeConstraint &dsc,
@@ -176,11 +170,6 @@ CFilterDialogPersistentSettings::CFilterDialogPersistentSettings() :
 CDialogSettings(SETTINGS_KEY)
 {
 
-}
-
-CFilterDialogPersistentSettings::~CFilterDialogPersistentSettings()
-{
-	
 }
 
 CFilterDialogPersistentSettings& CFilterDialogPersistentSettings::GetInstance()

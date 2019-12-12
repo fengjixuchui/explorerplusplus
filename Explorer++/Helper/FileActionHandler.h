@@ -19,10 +19,7 @@ public:
 	};
 
 	typedef std::list<RenamedItem_t> RenamedItems_t;
-	typedef std::vector<LPCITEMIDLIST> DeletedItems_t;
-
-	CFileActionHandler();
-	~CFileActionHandler();
+	typedef std::vector<PCIDLIST_ABSOLUTE> DeletedItems_t;
 
 	BOOL	RenameFiles(const RenamedItems_t &itemList);
 	HRESULT	DeleteFiles(HWND hwnd, DeletedItems_t &deletedItems, bool permanent, bool silent);

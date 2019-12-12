@@ -4,12 +4,12 @@
 
 #pragma once
 
+#include "CoreInterface.h"
 #include "Navigation.h"
 #include "ShellBrowser/SortModes.h"
 #include "ShellBrowser/ViewModes.h"
 #include "Tab.h"
 #include "TabContainer.h"
-#include "TabInterface.h"
 #include "../Helper/StringHelper.h"
 #include "../ThirdParty/Sol/forward.hpp"
 
@@ -53,6 +53,8 @@ namespace Plugins
 			int id;
 			std::wstring location;
 			std::wstring name;
+
+			// TODO: Use the Tab::LockState enum instead of these values.
 			bool locked;
 			bool addressLocked;
 
@@ -61,14 +63,11 @@ namespace Plugins
 			Tab(const ::Tab &tabInternal) :
 				folderSettings(*tabInternal.GetShellBrowser())
 			{
-				TCHAR path[MAX_PATH];
-				tabInternal.GetShellBrowser()->QueryCurrentDirectory(SIZEOF_ARRAY(path), path);
-
 				id = tabInternal.GetId();
-				location = path;
+				location = tabInternal.GetShellBrowser()->GetDirectory();
 				name = tabInternal.GetName();
-				locked = tabInternal.GetLocked();
-				addressLocked = tabInternal.GetAddressLocked();
+				locked = (tabInternal.GetLockState() == ::Tab::LockState::Locked);
+				addressLocked = (tabInternal.GetLockState() == ::Tab::LockState::AddressLocked);
 			}
 
 			std::wstring toString()
@@ -82,8 +81,7 @@ namespace Plugins
 			}
 		};
 
-		TabsApi(TabContainer *tabContainer, TabInterface *tabInterface, Navigation *navigation);
-		~TabsApi();
+		TabsApi(IExplorerplusplus *expp, TabContainer *tabContainer, Navigation *navigation);
 
 		std::vector<Tab> getAll();
 		boost::optional<Tab> get(int tabId);
@@ -98,8 +96,8 @@ namespace Plugins
 		void extractTabPropertiesForCreation(sol::table createProperties, TabSettings &tabSettings);
 		void extractFolderSettingsForCreation(sol::table folderSettingsTable, ::FolderSettings &folderSettings);
 
+		IExplorerplusplus *m_expp;
 		TabContainer *m_tabContainer;
-		TabInterface *m_tabInterface;
 		Navigation *m_navigation;
 	};
 }

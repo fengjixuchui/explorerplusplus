@@ -6,9 +6,34 @@
 #include "Explorer++.h"
 #include "../MyTreeView/MyTreeView.h"
 
+BOOL Explorerplusplus::AnyItemsSelected() const
+{
+	HWND hFocus = GetFocus();
+
+	if (hFocus == m_hActiveListView)
+	{
+		const Tab &selectedTab = m_tabContainer->GetSelectedTab();
+
+		if (ListView_GetSelectedCount(selectedTab.GetShellBrowser()->GetListView()) > 0)
+		{
+			return TRUE;
+		}
+	}
+	else if (hFocus == m_hTreeView)
+	{
+		if (TreeView_GetSelection(m_hTreeView) != NULL)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 bool Explorerplusplus::CanCreate() const
 {
-	PIDLPointer pidlDirectory(m_pActiveShellBrowser->QueryCurrentDirectoryIdl());
+	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	auto pidlDirectory = selectedTab.GetShellBrowser()->GetDirectoryIdl();
 
 	SFGAOF attributes = SFGAO_FILESYSTEM;
 	HRESULT hr = GetItemAttributes(pidlDirectory.get(), &attributes);
@@ -77,17 +102,23 @@ HRESULT Explorerplusplus::GetSelectionAttributes(SFGAOF *pItemAttributes) const
 	hFocus = GetFocus();
 
 	if (hFocus == m_hActiveListView)
+	{
 		hr = GetListViewSelectionAttributes(pItemAttributes);
+	}
 	else if (hFocus == m_hTreeView)
+	{
 		hr = GetTreeViewSelectionAttributes(pItemAttributes);
+	}
 
 	return hr;
 }
 
 HRESULT Explorerplusplus::TestListViewItemAttributes(int item, SFGAOF attributes) const
 {
+	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
+
 	SFGAOF commonAttributes = attributes;
-	HRESULT hr = GetListViewItemAttributes(item, &commonAttributes);
+	HRESULT hr = GetListViewItemAttributes(selectedTab, item, &commonAttributes);
 
 	if (SUCCEEDED(hr))
 	{
@@ -101,20 +132,22 @@ HRESULT Explorerplusplus::GetListViewSelectionAttributes(SFGAOF *pItemAttributes
 {
 	HRESULT hr = E_FAIL;
 
+	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
+
 	/* TODO: This should probably check all selected files. */
-	int iSelected = ListView_GetNextItem(m_hActiveListView, -1, LVNI_SELECTED);
+	int iSelected = ListView_GetNextItem(selectedTab.GetShellBrowser()->GetListView(), -1, LVNI_SELECTED);
 
 	if (iSelected != -1)
 	{
-		hr = GetListViewItemAttributes(iSelected, pItemAttributes);
+		hr = GetListViewItemAttributes(selectedTab, iSelected, pItemAttributes);
 	}
 
 	return hr;
 }
 
-HRESULT Explorerplusplus::GetListViewItemAttributes(int item, SFGAOF *pItemAttributes) const
+HRESULT Explorerplusplus::GetListViewItemAttributes(const Tab &tab, int item, SFGAOF *pItemAttributes) const
 {
-	PIDLPointer pidlComplete(m_pActiveShellBrowser->QueryItemCompleteIdl(item));
+	auto pidlComplete = tab.GetShellBrowser()->GetItemCompleteIdl(item);
 
 	if (!pidlComplete)
 	{
@@ -128,19 +161,13 @@ HRESULT Explorerplusplus::GetListViewItemAttributes(int item, SFGAOF *pItemAttri
 
 HRESULT Explorerplusplus::GetTreeViewSelectionAttributes(SFGAOF *pItemAttributes) const
 {
-	HTREEITEM		hItem;
-	LPITEMIDLIST	pidl = NULL;
-	HRESULT			hr = E_FAIL;
-
-	hItem = TreeView_GetSelection(m_hTreeView);
+	HRESULT hr = E_FAIL;
+	HTREEITEM hItem = TreeView_GetSelection(m_hTreeView);
 
 	if (hItem != NULL)
 	{
-		pidl = m_pMyTreeView->BuildPath(hItem);
-
-		hr = GetItemAttributes(pidl, pItemAttributes);
-
-		CoTaskMemFree(pidl);
+		auto pidl = m_pMyTreeView->GetItemPidl(hItem);
+		hr = GetItemAttributes(pidl.get(), pItemAttributes);
 	}
 
 	return hr;
@@ -168,29 +195,23 @@ BOOL Explorerplusplus::CanPaste() const
 
 	if (hFocus == m_hActiveListView)
 	{
-		return bDataAvailable && m_pActiveShellBrowser->CanCreate();
+		return bDataAvailable && CanCreate();
 	}
 	else if (hFocus == m_hTreeView)
 	{
-		HTREEITEM		hItem;
-		LPITEMIDLIST	pidl = NULL;
-		SFGAOF			Attributes;
-		HRESULT			hr;
-
-		hItem = TreeView_GetSelection(m_hTreeView);
+		HTREEITEM hItem = TreeView_GetSelection(m_hTreeView);
 
 		if (hItem != NULL)
 		{
-			pidl = m_pMyTreeView->BuildPath(hItem);
+			auto pidl = m_pMyTreeView->GetItemPidl(hItem);
 
-			Attributes = SFGAO_FILESYSTEM;
-
-			hr = GetItemAttributes(pidl, &Attributes);
-
-			CoTaskMemFree(pidl);
+			SFGAOF attributes = SFGAO_FILESYSTEM;
+			HRESULT hr = GetItemAttributes(pidl.get(), &attributes);
 
 			if (hr == S_OK)
+			{
 				return bDataAvailable;
+			}
 		}
 	}
 

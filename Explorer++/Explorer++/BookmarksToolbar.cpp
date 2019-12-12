@@ -9,7 +9,6 @@
 #include "MainResource.h"
 #include "TabContainer.h"
 #include "../Helper/Macros.h"
-#include "../Helper/MenuWrapper.h"
 #include "../Helper/ShellHelper.h"
 #include "../Helper/WindowHelper.h"
 #include <algorithm>
@@ -41,18 +40,19 @@ void CBookmarksToolbar::InitializeToolbar()
 	int iconHeight = m_dpiCompat.GetSystemMetricsForDpi(SM_CYSMICON, dpi);
 	SendMessage(m_hToolbar, TB_SETBITMAPSIZE, 0, MAKELONG(iconWidth, iconHeight));
 
-	std::tie(m_imageList, m_imageListMappings) = CreateIconImageList(iconWidth, iconHeight, { Icon::Folder, Icon::Bookmarks});
+	std::tie(m_imageList, m_imageListMappings) = ResourceHelper::CreateIconImageList(
+		m_pexpp->GetIconResourceLoader(), iconWidth, iconHeight, { Icon::Folder, Icon::Bookmarks});
 	SendMessage(m_hToolbar,TB_SETIMAGELIST,0,reinterpret_cast<LPARAM>(m_imageList.get()));
 
 	m_pbtdh = new CBookmarksToolbarDropHandler(m_hToolbar,m_AllBookmarks,m_guidBookmarksToolbar);
 	RegisterDragDrop(m_hToolbar,m_pbtdh);
 
-	SetWindowSubclass(m_hToolbar,BookmarksToolbarProcStub,SUBCLASS_ID,reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(m_hToolbar, BookmarksToolbarProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	/* Also subclass the parent window, so that WM_COMMAND/WM_NOTIFY messages
 	can be caught. */
-	SetWindowSubclass(GetParent(m_hToolbar),BookmarksToolbarParentProcStub,PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(GetParent(m_hToolbar), BookmarksToolbarParentProcStub, PARENT_SUBCLASS_ID,
+		reinterpret_cast<DWORD_PTR>(this)));
 
 	InsertBookmarkItems();
 
@@ -62,9 +62,6 @@ void CBookmarksToolbar::InitializeToolbar()
 CBookmarksToolbar::~CBookmarksToolbar()
 {
 	m_pbtdh->Release();
-
-	RemoveWindowSubclass(m_hToolbar, BookmarksToolbarProcStub, SUBCLASS_ID);
-	RemoveWindowSubclass(GetParent(m_hToolbar), BookmarksToolbarParentProcStub, PARENT_SUBCLASS_ID);
 
 	CBookmarkItemNotifier::GetInstance().RemoveObserver(this);
 }
@@ -209,7 +206,7 @@ BOOL CBookmarksToolbar::OnRightClick(const NMMOUSE *nmm)
 		return FALSE;
 	}
 
-	auto parentMenu = MenuPtr(LoadMenu(m_instance, MAKEINTRESOURCE(IDR_BOOKMARKSTOOLBAR_RCLICK_MENU)));
+	auto parentMenu = wil::unique_hmenu(LoadMenu(m_instance, MAKEINTRESOURCE(IDR_BOOKMARKSTOOLBAR_RCLICK_MENU)));
 
 	if (!parentMenu)
 	{
@@ -245,7 +242,7 @@ void CBookmarksToolbar::OnRightClickMenuItemSelected(int menuItemId, const Varia
 		if (variantBookmark.type() == typeid(CBookmark))
 		{
 			const CBookmark &bookmark = boost::get<CBookmark>(variantBookmark);
-			m_navigation->BrowseFolderInCurrentTab(bookmark.GetLocation().c_str(), SBSP_ABSOLUTE);
+			m_navigation->BrowseFolderInCurrentTab(bookmark.GetLocation().c_str());
 		}
 	}
 		break;
@@ -328,7 +325,7 @@ bool CBookmarksToolbar::OnButtonClick(int command)
 	else
 	{
 		CBookmark &bookmark = boost::get<CBookmark>(*variantBookmarkItem);
-		m_navigation->BrowseFolderInCurrentTab(bookmark.GetLocation().c_str(), SBSP_ABSOLUTE);
+		m_navigation->BrowseFolderInCurrentTab(bookmark.GetLocation().c_str());
 	}
 
 	return true;
@@ -374,18 +371,17 @@ void CBookmarksToolbar::ShowBookmarkFolderMenu(const CBookmarkFolder &bookmarkFo
 
 void CBookmarksToolbar::OnBookmarkMenuItemClicked(const CBookmark &bookmark)
 {
-	m_navigation->BrowseFolderInCurrentTab(bookmark.GetLocation().c_str(), SBSP_ABSOLUTE);
+	m_navigation->BrowseFolderInCurrentTab(bookmark.GetLocation().c_str());
 }
 
 void CBookmarksToolbar::OnNewBookmark()
 {
-	TCHAR currentDirectory[MAX_PATH];
 	TCHAR displayName[MAX_PATH];
-	m_pexpp->GetActiveShellBrowser()->QueryCurrentDirectory(SIZEOF_ARRAY(currentDirectory), currentDirectory);
-	GetDisplayName(currentDirectory, displayName, SIZEOF_ARRAY(displayName), SHGDN_INFOLDER);
+	std::wstring currentDirectory = m_pexpp->GetActiveShellBrowser()->GetDirectory();
+	GetDisplayName(currentDirectory.c_str(), displayName, SIZEOF_ARRAY(displayName), SHGDN_INFOLDER);
 	CBookmark Bookmark = CBookmark::Create(displayName, currentDirectory, EMPTY_STRING);
 
-	CAddBookmarkDialog AddBookmarkDialog(m_instance, IDD_ADD_BOOKMARK, m_hToolbar, m_AllBookmarks, Bookmark);
+	CAddBookmarkDialog AddBookmarkDialog(m_instance, IDD_ADD_BOOKMARK, m_hToolbar, m_pexpp, m_AllBookmarks, Bookmark);
 	AddBookmarkDialog.ShowModalDialog();
 }
 

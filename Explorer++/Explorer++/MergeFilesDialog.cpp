@@ -31,18 +31,18 @@ namespace NMergeFilesDialog
 
 const TCHAR CMergeFilesDialogPersistentSettings::SETTINGS_KEY[] = _T("MergeFiles");
 
-CMergeFilesDialog::CMergeFilesDialog(HINSTANCE hInstance,
-	int iResource,HWND hParent,std::wstring strOutputDirectory,
-	std::list<std::wstring> FullFilenameList,BOOL bShowFriendlyDates) :
-CBaseDialog(hInstance,iResource,hParent,true)
+CMergeFilesDialog::CMergeFilesDialog(HINSTANCE hInstance, int iResource, HWND hParent,
+	IExplorerplusplus *expp, std::wstring strOutputDirectory,
+	std::list<std::wstring> FullFilenameList, BOOL bShowFriendlyDates) :
+	CBaseDialog(hInstance, iResource, hParent, true),
+	m_expp(expp),
+	m_strOutputDirectory(strOutputDirectory),
+	m_FullFilenameList(FullFilenameList),
+	m_bShowFriendlyDates(bShowFriendlyDates),
+	m_bMergingFiles(false),
+	m_bStopMerging(false),
+	m_pMergeFiles(nullptr)
 {
-	m_strOutputDirectory	= strOutputDirectory;
-	m_FullFilenameList		= FullFilenameList;
-	m_bShowFriendlyDates	= bShowFriendlyDates;
-	m_bMergingFiles			= false;
-	m_bStopMerging			= false;
-	m_pMergeFiles			= NULL;
-
 	m_pmfdps = &CMergeFilesDialogPersistentSettings::GetInstance();
 }
 
@@ -195,7 +195,7 @@ INT_PTR CMergeFilesDialog::OnInitDialog()
 
 wil::unique_hicon CMergeFilesDialog::GetDialogIcon(int iconWidth, int iconHeight) const
 {
-	return IconResourceLoader::LoadIconFromPNGAndScale(Icon::MergeFiles, iconWidth, iconHeight);
+	return m_expp->GetIconResourceLoader()->LoadIconFromPNGAndScale(Icon::MergeFiles, iconWidth, iconHeight);
 }
 
 void CMergeFilesDialog::GetResizableControlInformation(CBaseDialog::DialogSizeConstraint &dsc,
@@ -425,7 +425,7 @@ void CMergeFilesDialog::OnChangeOutputDirectory()
 	LoadString(GetInstance(),IDS_MERGE_SELECTDESTINATION,
 		szTitle,SIZEOF_ARRAY(szTitle));
 
-	LPITEMIDLIST pidl;
+	PIDLIST_ABSOLUTE pidl;
 	BOOL bSucceeded = NFileOperations::CreateBrowseDialog(m_hDlg,szTitle,&pidl);
 
 	if (!bSucceeded)
@@ -603,11 +603,6 @@ CMergeFilesDialogPersistentSettings::CMergeFilesDialogPersistentSettings() :
 CDialogSettings(SETTINGS_KEY)
 {
 
-}
-
-CMergeFilesDialogPersistentSettings::~CMergeFilesDialogPersistentSettings()
-{
-	
 }
 
 CMergeFilesDialogPersistentSettings& CMergeFilesDialogPersistentSettings::GetInstance()

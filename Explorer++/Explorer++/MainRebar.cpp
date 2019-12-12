@@ -9,15 +9,15 @@
 #include "BookmarksToolbar.h"
 #include "Config.h"
 #include "DrivesToolbar.h"
+#include "Explorer++_internal.h"
 #include "MainResource.h"
 #include "../Helper/Controls.h"
 #include "../Helper/MenuHelper.h"
-#include "../Helper/MenuWrapper.h"
 #include "../Helper/WindowHelper.h"
 
 LRESULT CALLBACK RebarSubclassStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 
-static const int TOOLBAR_BOOKMARK_START = TOOLBAR_ID_START + 1000;
+static const int TOOLBAR_BOOKMARK_START = 46000;
 static const int TOOLBAR_BOOKMARK_END = TOOLBAR_BOOKMARK_START + 1000;
 static const int TOOLBAR_DRIVES_ID_START = TOOLBAR_BOOKMARK_END + 1;
 static const int TOOLBAR_DRIVES_ID_END = TOOLBAR_DRIVES_ID_START + 1000;
@@ -226,7 +226,7 @@ LRESULT CALLBACK Explorerplusplus::RebarSubclass(HWND hwnd, UINT msg, WPARAM wPa
 
 void Explorerplusplus::OnToolbarRClick(HWND sourceWindow)
 {
-	auto parentMenu = MenuPtr(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_TOOLBAR_MENU)));
+	auto parentMenu = wil::unique_hmenu(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_TOOLBAR_MENU)));
 
 	if (!parentMenu)
 	{
@@ -261,12 +261,50 @@ boost::signals2::connection Explorerplusplus::AddToolbarContextMenuObserver(cons
 
 void Explorerplusplus::CreateAddressBar()
 {
-	m_addressBar = AddressBar::Create(m_hMainRebar, this, m_navigation, m_mainToolbar);
+	m_addressBar = AddressBar::Create(m_hMainRebar, this, m_mainToolbar);
 }
 
 void Explorerplusplus::CreateMainToolbar()
 {
-	m_mainToolbar = MainToolbar::Create(m_hMainRebar, m_hLanguageModule, this, m_navigation, m_config);
+	m_mainToolbar = MainToolbar::Create(m_hMainRebar, m_hLanguageModule, this, m_navigation.get(), m_config);
+
+	// This should be done in the MainToolbar class. However, the TB_SAVERESTORE
+	// message needs to be sent to the toolbar window. That's incompatible with
+	// how the rest of the settings in the application tend to be loaded.
+	// It's generally assumed that settings and data can be loaded first (early
+	// in the lifetime of the application) and then the controls can be
+	// initialized based on those settings.
+	// Sending TB_SAVERESTORE means that the toolbar window needs to exist.
+	// That's true whether data is being saved or being loaded.
+	// Rather than do this inside the MainToolbar class, which would result in
+	// data being loaded from the registry in a different way to how it's loaded
+	// in other classes, the message is simply sent here for now.
+	// Ultimately, it would likely be better not to use this message, especially
+	// since it can't be used to save data to anything but the registry.
+	if (!m_bLoadSettingsFromXML)
+	{
+		if (m_bAttemptToolbarRestore)
+		{
+			TBSAVEPARAMS tbSave;
+			tbSave.hkr = HKEY_CURRENT_USER;
+			tbSave.pszSubKey = NExplorerplusplus::REG_SETTINGS_KEY;
+			tbSave.pszValueName = _T("ToolbarState");
+			SendMessage(m_mainToolbar->GetHWND(), TB_SAVERESTORE, FALSE, reinterpret_cast<LPARAM>(&tbSave));
+
+			// As part of restoring the toolbar, the state of some items may be
+			// lost, so set their state again here.
+			m_mainToolbar->UpdateConfigDependentButtonStates();
+		}
+	}
+
+	// The main toolbar will update its size when the useLargeToolbarIcons
+	// option changes. The rebar also needs to be updated, though only after the
+	// toolbar has updated itself. It's possible this would be better done by
+	// having the main toolbar send out a custom event once it's updated its own
+	// size, rather than relying on the observer here running after the one set
+	// up by the main toolbar.
+	m_connections.push_back(m_config->useLargeToolbarIcons.addObserver(
+		boost::bind(&Explorerplusplus::OnUseLargeToolbarIconsUpdated, this, _1), boost::signals2::at_back));
 }
 
 void Explorerplusplus::CreateBookmarksToolbar(void)
@@ -276,13 +314,13 @@ void Explorerplusplus::CreateBookmarksToolbar(void)
 		TBSTYLE_EX_DOUBLEBUFFER | TBSTYLE_EX_HIDECLIPPEDBUTTONS);
 
 	m_pBookmarksToolbar = new CBookmarksToolbar(m_hBookmarksToolbar, m_hLanguageModule, this,
-		m_navigation, *m_bfAllBookmarks, m_guidBookmarksToolbar, TOOLBAR_BOOKMARK_START, TOOLBAR_BOOKMARK_END);
+		m_navigation.get(), *m_bfAllBookmarks, m_guidBookmarksToolbar, TOOLBAR_BOOKMARK_START, TOOLBAR_BOOKMARK_END);
 }
 
 void Explorerplusplus::CreateDrivesToolbar(void)
 {
 	m_pDrivesToolbar = CDrivesToolbar::Create(m_hMainRebar, TOOLBAR_DRIVES_ID_START,
-		TOOLBAR_DRIVES_ID_END, m_hLanguageModule, this, m_navigation);
+		TOOLBAR_DRIVES_ID_END, m_hLanguageModule, this, m_navigation.get());
 }
 
 void Explorerplusplus::CreateApplicationToolbar()
@@ -291,40 +329,39 @@ void Explorerplusplus::CreateApplicationToolbar()
 		TOOLBAR_APPLICATIONS_ID_END, m_hLanguageModule, this);
 }
 
-void Explorerplusplus::AdjustMainToolbarSize(void)
+void Explorerplusplus::OnUseLargeToolbarIconsUpdated(BOOL newValue)
 {
-	m_mainToolbar->UpdateToolbarSize();
+	UNREFERENCED_PARAMETER(newValue);
 
-	REBARBANDINFO rbi;
-	DWORD dwSize;
+	DWORD buttonSize = static_cast<DWORD>(SendMessage(m_mainToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0));
 
-	dwSize = (DWORD)SendMessage(m_mainToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0);
-
-	rbi.cbSize = sizeof(rbi);
-	rbi.fMask = RBBIM_CHILDSIZE;
-	rbi.cxMinChild = 0;
-	rbi.cyMinChild = HIWORD(dwSize);
-	rbi.cyChild = HIWORD(dwSize);
-	rbi.cyMaxChild = HIWORD(dwSize);
-
-	SendMessage(m_hMainRebar, RB_SETBANDINFO, 0, (LPARAM)&rbi);
+	REBARBANDINFO bandInfo;
+	bandInfo.cbSize = sizeof(bandInfo);
+	bandInfo.fMask = RBBIM_CHILDSIZE;
+	bandInfo.cxMinChild = 0;
+	bandInfo.cyMinChild = HIWORD(buttonSize);
+	bandInfo.cyChild = HIWORD(buttonSize);
+	bandInfo.cyMaxChild = HIWORD(buttonSize);
+	SendMessage(m_hMainRebar, RB_SETBANDINFO, 0, reinterpret_cast<LPARAM>(&bandInfo));
 }
 
 HMENU Explorerplusplus::CreateRebarHistoryMenu(BOOL bBack)
 {
 	HMENU hSubMenu = NULL;
-	std::list<LPITEMIDLIST> history;
+	std::vector<HistoryEntry *> history;
 	int iBase;
+
+	const Tab &tab = m_tabContainer->GetSelectedTab();
 
 	if (bBack)
 	{
 		iBase = ID_REBAR_MENU_BACK_START;
-		history = m_pActiveShellBrowser->GetBackHistory();
+		history = tab.GetNavigationController()->GetBackHistory();
 	}
 	else
 	{
 		iBase = ID_REBAR_MENU_FORWARD_START;
-		history = m_pActiveShellBrowser->GetForwardHistory();
+		history = tab.GetNavigationController()->GetForwardHistory();
 	}
 
 	if (history.size() > 0)
@@ -333,24 +370,19 @@ HMENU Explorerplusplus::CreateRebarHistoryMenu(BOOL bBack)
 
 		hSubMenu = CreateMenu();
 
-		for (auto itr = history.begin(); itr != history.end(); itr++)
+		for (auto &entry : history)
 		{
-			TCHAR szDisplayName[MAX_PATH];
-			GetDisplayName(*itr, szDisplayName, SIZEOF_ARRAY(szDisplayName), SHGDN_INFOLDER);
+			std::wstring displayName = entry->GetDisplayName();
 
 			MENUITEMINFO mii;
 			mii.cbSize = sizeof(mii);
 			mii.fMask = MIIM_ID | MIIM_STRING;
 			mii.wID = iBase + i + 1;
-			mii.dwTypeData = szDisplayName;
+			mii.dwTypeData = displayName.data();
 			InsertMenuItem(hSubMenu, i, TRUE, &mii);
 
 			i++;
-
-			CoTaskMemFree(*itr);
 		}
-
-		history.clear();
 	}
 
 	return hSubMenu;

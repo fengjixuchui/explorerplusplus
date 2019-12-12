@@ -198,11 +198,9 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,
 	pass those folders to Windows Explorer, then exit. */
 	if(g_commandLineDirectories.size() > 0)
 	{
-		LPITEMIDLIST pidlControlPanel = NULL;
-		LPITEMIDLIST pidl = NULL;
-
+		unique_pidl_absolute pidlControlPanel;
 		HRESULT hr = SHGetFolderLocation(NULL,
-			CSIDL_CONTROLS,NULL,0,&pidlControlPanel);
+			CSIDL_CONTROLS,NULL,0,wil::out_param(pidlControlPanel));
 
 		if(SUCCEEDED(hr))
 		{
@@ -215,33 +213,31 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,
 				/* This could fail on a 64-bit version of Windows if the
 				executable is 32-bit, and the folder is 64-bit specific (as is
 				the case with some of the folders under the control panel). */
-				hr = GetIdlFromParsingName(itr->c_str(),&pidl);
+				unique_pidl_absolute pidl;
+				hr = SHParseDisplayName(itr->c_str(), nullptr, wil::out_param(pidl), 0, nullptr);
 
 				bControlPanelChild = FALSE;
 
 				if(SUCCEEDED(hr))
 				{
-					if(ILIsParent(pidlControlPanel,pidl,FALSE) &&
-						!CompareIdls(pidlControlPanel,pidl))
+					if(ILIsParent(pidlControlPanel.get(),pidl.get(),FALSE) &&
+						!CompareIdls(pidlControlPanel.get(),pidl.get()))
 					{
 						bControlPanelChild = TRUE;
 					}
 					else
 					{
-						LPITEMIDLIST pidlControlPanelCategory = NULL;
-
-						hr = GetIdlFromParsingName(CONTROL_PANEL_CATEGORY_VIEW,
-							&pidlControlPanelCategory);
+						unique_pidl_absolute pidlControlPanelCategory;
+						hr = SHParseDisplayName(CONTROL_PANEL_CATEGORY_VIEW, nullptr,
+							wil::out_param(pidlControlPanelCategory), 0, nullptr);
 
 						if (SUCCEEDED(hr))
 						{
-							if (ILIsParent(pidlControlPanelCategory, pidl, FALSE) &&
-								!CompareIdls(pidlControlPanelCategory, pidl))
+							if (ILIsParent(pidlControlPanelCategory.get(), pidl.get(), FALSE) &&
+								!CompareIdls(pidlControlPanelCategory.get(), pidl.get()))
 							{
 								bControlPanelChild = TRUE;
 							}
-
-							CoTaskMemFree(pidlControlPanelCategory);
 						}
 					}
 
@@ -260,8 +256,6 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,
 
 						itr = g_commandLineDirectories.erase(itr);
 					}
-
-					CoTaskMemFree(pidl);
 				}
 
 
@@ -275,8 +269,6 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,
 			{
 				shouldExit = true;
 			}
-
-			CoTaskMemFree(pidlControlPanel);
 		}
 	}
 

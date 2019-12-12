@@ -4,11 +4,12 @@
 
 #include "stdafx.h"
 #include "MyTreeView.h"
-#include "MyTreeViewInternal.h"
 #include "../Helper/Helper.h"
-#include "../Helper/ShellHelper.h"
 #include "../Helper/Macros.h"
+#include "../Helper/ShellHelper.h"
 
+const UINT DIRECTORYMODIFIED_TIMER_ID = 0;
+const UINT DIRECTORYMODIFIED_TIMER_ELAPSE = 500;
 
 void CMyTreeView::DirectoryAltered(void)
 {
@@ -77,12 +78,10 @@ void CMyTreeView::DirectoryAltered(void)
 reason, then add the item to the tracking list. */
 void CMyTreeView::DirectoryAlteredAddFile(const TCHAR *szFullFileName)
 {
-	LPITEMIDLIST pidlComplete = NULL;
-	HRESULT hr;
-
 	/* We'll use this as a litmus test to check whether or not
 	the file actually exists. */
-	hr = GetIdlFromParsingName(szFullFileName,&pidlComplete);
+	PIDLIST_ABSOLUTE pidlComplete = NULL;
+	HRESULT hr = SHParseDisplayName(szFullFileName, nullptr, &pidlComplete, 0, nullptr);
 
 	if(SUCCEEDED(hr))
 	{
@@ -306,15 +305,12 @@ void CMyTreeView::DirectoryModified(DWORD dwAction, const TCHAR *szFullFileName)
 
 void CMyTreeView::AddDrive(const TCHAR *szDrive)
 {
-	LPITEMIDLIST	pidlMyComputer = NULL;
-	HTREEITEM		hMyComputer;
-	HRESULT			hr;
-
-	hr = SHGetFolderLocation(NULL,CSIDL_DRIVES,NULL,0,&pidlMyComputer);
+	PIDLIST_ABSOLUTE pidlMyComputer = NULL;
+	HRESULT hr = SHGetFolderLocation(NULL,CSIDL_DRIVES,NULL,0,&pidlMyComputer);
 
 	if(hr == S_OK)
 	{
-		hMyComputer = LocateExistingItem(pidlMyComputer);
+		HTREEITEM hMyComputer = LocateExistingItem(pidlMyComputer);
 
 		if(hMyComputer != NULL)
 		{
@@ -370,8 +366,8 @@ void CMyTreeView::AddItem(const TCHAR *szFullFileName)
 void CMyTreeView::AddItemInternal(HTREEITEM hParent,const TCHAR *szFullFileName)
 {
 	IShellFolder	*pShellFolder = NULL;
-	LPITEMIDLIST	pidlComplete = NULL;
-	LPITEMIDLIST	pidlRelative = NULL;
+	PIDLIST_ABSOLUTE	pidlComplete = NULL;
+	PCITEMID_CHILD	pidlRelative = NULL;
 	HTREEITEM		hItem;
 	TVITEMEX		tvItem;
 	TVINSERTSTRUCT	tvis;
@@ -383,7 +379,7 @@ void CMyTreeView::AddItemInternal(HTREEITEM hParent,const TCHAR *szFullFileName)
 	int				iItemId;
 	int				nChildren = 0;
 
-	hr = GetIdlFromParsingName(szFullFileName,&pidlComplete);
+	hr = SHParseDisplayName(szFullFileName, nullptr, &pidlComplete, 0, nullptr);
 
 	if(!SUCCEEDED(hr))
 		return;
@@ -410,15 +406,14 @@ void CMyTreeView::AddItemInternal(HTREEITEM hParent,const TCHAR *szFullFileName)
 			SHGetFileInfo(szFullFileName,NULL,&shfi,
 				sizeof(shfi),SHGFI_SYSICONINDEX);
 
-			hr = SHBindToParent(pidlComplete, IID_PPV_ARGS(&pShellFolder), (LPCITEMIDLIST *)&pidlRelative);
+			hr = SHBindToParent(pidlComplete, IID_PPV_ARGS(&pShellFolder), &pidlRelative);
 
 			if(SUCCEEDED(hr))
 			{
 				Attributes = SFGAO_HASSUBFOLDER;
 
 				/* Only retrieve the attributes for this item. */
-				hr = pShellFolder->GetAttributesOf(1,
-					(LPCITEMIDLIST *)&pidlRelative,&Attributes);
+				hr = pShellFolder->GetAttributesOf(1,&pidlRelative,&Attributes);
 
 				if(SUCCEEDED(hr))
 				{
@@ -429,8 +424,8 @@ void CMyTreeView::AddItemInternal(HTREEITEM hParent,const TCHAR *szFullFileName)
 
 					iItemId = GenerateUniqueItemId();
 
-					m_pItemInfo[iItemId].pidl = ILClone(pidlComplete);
-					m_pItemInfo[iItemId].pridl = ILClone(pidlRelative);
+					m_itemInfoMap[iItemId].pidl.reset(ILCloneFull(pidlComplete));
+					m_itemInfoMap[iItemId].pridl.reset(ILCloneChild(pidlRelative));
 
 					GetDisplayName(szFullFileName,szDisplayName,SIZEOF_ARRAY(szDisplayName),SHGDN_NORMAL);
 
@@ -466,8 +461,7 @@ change. */
 void CMyTreeView::RenameItem(HTREEITEM hItem, const TCHAR *szFullFileName)
 {
 	TVITEMEX	tvItem;
-	ItemInfo_t	*pItemInfo = NULL;
-	LPITEMIDLIST	pidlParent;
+	PIDLIST_ABSOLUTE	pidlParent;
 	SHFILEINFO	shfi;
 	TCHAR		szFileName[MAX_PATH];
 	HRESULT		hr;
@@ -482,16 +476,13 @@ void CMyTreeView::RenameItem(HTREEITEM hItem, const TCHAR *szFullFileName)
 
 	if(res)
 	{
-		pItemInfo = &m_pItemInfo[(int)tvItem.lParam];
-
-		CoTaskMemFree(pItemInfo->pidl);
-
 		StringCchCopy(szFileName, SIZEOF_ARRAY(szFileName), szFullFileName);
 		PathStripPath(szFileName);
 
-		hr = GetIdlFromParsingName(szFullFileName,&pItemInfo->pidl);
+		ItemInfo_t &iteminfo = m_itemInfoMap.at(static_cast<int>(tvItem.lParam));
+		hr = SHParseDisplayName(szFullFileName, nullptr, wil::out_param(iteminfo.pidl), 0, nullptr);
 
-		pidlParent = pItemInfo->pidl;
+		pidlParent = iteminfo.pidl.get();
 
 		if(SUCCEEDED(hr))
 		{
@@ -511,11 +502,11 @@ void CMyTreeView::RenameItem(HTREEITEM hItem, const TCHAR *szFullFileName)
 	}
 }
 
-void CMyTreeView::UpdateChildren(HTREEITEM hParent,LPITEMIDLIST pidlParent)
+void CMyTreeView::UpdateChildren(HTREEITEM hParent, PCIDLIST_ABSOLUTE pidlParent)
 {
 	HTREEITEM hChild;
 	TVITEMEX tvItem;
-	LPITEMIDLIST pidl = NULL;
+	PCIDLIST_ABSOLUTE pidl = NULL;
 	BOOL bRes;
 
 	hChild = TreeView_GetChild(m_hTreeView,hParent);
@@ -549,18 +540,12 @@ void CMyTreeView::UpdateChildren(HTREEITEM hParent,LPITEMIDLIST pidlParent)
 	}
 }
 
-/* Updates an items pidl, returning a pointer to the new idl. */
-LPITEMIDLIST CMyTreeView::UpdateItemInfo(LPITEMIDLIST pidlParent,int iItemId)
+PCIDLIST_ABSOLUTE CMyTreeView::UpdateItemInfo(PCIDLIST_ABSOLUTE pidlParent, int iItemId)
 {
-	ItemInfo_t *pItemInfo = NULL;
+	ItemInfo_t &itemInfo = m_itemInfoMap.at(iItemId);
+	itemInfo.pidl.reset(ILCombine(pidlParent, itemInfo.pridl.get()));
 
-	pItemInfo = &m_pItemInfo[iItemId];
-
-	CoTaskMemFree(pItemInfo->pidl);
-
-	m_pItemInfo[iItemId].pidl = ILCombine(pidlParent,m_pItemInfo[iItemId].pridl);
-
-	return m_pItemInfo[iItemId].pidl;
+	return itemInfo.pidl.get();
 }
 
 void CMyTreeView::RemoveItem(const TCHAR *szFullFileName)
@@ -605,7 +590,7 @@ void CMyTreeView::UpdateParent(HTREEITEM hParent)
 
 		if(bRes)
 		{
-			hr = GetItemAttributes(m_pItemInfo[static_cast<int>(tvItem.lParam)].pidl,
+			hr = GetItemAttributes(m_itemInfoMap.at(static_cast<int>(tvItem.lParam)).pidl.get(),
 				&Attributes);
 
 			if(SUCCEEDED(hr))

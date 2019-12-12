@@ -84,7 +84,7 @@ void Explorerplusplus::OnStartedBrowsing(int iTabId, const TCHAR *szFolderPath)
 	}
 }
 
-HRESULT Explorerplusplus::UpdateStatusBarText(void)
+HRESULT Explorerplusplus::UpdateStatusBarText(const Tab &tab)
 {
 	FolderInfo_t	FolderInfo;
 	int				nTotal;
@@ -97,9 +97,9 @@ HRESULT Explorerplusplus::UpdateStatusBarText(void)
 	TCHAR			*szNumSelected = NULL;
 	int				res;
 
-	nTotal = m_pActiveShellBrowser->GetNumItems();
-	nFilesSelected = m_pActiveShellBrowser->GetNumSelectedFiles();
-	nFoldersSelected = m_pActiveShellBrowser->GetNumSelectedFolders();
+	nTotal = tab.GetShellBrowser()->GetNumItems();
+	nFilesSelected = tab.GetShellBrowser()->GetNumSelectedFiles();
+	nFoldersSelected = tab.GetShellBrowser()->GetNumSelectedFolders();
 
 	if ((nFilesSelected + nFoldersSelected) != 0)
 	{
@@ -152,14 +152,14 @@ HRESULT Explorerplusplus::UpdateStatusBarText(void)
 
 	SendMessage(m_hStatusBar, SB_SETTEXT, (WPARAM)0 | 0, (LPARAM)szItemsSelected);
 
-	if (m_pActiveShellBrowser->InVirtualFolder())
+	if (tab.GetShellBrowser()->InVirtualFolder())
 	{
 		LoadString(m_hLanguageModule, IDS_GENERAL_VIRTUALFOLDER, lpszSizeBuffer,
 			SIZEOF_ARRAY(lpszSizeBuffer));
 	}
 	else
 	{
-		m_pActiveShellBrowser->GetFolderInfo(&FolderInfo);
+		tab.GetShellBrowser()->GetFolderInfo(&FolderInfo);
 
 		if ((nFilesSelected + nFoldersSelected) == 0)
 		{
@@ -188,7 +188,7 @@ HRESULT Explorerplusplus::UpdateStatusBarText(void)
 
 	SendMessage(m_hStatusBar, SB_SETTEXT, (WPARAM)1 | 0, (LPARAM)lpszSizeBuffer);
 
-	res = CreateDriveFreeSpaceString(m_CurrentDirectory, szBuffer, SIZEOF_ARRAY(szBuffer));
+	res = CreateDriveFreeSpaceString(m_CurrentDirectory.c_str(), szBuffer, SIZEOF_ARRAY(szBuffer));
 
 	if (res == -1)
 		StringCchCopy(szBuffer, SIZEOF_ARRAY(szBuffer), EMPTY_STRING);
@@ -196,4 +196,36 @@ HRESULT Explorerplusplus::UpdateStatusBarText(void)
 	SendMessage(m_hStatusBar, SB_SETTEXT, (WPARAM)2 | 0, (LPARAM)szBuffer);
 
 	return S_OK;
+}
+
+int Explorerplusplus::CreateDriveFreeSpaceString(const TCHAR *szPath, TCHAR *szBuffer, int nBuffer)
+{
+	ULARGE_INTEGER	TotalNumberOfBytes;
+	ULARGE_INTEGER	TotalNumberOfFreeBytes;
+	ULARGE_INTEGER	BytesAvailableToCaller;
+	TCHAR			szFreeSpace[32];
+	TCHAR			szFree[16];
+	TCHAR			szFreeSpaceString[512];
+
+	if (GetDiskFreeSpaceEx(szPath, &BytesAvailableToCaller,
+		&TotalNumberOfBytes, &TotalNumberOfFreeBytes) == 0)
+	{
+		szBuffer = NULL;
+		return -1;
+	}
+
+	FormatSizeString(TotalNumberOfFreeBytes, szFreeSpace,
+		SIZEOF_ARRAY(szFreeSpace));
+
+	LoadString(m_hLanguageModule, IDS_GENERAL_FREE, szFree, SIZEOF_ARRAY(szFree));
+
+	StringCchPrintf(szFreeSpaceString, SIZEOF_ARRAY(szFreeSpace),
+		_T("%s %s (%.0f%%)"), szFreeSpace, szFree, TotalNumberOfFreeBytes.QuadPart * 100.0 / TotalNumberOfBytes.QuadPart);
+
+	if (nBuffer > lstrlen(szFreeSpaceString))
+		StringCchCopy(szBuffer, nBuffer, szFreeSpaceString);
+	else
+		szBuffer = NULL;
+
+	return lstrlen(szFreeSpaceString);
 }

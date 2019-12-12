@@ -5,7 +5,7 @@
 #include "stdafx.h"
 #include "ListViewEdit.h"
 #include "Explorer++_internal.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/Helper.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
@@ -21,11 +21,6 @@ m_ItemIndex(ItemIndex),
 m_pexpp(pexpp),
 m_RenameStage(RENAME_FILENAME),
 m_BeginRename(true)
-{
-	
-}
-
-CListViewEdit::~CListViewEdit()
 {
 	
 }
@@ -143,7 +138,7 @@ int CListViewEdit::GetExtensionIndex()
 	TCHAR szFileName[MAX_PATH];
 	GetWindowText(m_hwnd,szFileName,SIZEOF_ARRAY(szFileName));
 
-	DWORD dwAttributes = m_pexpp->GetActiveShellBrowser()->QueryFileAttributes(m_ItemIndex);
+	DWORD dwAttributes = m_pexpp->GetActiveShellBrowser()->GetItemFileFindData(m_ItemIndex).dwFileAttributes;
 
 	int Index = -1;
 

@@ -9,7 +9,7 @@
 
 #include "stdafx.h"
 #include "IDropFilesCallback.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include <list>
 
 CDropFilesCallback::CDropFilesCallback(IExplorerplusplus *pexpp) :
@@ -17,11 +17,6 @@ m_pexpp(pexpp),
 m_RefCount(1)
 {
 
-}
-
-CDropFilesCallback::~CDropFilesCallback()
-{
-	
 }
 
 HRESULT __stdcall CDropFilesCallback::QueryInterface(REFIID iid,void **ppvObject)

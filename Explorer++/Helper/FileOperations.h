@@ -16,10 +16,10 @@ namespace NFileOperations
 	};
 
 	HRESULT	RenameFile(IShellItem *item, const std::wstring &newName);
-	HRESULT	DeleteFiles(HWND hwnd, std::vector<LPCITEMIDLIST> &pidls, bool permanent, bool silent);
+	HRESULT	DeleteFiles(HWND hwnd, std::vector<PCIDLIST_ABSOLUTE> &pidls, bool permanent, bool silent);
 	void	DeleteFileSecurely(const std::wstring &strFilename,OverwriteMethod_t uOverwriteMethod);
-	HRESULT	CopyFilesToFolder(HWND hOwner, const std::wstring &strTitle, std::vector<LPCITEMIDLIST> &pidls, bool move);
-	HRESULT	CopyFiles(HWND hwnd, IShellItem *destinationFolder, std::vector<LPCITEMIDLIST> &pidls, bool move);
+	HRESULT	CopyFilesToFolder(HWND hOwner, const std::wstring &strTitle, std::vector<PCIDLIST_ABSOLUTE> &pidls, bool move);
+	HRESULT	CopyFiles(HWND hwnd, IShellItem *destinationFolder, std::vector<PCIDLIST_ABSOLUTE> &pidls, bool move);
 
 	HRESULT	CreateNewFolder(IShellItem *destinationFolder, const std::wstring &newFolderName, IFileOperationProgressSink *progressSink);
 
@@ -30,7 +30,7 @@ namespace NFileOperations
 	HRESULT	CreateLinkToFile(const std::wstring &strTargetFilename,const std::wstring &strLinkFilename,const std::wstring &strLinkDescription);
 	HRESULT	ResolveLink(HWND hwnd, DWORD fFlags, const TCHAR *szLinkFilename, TCHAR *szResolvedPath, int nBufferSize);
 
-	BOOL	CreateBrowseDialog(HWND hOwner,const std::wstring &strTitle,LPITEMIDLIST *ppidl);
+	BOOL	CreateBrowseDialog(HWND hOwner, const std::wstring &strTitle, PIDLIST_ABSOLUTE *ppidl);
 };
 
 HRESULT	CopyFiles(const std::list<std::wstring> &FileNameList, IDataObject **pClipboardDataObject);

@@ -14,6 +14,7 @@
 #include "ResourceHelper.h"
 #include "ShellBrowser/ViewModes.h"
 #include "TaskbarThumbnails.h"
+#include "ViewModeHelper.h"
 #include "../DisplayWindow/DisplayWindow.h"
 #include "../Helper/Controls.h"
 #include "../Helper/FileOperations.h"
@@ -23,51 +24,6 @@
 #include "../Helper/Macros.h"
 #include <list>
 
-DWORD WINAPI WorkerThreadProc(LPVOID pParam);
-void CALLBACK InitializeCOMAPC(ULONG_PTR dwParam);
-
-DWORD WINAPI WorkerThreadProc(LPVOID pParam)
-{
-	UNREFERENCED_PARAMETER(pParam);
-
-	/* OLE initialization is no longer done from within
-	this function. This is because of the fact that the
-	first APC may run BEFORE this thread initialization
-	function. If this occurs, OLE will not be initialized,
-	and possible errors may occur.
-	OLE is now initialized using an APC that is queued
-	immediately after this thread is created. As APC's
-	are run sequentially, it is guaranteed that the
-	initialization APC will run before any other APC,
-	thus acting like this initialization function. */
-
-	/* WARNING: Warning C4127 (conditional expression is
-	constant) temporarily disabled for this function. */
-	#pragma warning(push)
-	#pragma warning(disable:4127)
-	while(TRUE)
-	{
-		SleepEx(INFINITE, TRUE);
-	}
-	#pragma warning(pop)
-
-	return 0;
-}
-
-void CALLBACK InitializeCOMAPC(ULONG_PTR dwParam)
-{
-	UNREFERENCED_PARAMETER(dwParam);
-
-	/* This will be balanced out by a corresponding
-	CoUninitialize() when the thread is ended.
-	It must be apartment threaded, or some icons (such
-	as those used for XML files) may not load properly.
-	It *may* be due to the fact that one or more of
-	the other threads in use do not initialize COM/
-	use the same threading model. */
-	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-}
-
 /*
 * Main window creation.
 *
@@ -75,7 +31,7 @@ void CALLBACK InitializeCOMAPC(ULONG_PTR dwParam)
 * initial settings must be in place before
 * this.
 */
-void Explorerplusplus::OnCreate(void)
+void Explorerplusplus::OnCreate()
 {
 	InitializeMainToolbars();
 	InitializeBookmarks();
@@ -84,30 +40,15 @@ void Explorerplusplus::OnCreate(void)
 	LoadAllSettings(&pLoadSave);
 	ApplyToolbarSettings();
 
+	m_iconResourceLoader = std::make_unique<IconResourceLoader>(m_config->iconTheme);
+
 	SetLanguageModule();
 
-	m_navigation = new Navigation(m_config, this);
+	m_navigation = std::make_unique<Navigation>(this);
 
-	m_mainWindow = MainWindow::Create(m_hContainer, m_config, m_hLanguageModule, this, m_navigation);
+	m_mainWindow = MainWindow::Create(m_hContainer, m_config, m_hLanguageModule, this);
 
-	m_hTreeViewIconThread = CreateWorkerThread();
-
-	/* These need to occur after the language module
-	has been initialized, but before the tabs are
-	restored. */
-	HMENU mainMenu = LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_MAINMENU));
-
-	if (!g_enablePlugins)
-	{
-		DeleteMenu(mainMenu, IDM_TOOLS_RUNSCRIPT, MF_BYCOMMAND);
-	}
-
-	SetMenu(m_hContainer, mainMenu);
-
-	m_hArrangeSubMenu = GetSubMenu(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_ARRANGEMENU)), 0);
-	m_hArrangeSubMenuRClick = GetSubMenu(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_ARRANGEMENU)), 0);
-	m_hGroupBySubMenu = GetSubMenu(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_GROUPBY_MENU)), 0);
-	m_hGroupBySubMenuRClick = GetSubMenu(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_GROUPBY_MENU)), 0);
+	InitializeMainMenu();
 
 	CreateDirectoryMonitor(&m_pDirMon);
 
@@ -127,29 +68,18 @@ void Explorerplusplus::OnCreate(void)
 	size initially. */
 	ResizeWindows();
 
-	/* Settings cannot be applied until
-	all child windows have been created. */
-	ApplyLoadedSettings();
-
-	m_taskbarThumbnails = TaskbarThumbnails::Create(this, m_tabContainer, m_navigation, m_hLanguageModule, m_config);
+	m_taskbarThumbnails = TaskbarThumbnails::Create(this, m_tabContainer, m_hLanguageModule, m_config);
 
 	RestoreTabs(pLoadSave);
 	delete pLoadSave;
 
+	// Register for any shell changes. This should be done after the tabs have
+	// been created.
 	SHChangeNotifyEntry shcne;
-
-	/* Don't need to specify any file for this notification. */
 	shcne.fRecursive = TRUE;
 	shcne.pidl = NULL;
-
-	/* Register for any shell changes. This should
-	be done after the tabs have been created. */
 	m_SHChangeNotifyID = SHChangeNotifyRegister(m_hContainer, SHCNRF_ShellLevel,
 		SHCNE_ASSOCCHANGED, WM_APP_ASSOCCHANGED, 1, &shcne);
-
-	InitializeMainMenu();
-
-	InitializeArrangeMenuItems();
 
 	/* Place the main window in the clipboard chain. This
 	will allow the 'Paste' button to be enabled/disabled
@@ -164,17 +94,7 @@ void Explorerplusplus::OnCreate(void)
 
 	SetTimer(m_hContainer, AUTOSAVE_TIMER_ID, AUTOSAVE_TIMEOUT, nullptr);
 
-	m_InitializationFinished = true;
-}
-
-/* Creates a low priority worker thread, and initializes COM on that thread. */
-HANDLE Explorerplusplus::CreateWorkerThread()
-{
-	HANDLE hThread = CreateThread(NULL, 0, WorkerThreadProc, NULL, 0, NULL);
-	SetThreadPriority(hThread, THREAD_PRIORITY_BELOW_NORMAL);
-	QueueUserAPC(InitializeCOMAPC, hThread, NULL);
-
-	return hThread;
+	m_InitializationFinished.set(true);
 }
 
 void Explorerplusplus::InitializeBookmarks(void)
@@ -234,7 +154,7 @@ void Explorerplusplus::AddViewModesToMenu(HMENU menu)
 	MENUITEMINFO mii;
 	TCHAR szText[64];
 
-	for (auto viewMode : m_viewModes)
+	for (auto viewMode : VIEW_MODES)
 	{
 		LoadString(m_hLanguageModule, GetViewModeMenuStringId(viewMode),
 			szText, SIZEOF_ARRAY(szText));

@@ -6,7 +6,7 @@
 
 #include "CoreInterface.h"
 #include "ShellBrowser/FolderSettings.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
@@ -29,8 +29,6 @@ class CSetDefaultColumnsDialog;
 class CSetDefaultColumnsDialogPersistentSettings : public CDialogSettings
 {
 public:
-
-	~CSetDefaultColumnsDialogPersistentSettings();
 
 	static CSetDefaultColumnsDialogPersistentSettings &GetInstance();
 
@@ -62,7 +60,6 @@ public:
 
 	CSetDefaultColumnsDialog(HINSTANCE hInstance, int iResource, HWND hParent,
 		FolderColumns &folderColumns);
-	~CSetDefaultColumnsDialog();
 
 protected:
 

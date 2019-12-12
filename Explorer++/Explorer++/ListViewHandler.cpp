@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "Config.h"
+#include "Explorer++_internal.h"
 #include "IDropFilesCallback.h"
 #include "iServiceProvider.h"
 #include "ListViewEdit.h"
@@ -13,9 +14,11 @@
 #include "MassRenameDialog.h"
 #include "MenuRanges.h"
 #include "Navigation.h"
+#include "ResourceHelper.h"
 #include "SetFileAttributesDialog.h"
 #include "ShellBrowser/Columns.h"
 #include "ShellBrowser/ViewModes.h"
+#include "ViewModeHelper.h"
 #include "../Helper/ContextMenuManager.h"
 #include "../Helper/Controls.h"
 #include "../Helper/DropHandler.h"
@@ -28,84 +31,37 @@
 #include "../Helper/Macros.h"
 #include "../Helper/MenuHelper.h"
 #include "../Helper/ShellHelper.h"
+#include <wil/com.h>
 
-const DWORD MAIN_LISTVIEW_STYLES = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS |
-WS_CLIPCHILDREN | LVS_ICON | LVS_EDITLABELS | LVS_SHOWSELALWAYS |
-LVS_SHAREIMAGELISTS | LVS_AUTOARRANGE | WS_TABSTOP | LVS_ALIGNTOP;
-
-static unsigned int g_RealFolderHeaderList[] =
+const std::vector<unsigned int> COMMON_REAL_FOLDER_COLUMNS =
 {CM_NAME, CM_TYPE, CM_SIZE, CM_DATEMODIFIED,
 CM_AUTHORS, CM_TITLE};
 
-static unsigned int g_ControlPanelHeaderList[] =
+const std::vector<unsigned int> COMMON_CONTROL_PANEL_COLUMNS =
 {CM_NAME, CM_VIRTUALCOMMENTS};
 
-static unsigned int g_MyComputerHeaderList[] =
+const std::vector<unsigned int> COMMON_MY_COMPUTER_COLUMNS =
 {CM_NAME, CM_TYPE, CM_TOTALSIZE,
 CM_FREESPACE, CM_VIRTUALCOMMENTS,
 CM_FILESYSTEM};
 
-static unsigned int g_NetworkConnectionsHeaderList[] =
+const std::vector<unsigned int> COMMON_NETWORK_CONNECTIONS_COLUMNS =
 {CM_NAME, CM_TYPE, CM_NETWORKADAPTER_STATUS,
 CM_OWNER};
 
-static unsigned int g_NetworkHeaderList[] =
+const std::vector<unsigned int> COMMON_NETWORK_COLUMNS =
 {CM_NAME, CM_VIRTUALCOMMENTS};
 
-static unsigned int g_PrintersHeaderList[] =
+const std::vector<unsigned int> COMMON_PRINTERS_COLUMNS =
 {CM_NAME, CM_NUMPRINTERDOCUMENTS, CM_PRINTERSTATUS,
 CM_PRINTERCOMMENTS, CM_PRINTERLOCATION};
 
-static unsigned int g_RecycleBinHeaderList[] =
+const std::vector<unsigned int> COMMON_RECYCLE_BIN_COLUMNS =
 {CM_NAME, CM_ORIGINALLOCATION, CM_DATEDELETED,
 CM_SIZE, CM_TYPE, CM_DATEMODIFIED};
 
-LRESULT CALLBACK ListViewProcStub(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,UINT_PTR uIdSubclass,DWORD_PTR dwRefData);
-
-HWND Explorerplusplus::CreateMainListView(HWND hParent)
-{
-	HWND hListView = CreateListView(hParent, MAIN_LISTVIEW_STYLES);
-
-	if(hListView == NULL)
-	{
-		return NULL;
-	}
-
-	IImageList *pImageList = NULL;
-	HRESULT hr = SHGetImageList(SHIL_SMALL, IID_PPV_ARGS(&pImageList));
-
-	if(SUCCEEDED(hr))
-	{
-		ListView_SetImageList(hListView, reinterpret_cast<HIMAGELIST>(pImageList), LVSIL_SMALL);
-		pImageList->Release();
-	}
-
-	DWORD dwExtendedStyle = ListView_GetExtendedListViewStyle(hListView);
-
-	if(m_config->useFullRowSelect)
-	{
-		dwExtendedStyle |= LVS_EX_FULLROWSELECT;
-	}
-
-	if(m_config->checkBoxSelection)
-	{
-		dwExtendedStyle |= LVS_EX_CHECKBOXES;
-	}
-
-	ListView_SetExtendedListViewStyle(hListView,dwExtendedStyle);
-
-	/* TODO: This subclass needs to be removed. */
-	SetWindowSubclass(hListView, ListViewProcStub, 0, reinterpret_cast<DWORD_PTR>(this));
-
-	SetWindowTheme(hListView,L"Explorer",NULL);
-
-	SetListViewInitialPosition(hListView);
-
-	return hListView;
-}
-
-LRESULT CALLBACK ListViewProcStub(HWND hwnd,UINT uMsg,
-	WPARAM wParam,LPARAM lParam,UINT_PTR uIdSubclass,DWORD_PTR dwRefData)
+LRESULT CALLBACK Explorerplusplus::ListViewProcStub(HWND hwnd, UINT uMsg, WPARAM wParam,
+	LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
@@ -114,8 +70,8 @@ LRESULT CALLBACK ListViewProcStub(HWND hwnd,UINT uMsg,
 	return pexpp->ListViewSubclassProc(hwnd,uMsg,wParam,lParam);
 }
 
-LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView,
-UINT msg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
+	WPARAM wParam, LPARAM lParam)
 {
 	switch(msg)
 	{
@@ -213,22 +169,6 @@ UINT msg,WPARAM wParam,LPARAM lParam)
 			m_bDragAllowed = FALSE;
 
 			m_bBlockNext = FALSE;
-			break;
-
-		case WM_MBUTTONDOWN:
-			{
-				POINT pt;
-				POINTSTOPOINT(pt, MAKEPOINTS(lParam));
-				OnListViewMButtonDown(&pt);
-			}
-			break;
-
-		case WM_MBUTTONUP:
-			{
-				POINT pt;
-				POINTSTOPOINT(pt, MAKEPOINTS(lParam));
-				OnListViewMButtonUp(&pt);
-			}
 			break;
 
 		/* If no item is currently been dragged, and the last drag
@@ -345,7 +285,7 @@ UINT msg,WPARAM wParam,LPARAM lParam)
 					m_pActiveShellBrowser->ImportColumns(currentColumns);
 
 					Tab &tab = m_tabContainer->GetSelectedTab();
-					RefreshTab(tab);
+					tab.GetNavigationController()->Refresh();
 
 					return TRUE;
 				}
@@ -381,83 +321,6 @@ void Explorerplusplus::OnListViewLButtonDown(WPARAM wParam,LPARAM lParam)
 	else
 	{
 		m_bSelectionFromNowhere = FALSE;
-	}
-}
-
-void Explorerplusplus::OnListViewMButtonDown(POINT *pt)
-{
-	LV_HITTESTINFO ht;
-	ht.pt = *pt;
-	ListView_HitTest(m_hActiveListView,&ht);
-
-	if(ht.flags != LVHT_NOWHERE && ht.iItem != -1)
-	{
-		m_ListViewMButtonItem = ht.iItem;
-
-		ListView_SetItemState(m_hActiveListView,ht.iItem,LVIS_FOCUSED,LVIS_FOCUSED);
-	}
-	else
-	{
-		m_ListViewMButtonItem = -1;
-	}
-}
-
-void Explorerplusplus::OnListViewMButtonUp(POINT *pt)
-{
-	LV_HITTESTINFO	ht;
-	ht.pt = *pt;
-	ListView_HitTest(m_hActiveListView,&ht);
-
-	if(ht.flags != LVHT_NOWHERE)
-	{
-		/* Only open an item if it was the one
-		on which the middle mouse button was
-		initially clicked on. */
-		if(ht.iItem == m_ListViewMButtonItem)
-		{
-			IShellFolder *pShellFolder		= NULL;
-			LPITEMIDLIST pidl				= NULL;
-			LPITEMIDLIST ridl				= NULL;
-			SFGAOF uAttributes				= SFGAO_FOLDER | SFGAO_STREAM;
-			TCHAR szParsingPath[MAX_PATH];
-			STRRET str;
-			HRESULT hr;
-
-			pidl = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
-			hr = BindToIdl(pidl, IID_PPV_ARGS(&pShellFolder));
-
-			if(SUCCEEDED(hr))
-			{
-				ridl = m_pActiveShellBrowser->QueryItemRelativeIdl(ht.iItem);
-
-				hr = pShellFolder->GetAttributesOf(1,(LPCITEMIDLIST *)&ridl,&uAttributes);
-
-				if(SUCCEEDED(hr))
-				{
-					/* Is this a folder? */
-					if((uAttributes & SFGAO_FOLDER) &&
-						!(uAttributes & SFGAO_STREAM))
-					{
-						hr = pShellFolder->GetDisplayNameOf(ridl,SHGDN_FORPARSING,&str);
-
-						if(SUCCEEDED(hr))
-						{
-							hr = StrRetToBuf(&str, ridl, szParsingPath, SIZEOF_ARRAY(szParsingPath));
-
-							if(SUCCEEDED(hr))
-							{
-								m_tabContainer->CreateNewTab(szParsingPath);
-							}
-						}
-					}
-				}
-
-				CoTaskMemFree(ridl);
-				pShellFolder->Release();
-			}
-
-			CoTaskMemFree(pidl);
-		}
 	}
 }
 
@@ -500,10 +363,10 @@ LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
 				!IsKeyDown(VK_SHIFT) &&
 				!IsKeyDown(VK_MENU))
 			{
-				LPITEMIDLIST pidl = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
+				auto pidl = m_pActiveShellBrowser->GetDirectoryIdl();
 
 				TCHAR szRoot[MAX_PATH];
-				HRESULT hr = GetDisplayName(pidl,szRoot,SIZEOF_ARRAY(szRoot),SHGDN_FORPARSING);
+				HRESULT hr = GetDisplayName(pidl.get(),szRoot,SIZEOF_ARRAY(szRoot),SHGDN_FORPARSING);
 
 				if(SUCCEEDED(hr))
 				{
@@ -512,11 +375,9 @@ LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
 					if(bRes)
 					{
 						/* Go to the root of this directory. */
-						m_navigation->BrowseFolderInCurrentTab(szRoot, SBSP_ABSOLUTE);
+						m_navigation->BrowseFolderInCurrentTab(szRoot);
 					}
 				}
-
-				CoTaskMemFree(pidl);
 			}
 			else
 			{
@@ -593,10 +454,10 @@ void Explorerplusplus::OnListViewItemChanged(LPARAM lParam)
 
 	Tab &tab = m_tabContainer->GetTab(iObjectIndex);
 
-	if(tab.GetShellBrowser()->QueryDragging())
+	if(tab.GetShellBrowser()->IsDragging())
 		return;
 
-	HWND listView = tab.listView;
+	HWND listView = tab.GetShellBrowser()->GetListView();
 
 	if(ItemChanged->uChanged == LVIF_STATE &&
 		((LVIS_STATEIMAGEMASK & ItemChanged->uNewState) >> 12) != 0 &&
@@ -681,8 +542,8 @@ void Explorerplusplus::OnListViewItemChanged(LPARAM lParam)
 	if(m_bCountingUp || m_bCountingDown || m_bInverted)
 		return;
 
-	UpdateDisplayWindow();
-	UpdateStatusBarText();
+	UpdateDisplayWindow(tab);
+	UpdateStatusBarText(tab);
 	m_mainToolbar->UpdateToolbarButtonStates();
 }
 
@@ -690,7 +551,7 @@ int Explorerplusplus::DetermineListViewObjectIndex(HWND hListView)
 {
 	for (auto &item : m_tabContainer->GetAllTabs())
 	{
-		if (item.second.listView == hListView)
+		if (item.second->GetShellBrowser()->GetListView() == hListView)
 		{
 			return item.first;
 		}
@@ -732,7 +593,6 @@ BOOL Explorerplusplus::OnListViewEndLabelEdit(LPARAM lParam)
 	LVITEM			*pItem = NULL;
 	TCHAR			NewFileName[MAX_PATH + 1];
 	TCHAR			OldFileName[MAX_PATH + 1];
-	TCHAR			CurrentDirectory[MAX_PATH];
 	TCHAR			OldName[MAX_PATH];
 	TCHAR			szTemp[128];
 	TCHAR			szError[256];
@@ -797,11 +657,11 @@ BOOL Explorerplusplus::OnListViewEndLabelEdit(LPARAM lParam)
 		return 0;
 	}
 
-	m_pActiveShellBrowser->QueryCurrentDirectory(SIZEOF_ARRAY(CurrentDirectory), CurrentDirectory);
-	StringCchCopy(NewFileName,SIZEOF_ARRAY(NewFileName),CurrentDirectory);
-	StringCchCopy(OldFileName,SIZEOF_ARRAY(OldFileName),CurrentDirectory);
+	std::wstring currentDirectory = m_pActiveShellBrowser->GetDirectory();
+	StringCchCopy(NewFileName, SIZEOF_ARRAY(NewFileName), currentDirectory.c_str());
+	StringCchCopy(OldFileName, SIZEOF_ARRAY(OldFileName), currentDirectory.c_str());
 
-	m_pActiveShellBrowser->QueryDisplayName(pItem->iItem,SIZEOF_ARRAY(OldName),OldName);
+	m_pActiveShellBrowser->GetItemDisplayName(pItem->iItem,SIZEOF_ARRAY(OldName),OldName);
 	PathAppend(OldFileName,OldName);
 
 	BOOL bRes = PathAppend(NewFileName,pItem->pszText);
@@ -811,7 +671,7 @@ BOOL Explorerplusplus::OnListViewEndLabelEdit(LPARAM lParam)
 		return 0;
 	}
 
-	dwAttributes = m_pActiveShellBrowser->QueryFileAttributes(pItem->iItem);
+	dwAttributes = m_pActiveShellBrowser->GetItemFileFindData(pItem->iItem).dwFileAttributes;
 
 	if((dwAttributes & FILE_ATTRIBUTE_DIRECTORY) != FILE_ATTRIBUTE_DIRECTORY)
 	{
@@ -915,38 +775,32 @@ void Explorerplusplus::OnListViewRClick(POINT *pCursorPos)
 void Explorerplusplus::OnListViewBackgroundRClick(POINT *pCursorPos)
 {
 	HMENU hMenu = InitializeRightClickMenu();
-	LPITEMIDLIST pidlDirectory = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
+	auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
 
-	LPITEMIDLIST pidlParent = ILClone(pidlDirectory);
-	ILRemoveLastID(pidlParent);
+	unique_pidl_absolute pidlParent(ILCloneFull(pidlDirectory.get()));
+	ILRemoveLastID(pidlParent.get());
 
-	LPCITEMIDLIST pidlChildFolder = ILFindLastID(pidlDirectory);
+	PCUITEMID_CHILD pidlChildFolder = ILFindLastID(pidlDirectory.get());
 
-	IShellFolder *pShellFolder = NULL;
-	HRESULT hr = BindToIdl(pidlParent, IID_PPV_ARGS(&pShellFolder));
+	wil::com_ptr<IShellFolder> pShellFolder;
+	HRESULT hr = BindToIdl(pidlParent.get(), IID_PPV_ARGS(&pShellFolder));
 
 	if(SUCCEEDED(hr))
 	{
-		IDataObject *pDataObject = NULL;
-		hr = GetUIObjectOf(pShellFolder, NULL, 1, &pidlChildFolder, IID_PPV_ARGS(&pDataObject));
+		wil::com_ptr<IDataObject> pDataObject;
+		hr = GetUIObjectOf(pShellFolder.get(), NULL, 1, &pidlChildFolder, IID_PPV_ARGS(&pDataObject));
 
 		if(SUCCEEDED(hr))
 		{
 			CServiceProvider ServiceProvider(this);
-			CContextMenuManager cmm(CContextMenuManager::CONTEXT_MENU_TYPE_BACKGROUND, pidlDirectory,
-				pDataObject, &ServiceProvider, BLACKLISTED_BACKGROUND_MENU_CLSID_ENTRIES);
+			CContextMenuManager cmm(CContextMenuManager::CONTEXT_MENU_TYPE_BACKGROUND, pidlDirectory.get(),
+				pDataObject.get(), &ServiceProvider, BLACKLISTED_BACKGROUND_MENU_CLSID_ENTRIES);
 
 			cmm.ShowMenu(m_hContainer,hMenu,IDM_FILE_COPYFOLDERPATH,MIN_SHELL_MENU_ID,
 				MAX_SHELL_MENU_ID,*pCursorPos,*m_pStatusBar);
-
-			pDataObject->Release();
 		}
-
-		pShellFolder->Release();
 	}
 
-	CoTaskMemFree(pidlParent);
-	CoTaskMemFree(pidlDirectory);
 	DestroyMenu(hMenu);
 }
 
@@ -957,7 +811,7 @@ HMENU Explorerplusplus::InitializeRightClickMenu(void)
 
 	MENUITEMINFO mii;
 
-	for(auto ViewMode : m_viewModes)
+	for(auto ViewMode : VIEW_MODES)
 	{
 		TCHAR szTemp[64];
 		LoadString(m_hLanguageModule,GetViewModeMenuStringId(ViewMode),
@@ -974,12 +828,12 @@ HMENU Explorerplusplus::InitializeRightClickMenu(void)
 
 	mii.cbSize		= sizeof(mii);
 	mii.fMask		= MIIM_SUBMENU;
-	mii.hSubMenu	= m_hArrangeSubMenuRClick;
+	mii.hSubMenu	= m_hSortSubMenu;
 	SetMenuItemInfo(hMenu,IDM_POPUP_SORTBY,FALSE,&mii);
 
 	mii.cbSize		= sizeof(mii);
 	mii.fMask		= MIIM_SUBMENU;
-	mii.hSubMenu	= m_hGroupBySubMenuRClick;
+	mii.hSubMenu	= m_hGroupBySubMenu;
 	SetMenuItemInfo(hMenu,IDM_POPUP_GROUPBY,FALSE,&mii);
 
 	UINT uViewMode = m_pActiveShellBrowser->GetViewMode();
@@ -1002,18 +856,21 @@ void Explorerplusplus::OnListViewItemRClick(POINT *pCursorPos)
 
 	if(nSelected > 0)
 	{
-		std::list<LPITEMIDLIST> pidlList;
+		std::vector<unique_pidl_child> pidlPtrs;
+		std::vector<PCITEMID_CHILD> pidlItems;
 		int iItem = -1;
 
 		while((iItem = ListView_GetNextItem(m_hActiveListView,iItem,LVNI_SELECTED)) != -1)
 		{
-			pidlList.push_back(m_pActiveShellBrowser->QueryItemRelativeIdl(iItem));
+			auto pidlPtr = m_pActiveShellBrowser->GetItemChildIdl(iItem);
+
+			pidlItems.push_back(pidlPtr.get());
+			pidlPtrs.push_back(std::move(pidlPtr));
 		}
 
-		LPITEMIDLIST pidlDirectory = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
+		auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
 
-		CFileContextMenuManager fcmm(m_hActiveListView,pidlDirectory,
-			pidlList);
+		CFileContextMenuManager fcmm(m_hActiveListView, pidlDirectory.get(), pidlItems);
 
 		FileContextMenuInfo_t fcmi;
 		fcmi.uFrom = FROM_LISTVIEW;
@@ -1022,110 +879,140 @@ void Explorerplusplus::OnListViewItemRClick(POINT *pCursorPos)
 
 		fcmm.ShowMenu(this,MIN_SHELL_MENU_ID,MAX_SHELL_MENU_ID,pCursorPos,&StatusBar,
 			reinterpret_cast<DWORD_PTR>(&fcmi),TRUE,IsKeyDown(VK_SHIFT));
-
-		CoTaskMemFree(pidlDirectory);
-
-		for(auto pidl : pidlList)
-		{
-			CoTaskMemFree(pidl);
-		}
 	}
 }
 
-void Explorerplusplus::OnListViewHeaderRClick(POINT *pCursorPos)
+void Explorerplusplus::OnListViewHeaderRClick(const POINT *pCursorPos)
 {
-	HMENU						hHeaderPopupMenu;
-	HMENU						hMenu;
-	MENUITEMINFO				mii;
-	TCHAR						szColumnText[256];
-	unsigned int				*pHeaderList = NULL;
-	int							nItems = 0;
-	int							iItem = 0;
-	int							i = 0;
-
-	hHeaderPopupMenu = LoadMenu(m_hLanguageModule,MAKEINTRESOURCE(IDR_HEADER_MENU));
-
-	hMenu = GetSubMenu(hHeaderPopupMenu,0);
+	wil::unique_hmenu headerPopupMenu(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_HEADER_MENU)));
+	HMENU headerMenu = GetSubMenu(headerPopupMenu.get(), 0);
 
 	auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
+	auto commonColumns = GetColumnHeaderMenuList();
 
-	nItems = GetColumnHeaderMenuList(&pHeaderList);
+	std::unordered_map<int, UINT> menuItemMappings;
+	int totalInserted = 0;
+	int commonColumnPosition = 0;
 
-	for(i = 0;i < nItems;i++)
+	for (const auto &column : currentColumns)
 	{
-		for(auto itr = currentColumns.begin();itr != currentColumns.end();itr++)
+		auto itr = std::find(commonColumns.begin(), commonColumns.end(), column.id);
+		bool inCommonColumns = (itr != commonColumns.end());
+
+		if (!column.bChecked && !inCommonColumns)
 		{
-			if(itr->id == pHeaderList[i])
-			{
-				LoadString(m_hLanguageModule,CShellBrowser::LookupColumnNameStringIndex(itr->id),
-					szColumnText,SIZEOF_ARRAY(szColumnText));
-
-				if(itr->bChecked)
-					mii.fState	= MFS_CHECKED;
-				else
-					mii.fState	= MFS_ENABLED;
-
-				/* Build a list of the current columns, and add them
-				to the menu. */
-				mii.cbSize			= sizeof(mii);
-				mii.fMask			= MIIM_STRING|MIIM_STATE|MIIM_ID;
-				mii.dwTypeData		= szColumnText;
-				mii.wID				= MENU_HEADER_STARTID + iItem;
-				InsertMenuItem(hMenu,iItem,TRUE,&mii);
-
-				iItem++;
-				break;
-			}
+			continue;
 		}
+
+		MENUITEMINFO mii;
+		mii.cbSize = sizeof(mii);
+		mii.fMask = MIIM_STRING | MIIM_STATE | MIIM_ID;
+
+		std::wstring columnText = ResourceHelper::LoadString(m_hLanguageModule,
+			CShellBrowser::LookupColumnNameStringIndex(column.id));
+
+		if (column.bChecked)
+		{
+			mii.fState = MFS_CHECKED;
+		}
+		else
+		{
+			mii.fState = MFS_ENABLED;
+		}
+
+		int currentPosition;
+
+		if (inCommonColumns)
+		{
+			// The common columns always appear first, whether they're checked
+			// or not.
+			currentPosition = commonColumnPosition;
+			commonColumnPosition++;
+		}
+		else
+		{
+			currentPosition = totalInserted;
+		}
+
+		int id = totalInserted + 1;
+
+		mii.dwTypeData = columnText.data();
+		mii.wID = id;
+		InsertMenuItem(headerMenu, currentPosition, TRUE, &mii);
+
+		menuItemMappings.insert({id, column.id});
+
+		totalInserted++;
 	}
 
-	TrackPopupMenu(hMenu,TPM_LEFTALIGN|TPM_RIGHTBUTTON|TPM_VERTICAL,
-		pCursorPos->x,pCursorPos->y,0,m_hContainer,NULL);
+	int cmd = TrackPopupMenu(headerMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERTICAL | TPM_RETURNCMD,
+		pCursorPos->x, pCursorPos->y, 0, m_hContainer, NULL);
 
-	DestroyMenu(hHeaderPopupMenu);
+	if (cmd == 0)
+	{
+		return;
+	}
+
+	OnListViewHeaderMenuItemSelected(cmd, menuItemMappings);
 }
 
-int Explorerplusplus::GetColumnHeaderMenuList(unsigned int **pHeaderList)
+std::vector<unsigned int> Explorerplusplus::GetColumnHeaderMenuList()
 {
-	int nItems;
-
-	if(CompareVirtualFolders(m_CurrentDirectory, CSIDL_DRIVES))
+	if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_DRIVES))
 	{
-		*pHeaderList = g_MyComputerHeaderList;
-		nItems = sizeof(g_MyComputerHeaderList) / sizeof(g_MyComputerHeaderList[0]);
+		return COMMON_MY_COMPUTER_COLUMNS;
 	}
-	else if(CompareVirtualFolders(m_CurrentDirectory, CSIDL_CONTROLS))
+	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_CONTROLS))
 	{
-		*pHeaderList = g_ControlPanelHeaderList;
-		nItems = sizeof(g_ControlPanelHeaderList) / sizeof(g_ControlPanelHeaderList[0]);
+		return COMMON_CONTROL_PANEL_COLUMNS;
 	}
-	else if(CompareVirtualFolders(m_CurrentDirectory, CSIDL_BITBUCKET))
+	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_BITBUCKET))
 	{
-		*pHeaderList = g_RecycleBinHeaderList;
-		nItems = sizeof(g_RecycleBinHeaderList) / sizeof(g_RecycleBinHeaderList[0]);
+		return COMMON_RECYCLE_BIN_COLUMNS;
 	}
-	else if(CompareVirtualFolders(m_CurrentDirectory, CSIDL_CONNECTIONS))
+	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_CONNECTIONS))
 	{
-		*pHeaderList = g_NetworkConnectionsHeaderList;
-		nItems = sizeof(g_NetworkConnectionsHeaderList) / sizeof(g_NetworkConnectionsHeaderList[0]);
+		return COMMON_NETWORK_CONNECTIONS_COLUMNS;
 	}
-	else if(CompareVirtualFolders(m_CurrentDirectory, CSIDL_NETWORK))
+	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_NETWORK))
 	{
-		*pHeaderList = g_NetworkHeaderList;
-		nItems = sizeof(g_NetworkHeaderList) / sizeof(g_NetworkHeaderList[0]);
+		return COMMON_NETWORK_COLUMNS;
 	}
-	else if(CompareVirtualFolders(m_CurrentDirectory, CSIDL_PRINTERS))
+	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_PRINTERS))
 	{
-		*pHeaderList = g_PrintersHeaderList;
-		nItems = sizeof(g_PrintersHeaderList) / sizeof(g_PrintersHeaderList[0]);
+		return COMMON_PRINTERS_COLUMNS;
 	}
 	else
 	{
-		*pHeaderList = g_RealFolderHeaderList;
-		nItems = sizeof(g_RealFolderHeaderList) / sizeof(g_RealFolderHeaderList[0]);
+		return COMMON_REAL_FOLDER_COLUMNS;
+	}
+}
+
+void Explorerplusplus::OnListViewHeaderMenuItemSelected(int menuItemId,
+	const std::unordered_map<int, UINT> &menuItemMappings)
+{
+	auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
+
+	UINT columnId = menuItemMappings.at(menuItemId);
+	auto itr = std::find_if(currentColumns.begin(), currentColumns.end(), [columnId] (const Column_t &column) {
+		return column.id == columnId;
+	});
+
+	if (itr == currentColumns.end())
+	{
+		return;
 	}
 
-	return nItems;
+	itr->bChecked = !itr->bChecked;
+
+	m_pActiveShellBrowser->ImportColumns(currentColumns);
+
+	// If it was the first column that was changed, need to refresh all columns.
+	if (menuItemId == 1)
+	{
+		Tab &tab = m_tabContainer->GetSelectedTab();
+		tab.GetNavigationController()->Refresh();
+	}
 }
 
 HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType)
@@ -1144,22 +1031,26 @@ HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType
 		return E_FAIL;
 	}
 
-	LPITEMIDLIST pidlDirectory = NULL;
-	std::list<LPITEMIDLIST> ItemList;
+	std::vector<unique_pidl_child> pidls;
+	std::vector<PCITEMID_CHILD> rawPidls;
 	std::list<std::wstring> FilenameList;
-	int iItem = -1;
+
+	int item = -1;
 
 	/* Store the pidl of the current folder, as well as the relative
 	pidl's of the dragged items. */
-	pidlDirectory = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
+	auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
 
-	while((iItem = ListView_GetNextItem(m_hActiveListView,iItem,LVNI_SELECTED)) != -1)
+	while((item = ListView_GetNextItem(m_hActiveListView,item,LVNI_SELECTED)) != -1)
 	{
-		ItemList.push_back(m_pActiveShellBrowser->QueryItemRelativeIdl(iItem));
+		auto pidl = m_pActiveShellBrowser->GetItemChildIdl(item);
+
+		rawPidls.push_back(pidl.get());
+		pidls.push_back(std::move(pidl));
 
 		TCHAR szFullFilename[MAX_PATH];
 
-		m_pActiveShellBrowser->QueryFullItemName(iItem,szFullFilename,SIZEOF_ARRAY(szFullFilename));
+		m_pActiveShellBrowser->GetItemFullName(item,szFullFilename,SIZEOF_ARRAY(szFullFilename));
 
 		std::wstring stringFilename(szFullFilename);
 
@@ -1182,7 +1073,7 @@ HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType
 			CF_HDROP
 			CFSTR_SHELLIDLIST */
 			BuildHDropList(&ftc[0],&stg[0],FilenameList);
-			BuildShellIDList(&ftc[1],&stg[1],pidlDirectory,ItemList);
+			BuildShellIDList(&ftc[1],&stg[1],pidlDirectory.get(),rawPidls);
 
 			IDataObject *pDataObject = NULL;
 			IDataObjectAsyncCapability *pAsyncCapability = NULL;
@@ -1231,13 +1122,6 @@ HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType
 		pDragSourceHelper->Release();
 	}
 
-	for(auto pidl : ItemList)
-	{
-		CoTaskMemFree(pidl);
-	}
-
-	CoTaskMemFree(pidlDirectory);
-
 	return hr;
 }
 
@@ -1253,14 +1137,14 @@ void Explorerplusplus::OnListViewFileDelete(bool permanent)
 	// PIDLPointer is analogous to a unique_ptr. This vector exists only
 	// so that the underlying PIDLs will be freed on scope exit (i.e.
 	// when this function returns).
-	std::vector<PIDLPointer> pidlPtrs;
+	std::vector<unique_pidl_absolute> pidlPtrs;
 
-	std::vector<LPCITEMIDLIST> pidls;
+	std::vector<PCIDLIST_ABSOLUTE> pidls;
 	int iItem = -1;
 
 	while((iItem = ListView_GetNextItem(m_hActiveListView,iItem,LVNI_SELECTED)) != -1)
 	{
-		PIDLPointer pidlPtr(m_pActiveShellBrowser->QueryItemCompleteIdl(iItem));
+		auto pidlPtr = m_pActiveShellBrowser->GetItemCompleteIdl(iItem);
 
 		if (!pidlPtr)
 		{
@@ -1299,16 +1183,11 @@ void Explorerplusplus::OnListViewDoubleClick(NMHDR *nmhdr)
 		{
 			if(IsKeyDown(VK_MENU))
 			{
-				LPITEMIDLIST pidlDirectory = NULL;
-				LPITEMIDLIST pidl = NULL;
+				auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
+				auto pidl = m_pActiveShellBrowser->GetItemChildIdl(ht.iItem);
+				std::vector<PCITEMID_CHILD> items = { pidl.get() };
 
-				pidlDirectory = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
-				pidl = m_pActiveShellBrowser->QueryItemRelativeIdl(ht.iItem);
-
-				ShowMultipleFileProperties(pidlDirectory, (LPCITEMIDLIST *)&pidl, m_hContainer, 1);
-
-				CoTaskMemFree(pidl);
-				CoTaskMemFree(pidlDirectory);
+				ShowMultipleFileProperties(pidlDirectory.get(), items.data(), m_hContainer, 1);
 			}
 			else if(IsKeyDown(VK_CONTROL))
 			{
@@ -1381,7 +1260,7 @@ void Explorerplusplus::OnListViewFileRenameMultiple()
 			continue;
 		}
 
-		m_pActiveShellBrowser->QueryFullItemName(iIndex, szFullFilename, SIZEOF_ARRAY(szFullFilename));
+		m_pActiveShellBrowser->GetItemFullName(iIndex, szFullFilename, SIZEOF_ARRAY(szFullFilename));
 		FullFilenameList.push_back(szFullFilename);
 	}
 
@@ -1391,48 +1270,8 @@ void Explorerplusplus::OnListViewFileRenameMultiple()
 	}
 
 	CMassRenameDialog CMassRenameDialog(m_hLanguageModule, IDD_MASSRENAME,
-		m_hContainer, FullFilenameList, &m_FileActionHandler);
+		m_hContainer, this, FullFilenameList, &m_FileActionHandler);
 	CMassRenameDialog.ShowModalDialog();
-}
-
-void Explorerplusplus::OnListViewShowFileProperties(void) const
-{
-	LPITEMIDLIST	*ppidl = NULL;
-	LPITEMIDLIST	pidlDirectory = NULL;
-	int				iItem;
-	int				nSelected;
-	int				i = 0;
-
-	nSelected = ListView_GetSelectedCount(m_hActiveListView);
-
-	if(nSelected == 0)
-	{
-		ppidl = NULL;
-	}
-	else
-	{
-		ppidl = (LPITEMIDLIST *)malloc(nSelected * sizeof(LPCITEMIDLIST));
-
-		iItem = -1;
-
-		while((iItem = ListView_GetNextItem(m_hActiveListView,iItem,LVNI_SELECTED)) != -1)
-		{
-			ppidl[i] = m_pActiveShellBrowser->QueryItemRelativeIdl(iItem);
-
-			i++;
-		}
-	}
-
-	pidlDirectory = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
-	ShowMultipleFileProperties(pidlDirectory, (LPCITEMIDLIST *)ppidl, m_hContainer, nSelected);
-	CoTaskMemFree(pidlDirectory);
-
-	for(i = 0;i < nSelected;i++)
-	{
-		CoTaskMemFree(ppidl[i]);
-	}
-
-	free(ppidl);
 }
 
 void Explorerplusplus::OnListViewCopyItemPath(void) const
@@ -1448,7 +1287,7 @@ void Explorerplusplus::OnListViewCopyItemPath(void) const
 	while((iItem = ListView_GetNextItem(m_hActiveListView,iItem,LVNI_SELECTED)) != -1)
 	{
 		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->QueryFullItemName(iItem,szFullFilename,SIZEOF_ARRAY(szFullFilename));
+		m_pActiveShellBrowser->GetItemFullName(iItem,szFullFilename,SIZEOF_ARRAY(szFullFilename));
 
 		strItemPaths += szFullFilename + std::wstring(_T("\r\n"));
 	}
@@ -1471,7 +1310,7 @@ void Explorerplusplus::OnListViewCopyUniversalPaths(void) const
 	while((iItem = ListView_GetNextItem(m_hActiveListView,iItem,LVNI_SELECTED)) != -1)
 	{
 		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->QueryFullItemName(iItem,szFullFilename,SIZEOF_ARRAY(szFullFilename));
+		m_pActiveShellBrowser->GetItemFullName(iItem,szFullFilename,SIZEOF_ARRAY(szFullFilename));
 
 		TCHAR szBuffer[1024];
 
@@ -1534,7 +1373,7 @@ HRESULT Explorerplusplus::OnListViewCopy(BOOL bCopy)
 			while((iItem = ListView_GetNextItem(m_hActiveListView,
 				iItem,LVNI_SELECTED)) != -1)
 			{
-				m_pActiveShellBrowser->QueryDisplayName(iItem,SIZEOF_ARRAY(szFilename),
+				m_pActiveShellBrowser->GetItemDisplayName(iItem,SIZEOF_ARRAY(szFilename),
 					szFilename);
 				m_CutFileNameList.push_back(szFilename);
 
@@ -1561,9 +1400,9 @@ void Explorerplusplus::OnListViewSetFileAttributes(void) const
 		{
 			NSetFileAttributesDialogExternal::SetFileAttributesInfo_t sfai;
 
-			m_pActiveShellBrowser->QueryFullItemName(iSel,sfai.szFullFileName,SIZEOF_ARRAY(sfai.szFullFileName));
+			m_pActiveShellBrowser->GetItemFullName(iSel,sfai.szFullFileName,SIZEOF_ARRAY(sfai.szFullFileName));
 
-			WIN32_FIND_DATA wfd = m_pActiveShellBrowser->QueryFileFindData(iSel);
+			WIN32_FIND_DATA wfd = m_pActiveShellBrowser->GetItemFileFindData(iSel);
 			sfai.wfd = wfd;
 
 			sfaiList.push_back(sfai);
@@ -1592,7 +1431,7 @@ void Explorerplusplus::OnListViewPaste(void)
 		will cause the destination directory to change in the
 		middle of the copy operation. */
 		StringCchCopy(szDestination,SIZEOF_ARRAY(szDestination),
-			m_CurrentDirectory);
+			m_CurrentDirectory.c_str());
 
 		/* Also, the string must be double NULL terminated. */
 		szDestination[lstrlen(szDestination) + 1] = '\0';
@@ -1623,7 +1462,7 @@ void Explorerplusplus::BuildListViewFileSelectionList(HWND hListView,
 	{
 		TCHAR szFullFileName[MAX_PATH];
 
-		m_pActiveShellBrowser->QueryFullItemName(iItem,
+		m_pActiveShellBrowser->GetItemFullName(iItem,
 			szFullFileName,SIZEOF_ARRAY(szFullFileName));
 
 		std::wstring stringFileName(szFullFileName);
@@ -1651,7 +1490,7 @@ int Explorerplusplus::HighlightSimilarFiles(HWND ListView) const
 	if(iSelected == -1)
 		return -1;
 
-	hr = m_pActiveShellBrowser->QueryFullItemName(iSelected,TestFile,SIZEOF_ARRAY(TestFile));
+	hr = m_pActiveShellBrowser->GetItemFullName(iSelected,TestFile,SIZEOF_ARRAY(TestFile));
 
 	if(SUCCEEDED(hr))
 	{
@@ -1659,7 +1498,7 @@ int Explorerplusplus::HighlightSimilarFiles(HWND ListView) const
 
 		for(i = 0;i < nItems;i++)
 		{
-			m_pActiveShellBrowser->QueryFullItemName(i,FullFileName,SIZEOF_ARRAY(FullFileName));
+			m_pActiveShellBrowser->GetItemFullName(i,FullFileName,SIZEOF_ARRAY(FullFileName));
 
 			bSimilarTypes = CompareFileTypes(FullFileName,TestFile);
 
@@ -1687,7 +1526,7 @@ void Explorerplusplus::OpenAllSelectedItems(BOOL bOpenInNewTab)
 
 	while((iItem = ListView_GetNextItem(m_hActiveListView,iItem,LVIS_SELECTED)) != -1)
 	{
-		dwAttributes = m_pActiveShellBrowser->QueryFileAttributes(iItem);
+		dwAttributes = m_pActiveShellBrowser->GetItemFileFindData(iItem).dwFileAttributes;
 
 		if((dwAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
 		{
@@ -1706,22 +1545,12 @@ void Explorerplusplus::OpenAllSelectedItems(BOOL bOpenInNewTab)
 
 void Explorerplusplus::OpenListViewItem(int iItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow)
 {
-	LPITEMIDLIST	pidlComplete = NULL;
-	LPITEMIDLIST	pidl = NULL;
-	LPITEMIDLIST	ridl = NULL;
-
-	pidl = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
-	ridl = m_pActiveShellBrowser->QueryItemRelativeIdl(iItem);
+	auto pidl = m_pActiveShellBrowser->GetDirectoryIdl();
+	auto ridl = m_pActiveShellBrowser->GetItemChildIdl(iItem);
 
 	if(ridl != NULL)
 	{
-		pidlComplete = ILCombine(pidl, ridl);
-
-		OpenItem(pidlComplete, bOpenInNewTab, bOpenInNewWindow);
-
-		CoTaskMemFree(pidlComplete);
-		CoTaskMemFree(ridl);
+		unique_pidl_absolute pidlComplete(ILCombine(pidl.get(), ridl.get()));
+		OpenItem(pidlComplete.get(), bOpenInNewTab, bOpenInNewWindow);
 	}
-
-	CoTaskMemFree(pidl);
 }

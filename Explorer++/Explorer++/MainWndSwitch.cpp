@@ -9,6 +9,7 @@
 #include "ApplicationToolbar.h"
 #include "Config.h"
 #include "DrivesToolbar.h"
+#include "Explorer++_internal.h"
 #include "HolderWindow.h"
 #include "IModelessDialogNotification.h"
 #include "MainResource.h"
@@ -85,7 +86,12 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 		break;
 
 	case WM_INITMENU:
-		SetProgramMenuItemStates((HMENU)wParam);
+		SetProgramMenuItemStates(reinterpret_cast<HMENU>(wParam));
+
+		if (reinterpret_cast<HMENU>(wParam) == GetMenu(m_hContainer))
+		{
+			m_mainMenuPreShowSignal(reinterpret_cast<HMENU>(wParam));
+		}
 		break;
 
 	case WM_MENUSELECT:
@@ -104,7 +110,7 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 		break;
 
 	case WM_USER_UPDATEWINDOWS:
-		UpdateWindowStates();
+		UpdateWindowStates(m_tabContainer->GetSelectedTab());
 		break;
 
 	case WM_USER_FILESADDED:
@@ -116,10 +122,6 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 			tab->GetShellBrowser()->DirectoryAltered();
 		}
 	}
-		break;
-
-	case WM_USER_TREEVIEW_GAINEDFOCUS:
-		m_hLastActiveWindow = m_hTreeView;
 		break;
 
 	case WM_USER_DISPLAYWINDOWRESIZED:
@@ -304,46 +306,11 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 	{
 		/* TODO: [Bookmarks] Open bookmark. */
 	}
-	else if (HIWORD(wParam) == 0 && LOWORD(wParam) >= MENU_HEADER_STARTID &&
-		LOWORD(wParam) <= MENU_HEADER_ENDID)
+	else if (HIWORD(wParam) == 0 && LOWORD(wParam) >= MENU_RECENT_TABS_STARTID &&
+		LOWORD(wParam) < MENU_RECENT_TABS_ENDID)
 	{
-		int iOffset;
-
-		iOffset = LOWORD(wParam) - MENU_HEADER_STARTID;
-
-		int							iItem = 0;
-		unsigned int *pHeaderList = NULL;
-
-		auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
-
-		GetColumnHeaderMenuList(&pHeaderList);
-
-		/* Loop through all current items to find the item that was clicked, and
-		flip its active state. */
-		for (auto itr = currentColumns.begin(); itr != currentColumns.end(); itr++)
-		{
-			if (itr->id == pHeaderList[iOffset])
-			{
-				itr->bChecked = !itr->bChecked;
-				break;
-			}
-
-			iItem++;
-		}
-
-		/* If it was the first column that was changed, need to refresh
-		all columns. */
-		if (iOffset == 0)
-		{
-			m_pActiveShellBrowser->ImportColumns(currentColumns);
-
-			Tab &tab = m_tabContainer->GetSelectedTab();
-			RefreshTab(tab);
-		}
-		else
-		{
-			m_pActiveShellBrowser->ImportColumns(currentColumns);
-		}
+		m_tabRestorerUI->OnMenuItemClicked(LOWORD(wParam));
+		return 0;
 	}
 	else if (HIWORD(wParam) == 0 && LOWORD(wParam) >= MENU_PLUGIN_STARTID &&
 		LOWORD(wParam) < MENU_PLUGIN_ENDID)
@@ -360,11 +327,12 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 
 	switch (LOWORD(wParam))
 	{
-	case TOOLBAR_NEWTAB:
+	case ToolbarButton::NewTab:
 	case IDM_FILE_NEWTAB:
 		OnNewTab();
 		break;
 
+	case ToolbarButton::CloseTab:
 	case TABTOOLBAR_CLOSE:
 	case IDM_FILE_CLOSETAB:
 		OnCloseTab();
@@ -378,13 +346,13 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		OnSaveDirectoryListing();
 		break;
 
-	case TOOLBAR_OPENCOMMANDPROMPT:
+	case ToolbarButton::OpenCommandPrompt:
 	case IDM_FILE_OPENCOMMANDPROMPT:
-		StartCommandPrompt(m_CurrentDirectory, false);
+		StartCommandPrompt(m_CurrentDirectory.c_str(), false);
 		break;
 
 	case IDM_FILE_OPENCOMMANDPROMPTADMINISTRATOR:
-		StartCommandPrompt(m_CurrentDirectory, true);
+		StartCommandPrompt(m_CurrentDirectory.c_str(), true);
 		break;
 
 	case IDM_FILE_COPYFOLDERPATH:
@@ -407,12 +375,12 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		OnSetFileAttributes();
 		break;
 
-	case TOOLBAR_DELETE:
+	case ToolbarButton::Delete:
 	case IDM_FILE_DELETE:
 		OnFileDelete(false);
 		break;
 
-	case TOOLBAR_DELETEPERMANENTLY:
+	case ToolbarButton::DeletePermanently:
 	case IDM_FILE_DELETEPERMANENTLY:
 		OnFileDelete(true);
 		break;
@@ -421,7 +389,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		OnFileRename();
 		break;
 
-	case TOOLBAR_PROPERTIES:
+	case ToolbarButton::Properties:
 	case IDM_FILE_PROPERTIES:
 	case IDM_RCLICK_PROPERTIES:
 		OnShowFileProperties();
@@ -435,35 +403,35 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		m_FileActionHandler.Undo();
 		break;
 
-	case TOOLBAR_COPY:
+	case ToolbarButton::Copy:
 	case IDM_EDIT_COPY:
 		OnCopy(TRUE);
 		break;
 
-	case TOOLBAR_CUT:
+	case ToolbarButton::Cut:
 	case IDM_EDIT_CUT:
 		OnCopy(FALSE);
 		break;
 
-	case TOOLBAR_PASTE:
+	case ToolbarButton::Paste:
 	case IDM_EDIT_PASTE:
 		OnPaste();
 		break;
 
 	case IDM_EDIT_PASTESHORTCUT:
-		PasteLinksToClipboardFiles(m_CurrentDirectory);
+		PasteLinksToClipboardFiles(m_CurrentDirectory.c_str());
 		break;
 
 	case IDM_EDIT_PASTEHARDLINK:
-		PasteHardLinks(m_CurrentDirectory);
+		PasteHardLinks(m_CurrentDirectory.c_str());
 		break;
 
 	case IDM_EDIT_COPYTOFOLDER:
-	case TOOLBAR_COPYTO:
+	case ToolbarButton::CopyTo:
 		CopyToFolder(false);
 		break;
 
-	case TOOLBAR_MOVETO:
+	case ToolbarButton::MoveTo:
 	case IDM_EDIT_MOVETOFOLDER:
 		CopyToFolder(true);
 		break;
@@ -481,7 +449,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		SetFocus(m_hActiveListView);
 		break;
 
-	case IDM_EDIT_SELECTALLFOLDERS:
+	case IDM_EDIT_SELECTALLOFSAMETYPE:
 		HighlightSimilarFiles(m_hActiveListView);
 		SetFocus(m_hActiveListView);
 		break;
@@ -510,8 +478,8 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		ResizeWindows();
 		break;
 
+	case ToolbarButton::Folders:
 	case IDM_VIEW_FOLDERS:
-	case TOOLBAR_FOLDERS:
 		ToggleFolders();
 		break;
 
@@ -565,35 +533,35 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		break;
 
 	case IDM_VIEW_EXTRALARGEICONS:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::ExtraLargeIcons);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::ExtraLargeIcons);
 		break;
 
 	case IDM_VIEW_LARGEICONS:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::LargeIcons);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::LargeIcons);
 		break;
 
 	case IDM_VIEW_ICONS:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::Icons);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::Icons);
 		break;
 
 	case IDM_VIEW_SMALLICONS:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::SmallIcons);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::SmallIcons);
 		break;
 
 	case IDM_VIEW_LIST:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::List);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::List);
 		break;
 
 	case IDM_VIEW_DETAILS:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::Details);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::Details);
 		break;
 
 	case IDM_VIEW_THUMBNAILS:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::Thumbnails);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::Thumbnails);
 		break;
 
 	case IDM_VIEW_TILES:
-		m_pActiveShellBrowser->SetViewMode(ViewMode::Tiles);
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetViewMode(ViewMode::Tiles);
 		break;
 
 	case IDM_VIEW_CHANGEDISPLAYCOLOURS:
@@ -1104,23 +1072,23 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		OnGroupBy(SortMode::MediaYear);
 		break;
 
-	case IDM_ARRANGEICONSBY_ASCENDING:
+	case IDM_SORT_ASCENDING:
 		OnSortByAscending(TRUE);
 		break;
 
-	case IDM_ARRANGEICONSBY_DESCENDING:
+	case IDM_SORT_DESCENDING:
 		OnSortByAscending(FALSE);
 		break;
 
-	case IDM_ARRANGEICONSBY_AUTOARRANGE:
-		m_pActiveShellBrowser->SetAutoArrange(!m_pActiveShellBrowser->GetAutoArrange());
+	case IDM_VIEW_AUTOARRANGE:
+		m_tabContainer->GetSelectedTab().GetShellBrowser()->SetAutoArrange(!m_tabContainer->GetSelectedTab().GetShellBrowser()->GetAutoArrange());
 		break;
 
 	case IDM_VIEW_SHOWHIDDENFILES:
 		OnShowHiddenFiles();
 		break;
 
-	case TOOLBAR_REFRESH:
+	case ToolbarButton::Refresh:
 	case IDM_VIEW_REFRESH:
 		OnRefresh();
 		break;
@@ -1139,49 +1107,51 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		/* Dump the columns from the current tab, and save
 		them as the default columns for the appropriate folder
 		type.. */
-		IShellFolder *pShellFolder = NULL;
-		LPITEMIDLIST pidl = NULL;
-		LPITEMIDLIST pidlDrives = NULL;
-		LPITEMIDLIST pidlControls = NULL;
-		LPITEMIDLIST pidlBitBucket = NULL;
-		LPITEMIDLIST pidlPrinters = NULL;
-		LPITEMIDLIST pidlConnections = NULL;
-		LPITEMIDLIST pidlNetwork = NULL;
-
 		auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
+		auto pidl = m_pActiveShellBrowser->GetDirectoryIdl();
 
-		pidl = m_pActiveShellBrowser->QueryCurrentDirectoryIdl();
+		unique_pidl_absolute pidlDrives;
+		SHGetFolderLocation(NULL, CSIDL_DRIVES, NULL, 0, wil::out_param(pidlDrives));
 
-		SHGetFolderLocation(NULL, CSIDL_DRIVES, NULL, 0, &pidlDrives);
-		SHGetFolderLocation(NULL, CSIDL_CONTROLS, NULL, 0, &pidlControls);
-		SHGetFolderLocation(NULL, CSIDL_BITBUCKET, NULL, 0, &pidlBitBucket);
-		SHGetFolderLocation(NULL, CSIDL_PRINTERS, NULL, 0, &pidlPrinters);
-		SHGetFolderLocation(NULL, CSIDL_CONNECTIONS, NULL, 0, &pidlConnections);
-		SHGetFolderLocation(NULL, CSIDL_NETWORK, NULL, 0, &pidlNetwork);
+		unique_pidl_absolute pidlControls;
+		SHGetFolderLocation(NULL, CSIDL_CONTROLS, NULL, 0, wil::out_param(pidlControls));
 
+		unique_pidl_absolute pidlBitBucket;
+		SHGetFolderLocation(NULL, CSIDL_BITBUCKET, NULL, 0, wil::out_param(pidlBitBucket));
+
+		unique_pidl_absolute pidlPrinters;
+		SHGetFolderLocation(NULL, CSIDL_PRINTERS, NULL, 0, wil::out_param(pidlPrinters));
+
+		unique_pidl_absolute pidlConnections;
+		SHGetFolderLocation(NULL, CSIDL_CONNECTIONS, NULL, 0, wil::out_param(pidlConnections));
+
+		unique_pidl_absolute pidlNetwork;
+		SHGetFolderLocation(NULL, CSIDL_NETWORK, NULL, 0, wil::out_param(pidlNetwork));
+
+		IShellFolder *pShellFolder;
 		SHGetDesktopFolder(&pShellFolder);
 
-		if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl, pidlDrives) == 0)
+		if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl.get(), pidlDrives.get()) == 0)
 		{
 			m_config->globalFolderSettings.folderColumns.myComputerColumns = currentColumns;
 		}
-		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl, pidlControls) == 0)
+		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl.get(), pidlControls.get()) == 0)
 		{
 			m_config->globalFolderSettings.folderColumns.controlPanelColumns = currentColumns;
 		}
-		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl, pidlBitBucket) == 0)
+		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl.get(), pidlBitBucket.get()) == 0)
 		{
 			m_config->globalFolderSettings.folderColumns.recycleBinColumns = currentColumns;
 		}
-		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl, pidlPrinters) == 0)
+		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl.get(), pidlPrinters.get()) == 0)
 		{
 			m_config->globalFolderSettings.folderColumns.printersColumns = currentColumns;
 		}
-		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl, pidlConnections) == 0)
+		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl.get(), pidlConnections.get()) == 0)
 		{
 			m_config->globalFolderSettings.folderColumns.networkConnectionsColumns = currentColumns;
 		}
-		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl, pidlNetwork) == 0)
+		else if (pShellFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl.get(), pidlNetwork.get()) == 0)
 		{
 			m_config->globalFolderSettings.folderColumns.myNetworkPlacesColumns = currentColumns;
 		}
@@ -1191,26 +1161,20 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		}
 
 		pShellFolder->Release();
-
-		CoTaskMemFree(pidlNetwork);
-		CoTaskMemFree(pidlConnections);
-		CoTaskMemFree(pidlPrinters);
-		CoTaskMemFree(pidlBitBucket);
-		CoTaskMemFree(pidlControls);
-		CoTaskMemFree(pidlDrives);
-		CoTaskMemFree(pidl);
 	}
 	break;
 
-	case TOOLBAR_NEWFOLDER:
+	case ToolbarButton::NewFolder:
 	case IDM_ACTIONS_NEWFOLDER:
 		OnCreateNewFolder();
 		break;
 
+	case ToolbarButton::MergeFiles:
 	case IDM_ACTIONS_MERGEFILES:
 		OnMergeFiles();
 		break;
 
+	case ToolbarButton::SplitFile:
 	case IDM_ACTIONS_SPLITFILE:
 		OnSplitFile();
 		break;
@@ -1219,85 +1183,84 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		OnDestroyFiles();
 		break;
 
+	case ToolbarButton::Back:
 	case IDM_GO_BACK:
-	case TOOLBAR_BACK:
-		m_navigation->OnBrowseBack();
+		OnGoBack();
 		break;
 
+	case ToolbarButton::Forward:
 	case IDM_GO_FORWARD:
-	case TOOLBAR_FORWARD:
-		m_navigation->OnBrowseForward();
+		OnGoForward();
 		break;
 
+	case ToolbarButton::Up:
 	case IDM_GO_UPONELEVEL:
-	case TOOLBAR_UP:
 		m_navigation->OnNavigateUp();
 		break;
 
 	case IDM_GO_MYCOMPUTER:
-		m_navigation->OnGotoFolder(CSIDL_DRIVES);
+		OnGoToKnownFolder(FOLDERID_ComputerFolder);
 		break;
 
 	case IDM_GO_MYDOCUMENTS:
-		m_navigation->OnGotoFolder(CSIDL_PERSONAL);
+		OnGoToKnownFolder(FOLDERID_Documents);
 		break;
 
 	case IDM_GO_MYMUSIC:
-		m_navigation->OnGotoFolder(CSIDL_MYMUSIC);
+		OnGoToKnownFolder(FOLDERID_Music);
 		break;
 
 	case IDM_GO_MYPICTURES:
-		m_navigation->OnGotoFolder(CSIDL_MYPICTURES);
+		OnGoToKnownFolder(FOLDERID_Pictures);
 		break;
 
 	case IDM_GO_DESKTOP:
-		m_navigation->OnGotoFolder(CSIDL_DESKTOP);
+		OnGoToKnownFolder(FOLDERID_Desktop);
 		break;
 
 	case IDM_GO_RECYCLEBIN:
-		m_navigation->OnGotoFolder(CSIDL_BITBUCKET);
+		OnGoToKnownFolder(FOLDERID_RecycleBinFolder);
 		break;
 
 	case IDM_GO_CONTROLPANEL:
-		m_navigation->OnGotoFolder(CSIDL_CONTROLS);
+		OnGoToKnownFolder(FOLDERID_ControlPanelFolder);
 		break;
 
 	case IDM_GO_PRINTERS:
-		m_navigation->OnGotoFolder(CSIDL_PRINTERS);
+		OnGoToKnownFolder(FOLDERID_PrintersFolder);
 		break;
 
 	case IDM_GO_CDBURNING:
-		m_navigation->OnGotoFolder(CSIDL_CDBURN_AREA);
+		OnGoToKnownFolder(FOLDERID_CDBurning);
 		break;
 
 	case IDM_GO_MYNETWORKPLACES:
-		m_navigation->OnGotoFolder(CSIDL_NETWORK);
+		OnGoToKnownFolder(FOLDERID_NetworkFolder);
 		break;
 
 	case IDM_GO_NETWORKCONNECTIONS:
-		m_navigation->OnGotoFolder(CSIDL_CONNECTIONS);
+		OnGoToKnownFolder(FOLDERID_ConnectionsFolder);
 		break;
 
-	case TOOLBAR_ADDBOOKMARK:
+	case ToolbarButton::AddBookmark:
 	case IDM_BOOKMARKS_BOOKMARKTHISTAB:
 	{
-		TCHAR szCurrentDirectory[MAX_PATH];
 		TCHAR szDisplayName[MAX_PATH];
-		m_pActiveShellBrowser->QueryCurrentDirectory(SIZEOF_ARRAY(szCurrentDirectory), szCurrentDirectory);
-		GetDisplayName(szCurrentDirectory, szDisplayName, SIZEOF_ARRAY(szDisplayName), SHGDN_INFOLDER);
-		CBookmark Bookmark = CBookmark::Create(szDisplayName, szCurrentDirectory, EMPTY_STRING);
+		std::wstring currentDirectory = m_pActiveShellBrowser->GetDirectory();
+		GetDisplayName(currentDirectory.c_str(), szDisplayName, SIZEOF_ARRAY(szDisplayName), SHGDN_INFOLDER);
+		CBookmark Bookmark = CBookmark::Create(szDisplayName, currentDirectory, EMPTY_STRING);
 
-		CAddBookmarkDialog AddBookmarkDialog(m_hLanguageModule, IDD_ADD_BOOKMARK, hwnd, *m_bfAllBookmarks, Bookmark);
+		CAddBookmarkDialog AddBookmarkDialog(m_hLanguageModule, IDD_ADD_BOOKMARK, hwnd, this, *m_bfAllBookmarks, Bookmark);
 		AddBookmarkDialog.ShowModalDialog();
 	}
 	break;
 
-	case TOOLBAR_ORGANIZEBOOKMARKS:
+	case ToolbarButton::Bookmarks:
 	case IDM_BOOKMARKS_MANAGEBOOKMARKS:
 		if (g_hwndManageBookmarks == NULL)
 		{
 			CManageBookmarksDialog *pManageBookmarksDialog = new CManageBookmarksDialog(m_hLanguageModule, IDD_MANAGE_BOOKMARKS,
-				hwnd, this, m_navigation, *m_bfAllBookmarks);
+				hwnd, this, m_navigation.get(), *m_bfAllBookmarks);
 			g_hwndManageBookmarks = pManageBookmarksDialog->ShowModelessDialog(new CModelessDialogNotification());
 		}
 		else
@@ -1306,7 +1269,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		}
 		break;
 
-	case TOOLBAR_SEARCH:
+	case ToolbarButton::Search:
 	case IDM_TOOLS_SEARCH:
 		OnSearch();
 		break;
@@ -1370,7 +1333,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		break;
 
 	case IDA_HOME:
-		m_navigation->OnNavigateHome();
+		OnGoHome();
 		break;
 
 	case IDA_TAB1:
@@ -1409,7 +1372,11 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		OnSelectTabByIndex(-1);
 		break;
 
-	case TOOLBAR_VIEWS:
+	case IDA_RESTORE_LAST_TAB:
+		m_tabRestorer->RestoreLastTab();
+		break;
+
+	case ToolbarButton::Views:
 		OnToolbarViews();
 		break;
 
@@ -1457,7 +1424,7 @@ LRESULT Explorerplusplus::HandleControlNotification(HWND hwnd, WPARAM wParam)
 	switch (HIWORD(wParam))
 	{
 	case CBN_DROPDOWN:
-		AddPathsToComboBoxEx(m_addressBar->GetHWND(), m_CurrentDirectory);
+		AddPathsToComboBoxEx(m_addressBar->GetHWND(), m_CurrentDirectory.c_str());
 		break;
 	}
 
@@ -1649,17 +1616,17 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 									{
 										switch(tbButton.idCommand)
 										{
-										case TOOLBAR_BACK:
+										case ToolbarButton::Back:
 											hSubMenu = CreateRebarHistoryMenu(TRUE);
 											fMask |= MIIM_SUBMENU;
 											break;
 
-										case TOOLBAR_FORWARD:
+										case ToolbarButton::Forward:
 											hSubMenu = CreateRebarHistoryMenu(FALSE);
 											fMask |= MIIM_SUBMENU;
 											break;
 
-										case TOOLBAR_VIEWS:
+										case ToolbarButton::Views:
 											hSubMenu = BuildViewsMenu();
 											fMask |= MIIM_SUBMENU;
 											break;
@@ -1712,8 +1679,6 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 						(iCmd >= ID_REBAR_MENU_FORWARD_START &&
 						iCmd <= ID_REBAR_MENU_FORWARD_END))
 					{
-						LPITEMIDLIST pidl = NULL;
-
 						if(iCmd >= ID_REBAR_MENU_BACK_START &&
 							iCmd <= ID_REBAR_MENU_BACK_END)
 						{
@@ -1724,11 +1689,7 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 							iCmd = iCmd - ID_REBAR_MENU_FORWARD_START;
 						}
 
-						pidl = m_pActiveShellBrowser->RetrieveHistoryItem(iCmd);
-
-						m_navigation->BrowseFolderInCurrentTab(pidl,SBSP_ABSOLUTE|SBSP_WRITENOHISTORY);
-
-						CoTaskMemFree(pidl);
+						OnGoToOffset(iCmd);
 					}
 					else
 					{

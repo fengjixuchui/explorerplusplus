@@ -6,7 +6,6 @@
 
 #include "CoreInterface.h"
 #include "TabContainer.h"
-#include "TabInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
@@ -16,8 +15,6 @@ class CSelectColumnsDialog;
 class CSelectColumnsDialogPersistentSettings : public CDialogSettings
 {
 public:
-
-	~CSelectColumnsDialogPersistentSettings();
 
 	static CSelectColumnsDialogPersistentSettings &GetInstance();
 
@@ -38,8 +35,7 @@ class CSelectColumnsDialog : public CBaseDialog
 public:
 
 	CSelectColumnsDialog(HINSTANCE hInstance, int iResource, HWND hParent, IExplorerplusplus *pexpp,
-		TabContainer *tabContainer, TabInterface *ti);
-	~CSelectColumnsDialog();
+		TabContainer *tabContainer);
 
 protected:
 
@@ -59,12 +55,12 @@ private:
 
 	void	OnOk();
 	void	OnCancel();
-	void	OnLvnItemChanged(NMLISTVIEW *pnmlv);
+	BOOL	OnLvnItemChanging(const NMLISTVIEW *nmlv);
+	void	OnLvnItemChanged(const NMLISTVIEW *pnmlv);
 	void	OnMoveColumn(bool bUp);
 
 	IExplorerplusplus *m_pexpp;
 	TabContainer *m_tabContainer;
-	TabInterface *m_ti;
 	BOOL m_bColumnsSwapped;
 
 	CSelectColumnsDialogPersistentSettings *m_pscdps;

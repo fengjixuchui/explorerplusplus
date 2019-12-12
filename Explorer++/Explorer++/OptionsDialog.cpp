@@ -11,13 +11,15 @@
  */
 
 #include "stdafx.h"
-#include "Explorer++.h"
+#include "OptionsDialog.h"
 #include "Config.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
 #include "ModelessDialogs.h"
+#include "ResourceHelper.h"
 #include "SetDefaultColumnsDialog.h"
 #include "ShellBrowser/ViewModes.h"
+#include "ViewModeHelper.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ProcessHelper.h"
@@ -26,17 +28,16 @@
 #include "../Helper/WindowHelper.h"
 #include <boost/range/adaptor/map.hpp>
 
-#define NUM_DIALOG_OPTIONS_PAGES	5
-#define LANG_SINHALA				1115
-
-INT_PTR CALLBACK	FilesFoldersProcStub(HWND,UINT,WPARAM,LPARAM);
-INT_PTR CALLBACK	WindowProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-INT_PTR CALLBACK	GeneralSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-INT_PTR CALLBACK	DefaultSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-INT_PTR CALLBACK	TabSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-int CALLBACK PropSheetProcStub(HWND hDlg,UINT msg,LPARAM lParam);
 int CALLBACK NewTabDirectoryBrowseCallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpData);
+UINT GetIconThemeStringResourceId(IconTheme iconTheme);
+
+const OptionsDialog::OptionsDialogSheetInfo OptionsDialog::OPTIONS_DIALOG_SHEETS[] = {
+	{IDD_OPTIONS_GENERAL, GeneralSettingsProcStub},
+	{IDD_OPTIONS_FILESFOLDERS, FilesFoldersProcStub},
+	{IDD_OPTIONS_WINDOW, WindowProcStub},
+	{IDD_OPTIONS_TABS, TabSettingsProcStub},
+	{IDD_OPTIONS_DEFAULT, DefaultSettingsProcStub}
+};
 
 struct FileSize_t
 {
@@ -44,137 +45,123 @@ struct FileSize_t
 	UINT StringID;
 };
 
-static const FileSize_t FILE_SIZES[] =
-{{SIZE_FORMAT_BYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_BYTES},
-{SIZE_FORMAT_KBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_KB},
-{SIZE_FORMAT_MBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_MB},
-{SIZE_FORMAT_GBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_GB},
-{SIZE_FORMAT_TBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_TB},
-{SIZE_FORMAT_PBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_PB}};
-
-static HWND g_hOptionsPropertyDialog	= NULL;
+static const FileSize_t FILE_SIZES[] = {
+	{SIZE_FORMAT_BYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_BYTES},
+	{SIZE_FORMAT_KBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_KB},
+	{SIZE_FORMAT_MBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_MB},
+	{SIZE_FORMAT_GBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_GB},
+	{SIZE_FORMAT_TBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_TB},
+	{SIZE_FORMAT_PBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_PB}
+};
 
 TCHAR g_szNewTabDirectory[MAX_PATH];
 
-void Explorerplusplus::ShowOptions(void)
+OptionsDialog *OptionsDialog::Create(std::shared_ptr<Config> config, HINSTANCE instance,
+	IExplorerplusplus *expp, TabContainer *tabContainer)
 {
-	PROPSHEETPAGE	psp[NUM_DIALOG_OPTIONS_PAGES];
-	HPROPSHEETPAGE	hpsp[NUM_DIALOG_OPTIONS_PAGES];
-	PROPSHEETHEADER	psh;
-	TCHAR			szTitle[64];
-	unsigned int	nSheet = 0;
-
-	/* General options page. */
-	psp[nSheet].dwSize		= sizeof(PROPSHEETPAGE);
-	psp[nSheet].dwFlags		= PSP_DEFAULT;
-	psp[nSheet].hInstance	= m_hLanguageModule;
-	psp[nSheet].pszTemplate	= MAKEINTRESOURCE(IDD_OPTIONS_GENERAL);
-	psp[nSheet].lParam		= (LPARAM)this;
-	psp[nSheet].pfnDlgProc	= GeneralSettingsProcStub;
-
-	hpsp[nSheet] = CreatePropertySheetPage(&psp[nSheet]);
-	nSheet++;
-
-	/* Files and Folders options page. */
-	psp[nSheet].dwSize		= sizeof(PROPSHEETPAGE);
-	psp[nSheet].dwFlags		= PSP_DEFAULT;
-	psp[nSheet].hInstance	= m_hLanguageModule;
-	psp[nSheet].pszTemplate	= MAKEINTRESOURCE(IDD_OPTIONS_FILESFOLDERS);
-	psp[nSheet].lParam		= (LPARAM)this;
-	psp[nSheet].pfnDlgProc	= FilesFoldersProcStub;
-
-	hpsp[nSheet] = CreatePropertySheetPage(&psp[nSheet]);
-	nSheet++;
-
-	/* Window options page. */
-	psp[nSheet].dwSize		= sizeof(PROPSHEETPAGE);
-	psp[nSheet].dwFlags		= PSP_DEFAULT;
-	psp[nSheet].hInstance	= m_hLanguageModule;
-	psp[nSheet].pszTemplate	= MAKEINTRESOURCE(IDD_OPTIONS_WINDOW);
-	psp[nSheet].lParam		= (LPARAM)this;
-	psp[nSheet].pfnDlgProc	= WindowProcStub;
-
-	hpsp[nSheet] = CreatePropertySheetPage(&psp[nSheet]);
-	nSheet++;
-
-	/* Tab settings options page. */
-	psp[nSheet].dwSize		= sizeof(PROPSHEETPAGE);
-	psp[nSheet].dwFlags		= PSP_DEFAULT;
-	psp[nSheet].hInstance	= m_hLanguageModule;
-	psp[nSheet].pszTemplate	= MAKEINTRESOURCE(IDD_OPTIONS_TABS);
-	psp[nSheet].lParam		= (LPARAM)this;
-	psp[nSheet].pfnDlgProc	= TabSettingsProcStub;
-
-	hpsp[nSheet] = CreatePropertySheetPage(&psp[nSheet]);
-	nSheet++;
-
-	/* Default settings options page. */
-	psp[nSheet].dwSize		= sizeof(PROPSHEETPAGE);
-	psp[nSheet].dwFlags		= PSP_DEFAULT;
-	psp[nSheet].hInstance	= m_hLanguageModule;
-	psp[nSheet].pszTemplate	= MAKEINTRESOURCE(IDD_OPTIONS_DEFAULT);
-	psp[nSheet].lParam		= (LPARAM)this;
-	psp[nSheet].pfnDlgProc	= DefaultSettingsProcStub;
-
-	hpsp[nSheet] = CreatePropertySheetPage(&psp[nSheet]);
-	nSheet++;
-
-	/* Load the main dialog title. */
-	LoadString(m_hLanguageModule,IDS_OPTIONSDIALOG_TITLE,
-		szTitle,SIZEOF_ARRAY(szTitle));
-
-	psh.dwSize		= sizeof(PROPSHEETHEADER);
-	psh.dwFlags		= PSH_DEFAULT|PSH_USECALLBACK|PSH_NOCONTEXTHELP|PSH_USEHICON|PSH_MODELESS;
-	psh.hwndParent	= m_hContainer;
-	psh.pszCaption	= szTitle;
-	psh.nPages		= nSheet;
-	psh.nStartPage	= 0;
-
-	psh.hIcon		= m_optionsDialogIcon.get();
-
-	psh.ppsp		= psp;
-	psh.phpage		= hpsp;
-	psh.pfnCallback	= PropSheetProcStub;
-
-	/* Create the property dialog itself, which
-	will hold each of the above property pages. */
-	g_hwndOptions = (HWND)PropertySheet(&psh);
+	return new OptionsDialog(config, instance, expp, tabContainer);
 }
 
-int CALLBACK PropSheetProcStub(HWND hDlg,UINT msg,LPARAM lParam)
+OptionsDialog::OptionsDialog(std::shared_ptr<Config> config, HINSTANCE instance,
+	IExplorerplusplus *expp, TabContainer *tabContainer) :
+	m_config(config),
+	m_instance(instance),
+	m_expp(expp),
+	m_tabContainer(tabContainer)
 {
-	UNREFERENCED_PARAMETER(lParam);
 
-	switch(msg)
+}
+
+HWND OptionsDialog::Show(HWND parentWindow)
+{
+	std::vector<HPROPSHEETPAGE> sheetHandles;
+
+	for (const auto &optionDialogSheet : OPTIONS_DIALOG_SHEETS)
 	{
-		case PSCB_INITIALIZED:
-			g_hOptionsPropertyDialog = hDlg;
-			break;
+		PROPSHEETPAGE sheet = GeneratePropertySheetDefinition(optionDialogSheet);
+		sheetHandles.push_back(CreatePropertySheetPage(&sheet));
 	}
 
-	return 0;
+	std::wstring title = ResourceHelper::LoadString(m_instance, IDS_OPTIONSDIALOG_TITLE);
+
+	UINT dpi = m_dpiCompat.GetDpiForWindow(parentWindow);
+	int iconWidth = m_dpiCompat.GetSystemMetricsForDpi(SM_CXSMICON, dpi);
+	int iconHeight = m_dpiCompat.GetSystemMetricsForDpi(SM_CYSMICON, dpi);
+	m_optionsDialogIcon = m_expp->GetIconResourceLoader()->LoadIconFromPNGForDpi(Icon::Options, iconWidth, iconHeight, dpi);
+
+	PROPSHEETHEADER psh;
+	psh.dwSize		= sizeof(PROPSHEETHEADER);
+	psh.dwFlags		= PSH_DEFAULT|PSH_USECALLBACK|PSH_NOCONTEXTHELP|PSH_USEHICON|PSH_MODELESS;
+	psh.hwndParent	= parentWindow;
+	psh.pszCaption	= title.c_str();
+	psh.nPages		= static_cast<UINT>(sheetHandles.size());
+	psh.nStartPage	= 0;
+	psh.hIcon		= m_optionsDialogIcon.get();
+	psh.ppsp		= nullptr;
+	psh.phpage		= sheetHandles.data();
+	psh.pfnCallback	= nullptr;
+	HWND propertySheet = reinterpret_cast<HWND>(PropertySheet(&psh));
+
+	m_windowSubclasses.push_back(WindowSubclassWrapper(propertySheet, PropSheetProcStub,
+		PROP_SHEET_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+
+	CenterWindow(parentWindow, propertySheet);
+
+	return propertySheet;
 }
 
-INT_PTR CALLBACK GeneralSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+PROPSHEETPAGE OptionsDialog::GeneratePropertySheetDefinition(const OptionsDialogSheetInfo &sheetInfo)
 {
-	static Explorerplusplus *pContainer;
+	PROPSHEETPAGE sheet;
+	sheet.dwSize = sizeof(PROPSHEETPAGE);
+	sheet.dwFlags = PSP_DEFAULT;
+	sheet.hInstance = m_instance;
+	sheet.pszTemplate = MAKEINTRESOURCE(sheetInfo.resourceId);
+	sheet.lParam = reinterpret_cast<LPARAM>(this);
+	sheet.pfnDlgProc = sheetInfo.dlgProc;
+	return sheet;
+}
+
+LRESULT CALLBACK OptionsDialog::PropSheetProcStub(HWND hwnd, UINT uMsg,
+	WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+	UNREFERENCED_PARAMETER(uIdSubclass);
+
+	OptionsDialog *optionsDialog = reinterpret_cast<OptionsDialog *>(dwRefData);
+	return optionsDialog->PropSheetProc(hwnd, uMsg, wParam, lParam);
+}
+
+LRESULT CALLBACK OptionsDialog::PropSheetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+	case WM_NCDESTROY:
+		delete this;
+		return 0;
+		break;
+	}
+
+	return DefSubclassProc(hwnd, uMsg, wParam, lParam);
+}
+
+INT_PTR CALLBACK OptionsDialog::GeneralSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	static OptionsDialog *optionsDialog;
 
 	switch(uMsg)
 	{
 		case WM_INITDIALOG:
 			{
-				PROPSHEETPAGE *ppsp;
-
-				ppsp = (PROPSHEETPAGE *)lParam;
-				pContainer = (Explorerplusplus *)ppsp->lParam;
+				PROPSHEETPAGE *ppsp = reinterpret_cast<PROPSHEETPAGE *>(lParam);
+				optionsDialog = reinterpret_cast<OptionsDialog *>(ppsp->lParam);
 			}
 			break;
 	}
 
-	return pContainer->GeneralSettingsProc(hDlg,uMsg,wParam,lParam);
+	return optionsDialog->GeneralSettingsProc(hDlg,uMsg,wParam,lParam);
 }
 
-INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch(uMsg)
 	{
@@ -221,8 +208,13 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 				}
 				CheckDlgButton(hDlg,nIDButton,BST_CHECKED);
 
-				if(m_bSavePreferencesToXMLFile)
-					CheckDlgButton(hDlg,IDC_OPTION_XML,BST_CHECKED);
+				if (m_expp->GetSavePreferencesToXmlFile())
+				{
+					CheckDlgButton(hDlg, IDC_OPTION_XML, BST_CHECKED);
+				}
+
+				UINT dpi = m_dpiCompat.GetDpiForWindow(hDlg);
+				m_newTabDirectoryIcon = m_expp->GetIconResourceLoader()->LoadIconFromPNGForDpi(Icon::Folder, 16, 16, dpi);
 
 				hButton = GetDlgItem(hDlg,IDC_DEFAULT_NEWTABDIR_BUTTON);
 				SendMessage(hButton,BM_SETIMAGE,IMAGE_ICON,(LPARAM)m_newTabDirectoryIcon.get());
@@ -230,9 +222,8 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 				hEdit = GetDlgItem(hDlg,IDC_DEFAULT_NEWTABDIR_EDIT);
 				DefaultSettingsSetNewTabDir(hEdit,m_config->defaultTabDirectory.c_str());
 
+				AddIconThemes(hDlg);
 				AddLanguages(hDlg);
-
-				CenterWindow(m_hContainer,g_hOptionsPropertyDialog);
 			}
 			break;
 
@@ -243,7 +234,7 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 				{
 				case EN_CHANGE:
 				case CBN_SELCHANGE:
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 				}
 			}
@@ -254,19 +245,19 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 				case IDC_STARTUP_PREVIOUSTABS:
 				case IDC_STARTUP_DEFAULTFOLDER:
 					if(IsDlgButtonChecked(hDlg,LOWORD(wParam)) == BST_CHECKED)
-						PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+						PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_OPTION_REPLACEEXPLORER_NONE:
 				case IDC_OPTION_REPLACEEXPLORER_FILESYSTEM:
 				case IDC_OPTION_REPLACEEXPLORER_ALL:
 				case IDC_OPTION_XML:
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_DEFAULT_NEWTABDIR_BUTTON:
 					OnDefaultSettingsNewTabDir(hDlg);
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 				}
 			}
@@ -305,9 +296,7 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 						{
 							bSuccess = TRUE;
 
-							TCHAR menuText[256];
-							LoadString(m_hLanguageModule, IDS_OPEN_IN_EXPLORERPLUSPLUS,
-								menuText, SIZEOF_ARRAY(menuText));
+							std::wstring menuText = ResourceHelper::LoadString(m_instance, IDS_OPEN_IN_EXPLORERPLUSPLUS);
 
 							switch(ReplaceExplorerMode)
 							{
@@ -334,14 +323,14 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 								NDefaultFileManager::RemoveAsDefaultFileManagerFileSystem(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
 								NDefaultFileManager::RemoveAsDefaultFileManagerAll(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
 								bSuccess = NDefaultFileManager::SetAsDefaultFileManagerFileSystem(
-									SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText);
+									SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText.c_str());
 								break;
 
 							case NDefaultFileManager::REPLACEEXPLORER_ALL:
 								NDefaultFileManager::RemoveAsDefaultFileManagerFileSystem(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
 								NDefaultFileManager::RemoveAsDefaultFileManagerAll(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
 								bSuccess = NDefaultFileManager::SetAsDefaultFileManagerAll(
-									SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText);
+									SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText.c_str());
 								break;
 							}
 
@@ -351,10 +340,8 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 							}
 							else
 							{
-								TCHAR szErrorMsg[256];
-								LoadString(m_hLanguageModule,IDS_ERR_FILEMANAGERSETTING,
-									szErrorMsg,SIZEOF_ARRAY(szErrorMsg));
-								MessageBox(hDlg,szErrorMsg,NExplorerplusplus::APP_NAME,MB_ICONWARNING);
+								std::wstring errorMessage = ResourceHelper::LoadString(m_instance, IDS_ERR_FILEMANAGERSETTING);
+								MessageBox(hDlg, errorMessage.c_str(), NExplorerplusplus::APP_NAME, MB_ICONWARNING);
 
 								int nIDButton;
 
@@ -402,8 +389,8 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 							}
 						}
 
-						m_bSavePreferencesToXMLFile = (IsDlgButtonChecked(hDlg,IDC_OPTION_XML)
-							== BST_CHECKED);
+						BOOL savePreferencesToXmlFile = (IsDlgButtonChecked(hDlg, IDC_OPTION_XML) == BST_CHECKED);
+						m_expp->SetSavePreferencesToXmlFile(savePreferencesToXmlFile);
 
 						hEdit = GetDlgItem(hDlg,IDC_DEFAULT_NEWTABDIR_EDIT);
 
@@ -423,11 +410,16 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 							m_config->defaultTabDirectory = szNewTabDir;
 						}
 
-						iSel = (int)SendMessage(GetDlgItem(hDlg,IDC_OPTIONS_LANGUAGE),CB_GETCURSEL,0,0);
+						iSel = static_cast<int>(SendDlgItemMessage(hDlg, IDC_OPTIONS_ICON_THEME, CB_GETCURSEL, 0, 0));
+						int iconThemeItemData = static_cast<int>(SendDlgItemMessage(hDlg, IDC_OPTIONS_ICON_THEME, CB_GETITEMDATA, iSel, 0));
+						m_config->iconTheme = IconTheme::_from_integral(iconThemeItemData);
 
-						m_Language = GetLanguageIDFromIndex(hDlg,iSel);
+						iSel = static_cast<int>(SendDlgItemMessage(hDlg,IDC_OPTIONS_LANGUAGE,CB_GETCURSEL,0,0));
 
-						SaveAllSettings();
+						int language = GetLanguageIDFromIndex(hDlg, iSel);
+						m_config->language = language;
+
+						m_expp->SaveAllSettings();
 					}
 					break;
 			}
@@ -442,26 +434,24 @@ INT_PTR CALLBACK Explorerplusplus::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARA
 	return 0;
 }
 
-INT_PTR CALLBACK FilesFoldersProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::FilesFoldersProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	static Explorerplusplus *pContainer;
+	static OptionsDialog *optionsDialog;
 
 	switch(uMsg)
 	{
 		case WM_INITDIALOG:
 			{
-				PROPSHEETPAGE *ppsp;
-
-				ppsp = (PROPSHEETPAGE *)lParam;
-				pContainer = (Explorerplusplus *)ppsp->lParam;
+				PROPSHEETPAGE *ppsp = reinterpret_cast<PROPSHEETPAGE *>(lParam);
+				optionsDialog = reinterpret_cast<OptionsDialog *>(ppsp->lParam);
 			}
 			break;
 	}
 
-	return pContainer->FilesFoldersProc(hDlg,uMsg,wParam,lParam);
+	return optionsDialog->FilesFoldersProc(hDlg,uMsg,wParam,lParam);
 }
 
-INT_PTR CALLBACK Explorerplusplus::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch(uMsg)
 	{
@@ -510,9 +500,8 @@ INT_PTR CALLBACK Explorerplusplus::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM w
 
 				for(int i = 0;i < SIZEOF_ARRAY(FILE_SIZES);i++)
 				{
-					TCHAR szTemp[32];
-					LoadString(m_hLanguageModule,FILE_SIZES[i].StringID,szTemp,SIZEOF_ARRAY(szTemp));
-					SendMessage(hCBSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(szTemp));
+					std::wstring fileSizeText = ResourceHelper::LoadString(m_instance,FILE_SIZES[i].StringID);
+					SendMessage(hCBSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(fileSizeText.c_str()));
 					SendMessage(hCBSize,CB_SETITEMDATA,i,FILE_SIZES[i].sdf);
 
 					if(FILE_SIZES[i].sdf == m_config->globalFolderSettings.sizeDisplayFormat)
@@ -534,7 +523,7 @@ INT_PTR CALLBACK Explorerplusplus::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM w
 				switch(HIWORD(wParam))
 				{
 				case CBN_SELCHANGE:
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 				}
 			}
@@ -552,34 +541,34 @@ INT_PTR CALLBACK Explorerplusplus::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM w
 				case IDC_SETTINGS_CHECK_ZIPFILES:
 				case IDC_SETTINGS_CHECK_FRIENDLYDATES:
 				case IDC_OPTIONS_HOVER_TIME:
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_SETTINGS_CHECK_FORCESIZE:
 					EnableWindow(GetDlgItem(hDlg,IDC_COMBO_FILESIZES),IsDlgButtonChecked(hDlg,LOWORD(wParam)) == BST_CHECKED);
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_OPTIONS_RADIO_SYSTEMINFOTIPS:
 				case IDC_OPTIONS_RADIO_CUSTOMINFOTIPS:
 					if(IsDlgButtonChecked(hDlg,LOWORD(wParam)) == BST_CHECKED)
-						PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+						PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_OPTIONS_CHECK_SHOWINFOTIPS:
 					SetInfoTipWindowStates(hDlg);
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_SETTINGS_CHECK_FOLDERSIZES:
 					SetFolderSizeWindowState(hDlg);
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_SETTINGS_CHECK_SINGLECLICK:
 					EnableWindow(GetDlgItem(hDlg,IDC_OPTIONS_HOVER_TIME),IsDlgButtonChecked(hDlg,LOWORD(wParam)) == BST_CHECKED);
 					EnableWindow(GetDlgItem(hDlg,IDC_LABEL_HOVER_TIME),IsDlgButtonChecked(hDlg,LOWORD(wParam)) == BST_CHECKED);
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 				}
 			}
@@ -623,8 +612,9 @@ INT_PTR CALLBACK Explorerplusplus::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM w
 						m_config->globalFolderSettings.showFolderSizes = (IsDlgButtonChecked(hDlg,IDC_SETTINGS_CHECK_FOLDERSIZES)
 							== BST_CHECKED);
 
-						m_config->globalFolderSettings.disableFolderSizesNetworkRemovable = (IsDlgButtonChecked(hDlg,IDC_SETTINGS_CHECK_FOLDERSIZESNETWORKREMOVABLE)
-							== BST_CHECKED);
+						m_config->globalFolderSettings.disableFolderSizesNetworkRemovable =
+							(IsDlgButtonChecked(hDlg,IDC_SETTINGS_CHECK_FOLDERSIZESNETWORKREMOVABLE)
+								== BST_CHECKED);
 
 						m_config->globalFolderSettings.forceSize = (IsDlgButtonChecked(hDlg,IDC_SETTINGS_CHECK_FORCESIZE)
 							== BST_CHECKED);
@@ -650,13 +640,14 @@ INT_PTR CALLBACK Explorerplusplus::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM w
 
 						for (auto &tab : m_tabContainer->GetAllTabs() | boost::adaptors::map_values)
 						{
-							RefreshTab(tab);
+							tab->GetNavigationController()->Refresh();
 
-							NListView::ListView_ActivateOneClickSelect(tab.listView, m_config->globalFolderSettings.oneClickActivate,
+							NListView::ListView_ActivateOneClickSelect(tab->GetShellBrowser()->GetListView(),
+								m_config->globalFolderSettings.oneClickActivate,
 								m_config->globalFolderSettings.oneClickActivateHoverTime);
 						}
 
-						SaveAllSettings();
+						m_expp->SaveAllSettings();
 					}
 					break;
 				}
@@ -671,26 +662,24 @@ INT_PTR CALLBACK Explorerplusplus::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM w
 	return 0;
 }
 
-INT_PTR CALLBACK WindowProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::WindowProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	static Explorerplusplus *pContainer;
+	static OptionsDialog *optionsDialog;
 
 	switch(uMsg)
 	{
 		case WM_INITDIALOG:
 			{
-				PROPSHEETPAGE *ppsp;
-
-				ppsp = (PROPSHEETPAGE *)lParam;
-				pContainer = (Explorerplusplus *)ppsp->lParam;
+				PROPSHEETPAGE *ppsp = reinterpret_cast<PROPSHEETPAGE *>(lParam);
+				optionsDialog = reinterpret_cast<OptionsDialog *>(ppsp->lParam);
 			}
 			break;
 	}
 
-	return pContainer->WindowProc(hDlg,uMsg,wParam,lParam);
+	return optionsDialog->WindowProc(hDlg,uMsg,wParam,lParam);
 }
 
-INT_PTR CALLBACK Explorerplusplus::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch(uMsg)
 	{
@@ -698,7 +687,7 @@ INT_PTR CALLBACK Explorerplusplus::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 		{
 			if(m_config->allowMultipleInstances)
 				CheckDlgButton(hDlg,IDC_OPTION_MULTIPLEINSTANCES,BST_CHECKED);
-			if(m_config->useLargeToolbarIcons)
+			if(m_config->useLargeToolbarIcons.get())
 				CheckDlgButton(hDlg,IDC_OPTION_LARGETOOLBARICONS,BST_CHECKED);
 			if(m_config->alwaysShowTabBar.get())
 				CheckDlgButton(hDlg,IDC_OPTION_ALWAYSSHOWTABBAR,BST_CHECKED);
@@ -747,7 +736,7 @@ INT_PTR CALLBACK Explorerplusplus::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 		case IDC_OPTION_GRIDLINES:
 		case IDC_OPTION_CHECKBOXSELECTION:
 		case IDC_OPTION_FULLROWSELECT:
-			PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+			PropSheet_Changed(GetParent(hDlg),hDlg);
 			break;
 		}
 		break;
@@ -806,7 +795,7 @@ INT_PTR CALLBACK Explorerplusplus::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 					{
 						for (auto &tab : m_tabContainer->GetAllTabs() | boost::adaptors::map_values)
 						{
-							DWORD dwExtendedStyle = ListView_GetExtendedListViewStyle(tab.listView);
+							DWORD dwExtendedStyle = ListView_GetExtendedListViewStyle(tab->GetShellBrowser()->GetListView());
 
 							if(bCheckBoxSelection)
 							{
@@ -817,7 +806,7 @@ INT_PTR CALLBACK Explorerplusplus::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 								dwExtendedStyle &= ~LVS_EX_CHECKBOXES;
 							}
 
-							ListView_SetExtendedListViewStyle(tab.listView, dwExtendedStyle);
+							ListView_SetExtendedListViewStyle(tab->GetShellBrowser()->GetListView(), dwExtendedStyle);
 						}
 
 						m_config->checkBoxSelection = (IsDlgButtonChecked(hDlg,IDC_OPTION_CHECKBOXSELECTION)
@@ -827,28 +816,20 @@ INT_PTR CALLBACK Explorerplusplus::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 					m_config->useFullRowSelect = (IsDlgButtonChecked(hDlg,IDC_OPTION_FULLROWSELECT)
 						== BST_CHECKED);
 
-					BOOL bLargeToolbarIcons = (IsDlgButtonChecked(hDlg,IDC_OPTION_LARGETOOLBARICONS)
+					m_config->useLargeToolbarIcons.set(IsDlgButtonChecked(hDlg,IDC_OPTION_LARGETOOLBARICONS)
 						== BST_CHECKED);
-
-					if(m_config->useLargeToolbarIcons != bLargeToolbarIcons)
-					{
-						m_config->useLargeToolbarIcons = (IsDlgButtonChecked(hDlg,IDC_OPTION_LARGETOOLBARICONS)
-							== BST_CHECKED);
-
-						AdjustMainToolbarSize();
-					}
 
 					for (auto &tab : m_tabContainer->GetAllTabs() | boost::adaptors::map_values)
 					{
 						/* TODO: The tab should monitor for settings
 						changes itself. */
-						tab.GetShellBrowser()->OnGridlinesSettingChanged();
+						tab->GetShellBrowser()->OnGridlinesSettingChanged();
 
-						NListView::ListView_AddRemoveExtendedStyle(tab.listView,
+						NListView::ListView_AddRemoveExtendedStyle(tab->GetShellBrowser()->GetListView(),
 							LVS_EX_FULLROWSELECT,m_config->useFullRowSelect);
 					}
 
-					SaveAllSettings();
+					m_expp->SaveAllSettings();
 				}
 				break;
 			}
@@ -863,26 +844,24 @@ INT_PTR CALLBACK Explorerplusplus::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 	return 0;
 }
 
-INT_PTR CALLBACK TabSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::TabSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	static Explorerplusplus *pContainer;
+	static OptionsDialog *optionsDialog;
 
 	switch(uMsg)
 	{
 		case WM_INITDIALOG:
 			{
-				PROPSHEETPAGE *ppsp;
-
-				ppsp = (PROPSHEETPAGE *)lParam;
-				pContainer = (Explorerplusplus *)ppsp->lParam;
+				PROPSHEETPAGE *ppsp = reinterpret_cast<PROPSHEETPAGE *>(lParam);
+				optionsDialog = reinterpret_cast<OptionsDialog *>(ppsp->lParam);
 			}
 			break;
 	}
 
-	return pContainer->TabSettingsProc(hDlg,uMsg,wParam,lParam);
+	return optionsDialog->TabSettingsProc(hDlg,uMsg,wParam,lParam);
 }
 
-INT_PTR CALLBACK Explorerplusplus::TabSettingsProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::TabSettingsProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch(uMsg)
 	{
@@ -915,7 +894,7 @@ INT_PTR CALLBACK Explorerplusplus::TabSettingsProc(HWND hDlg,UINT uMsg,WPARAM wP
 			case IDC_SETTINGS_CHECK_ALWAYSNEWTAB:
 			case IDC_TABS_DOUBLECLICKCLOSE:
 			case IDC_TABS_CLOSEMAINWINDOW:
-				PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+				PropSheet_Changed(GetParent(hDlg),hDlg);
 				break;
 			}
 			break;
@@ -950,7 +929,7 @@ INT_PTR CALLBACK Explorerplusplus::TabSettingsProc(HWND hDlg,UINT uMsg,WPARAM wP
 						m_config->closeMainWindowOnTabClose = (IsDlgButtonChecked(hDlg,IDC_TABS_CLOSEMAINWINDOW)
 							== BST_CHECKED);
 
-						SaveAllSettings();
+						m_expp->SaveAllSettings();
 					}
 					break;
 				}
@@ -965,26 +944,24 @@ INT_PTR CALLBACK Explorerplusplus::TabSettingsProc(HWND hDlg,UINT uMsg,WPARAM wP
 	return 0;
 }
 
-INT_PTR CALLBACK DefaultSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::DefaultSettingsProcStub(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	static Explorerplusplus *pContainer;
+	static OptionsDialog *optionsDialog;
 
 	switch(uMsg)
 	{
 		case WM_INITDIALOG:
 			{
-				PROPSHEETPAGE *ppsp;
-
-				ppsp = (PROPSHEETPAGE *)lParam;
-				pContainer = (Explorerplusplus *)ppsp->lParam;
+				PROPSHEETPAGE *ppsp = reinterpret_cast<PROPSHEETPAGE *>(lParam);
+				optionsDialog = reinterpret_cast<OptionsDialog *>(ppsp->lParam);
 			}
 			break;
 	}
 
-	return pContainer->DefaultSettingsProc(hDlg,uMsg,wParam,lParam);
+	return optionsDialog->DefaultSettingsProc(hDlg,uMsg,wParam,lParam);
 }
 
-INT_PTR CALLBACK Explorerplusplus::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK OptionsDialog::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch(uMsg)
 	{
@@ -1005,14 +982,13 @@ INT_PTR CALLBACK Explorerplusplus::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARA
 				HWND hComboBox = GetDlgItem(hDlg,IDC_OPTIONS_DEFAULT_VIEW);
 				int SelectedIndex = -1;
 
-				for(auto viewMode : m_viewModes)
+				for(auto viewMode : VIEW_MODES)
 				{
 					int StringID = GetViewModeMenuStringId(viewMode);
 
-					TCHAR szTemp[64];
-					LoadString(m_hLanguageModule,StringID,szTemp,SIZEOF_ARRAY(szTemp));
+					std::wstring viewModeText = ResourceHelper::LoadString(m_instance, StringID);
 
-					int Index = static_cast<int>(SendMessage(hComboBox,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(szTemp)));
+					int Index = static_cast<int>(SendMessage(hComboBox, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(viewModeText.c_str())));
 
 					if(Index != CB_ERR)
 					{
@@ -1035,7 +1011,7 @@ INT_PTR CALLBACK Explorerplusplus::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARA
 				switch(HIWORD(wParam))
 				{
 				case CBN_SELCHANGE:
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 				}
 			}
@@ -1047,12 +1023,12 @@ INT_PTR CALLBACK Explorerplusplus::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARA
 				case IDC_AUTOARRANGEGLOBAL:
 				case IDC_SORTASCENDINGGLOBAL:
 				case IDC_SHOWINGROUPSGLOBAL:
-					PropSheet_Changed(g_hOptionsPropertyDialog,hDlg);
+					PropSheet_Changed(GetParent(hDlg),hDlg);
 					break;
 
 				case IDC_BUTTON_DEFAULTCOLUMNS:
 					{
-						CSetDefaultColumnsDialog SetDefaultColumnsDialog(m_hLanguageModule,
+						CSetDefaultColumnsDialog SetDefaultColumnsDialog(m_instance,
 							IDD_SETDEFAULTCOLUMNS, hDlg, m_config->globalFolderSettings.folderColumns);
 						SetDefaultColumnsDialog.ShowModalDialog();
 					}
@@ -1084,9 +1060,10 @@ INT_PTR CALLBACK Explorerplusplus::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARA
 
 						HWND hComboBox = GetDlgItem(hDlg,IDC_OPTIONS_DEFAULT_VIEW);
 						int SelectedIndex = static_cast<int>(SendMessage(hComboBox,CB_GETCURSEL,0,0));
-						m_config->defaultFolderSettings.viewMode = ViewMode::_from_integral(static_cast<int>(SendMessage(hComboBox,CB_GETITEMDATA,SelectedIndex,0)));
+						m_config->defaultFolderSettings.viewMode = ViewMode::_from_integral(
+							static_cast<int>(SendMessage(hComboBox, CB_GETITEMDATA, SelectedIndex, 0)));
 
-						SaveAllSettings();
+						m_expp->SaveAllSettings();
 					}
 					break;
 				}
@@ -1101,20 +1078,17 @@ INT_PTR CALLBACK Explorerplusplus::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARA
 	return 0;
 }
 
-void Explorerplusplus::OnDefaultSettingsNewTabDir(HWND hDlg)
+void OptionsDialog::OnDefaultSettingsNewTabDir(HWND hDlg)
 {
 	BROWSEINFO bi;
-	PIDLIST_ABSOLUTE pidl = NULL;
 	HWND hEdit;
 	TCHAR szDisplayName[MAX_PATH];
-	TCHAR szHelper[256];
 	TCHAR szNewTabDir[MAX_PATH];
 	TCHAR szVirtualParsingPath[MAX_PATH];
 	HRESULT hr;
 
 	/* Load the dialog helper message. */
-	LoadString(m_hLanguageModule,IDS_DEFAULTSETTINGS_NEWTAB,
-		szHelper,SIZEOF_ARRAY(szHelper));
+	std::wstring helperText = ResourceHelper::LoadString(m_instance,IDS_DEFAULTSETTINGS_NEWTAB);
 
 	GetDlgItemText(hDlg,IDC_DEFAULT_NEWTABDIR_EDIT,szNewTabDir,
 		SIZEOF_ARRAY(szNewTabDir));
@@ -1133,11 +1107,11 @@ void Explorerplusplus::OnDefaultSettingsNewTabDir(HWND hDlg)
 	bi.hwndOwner		= hDlg;
 	bi.pidlRoot			= NULL;
 	bi.pszDisplayName	= szDisplayName;
-	bi.lpszTitle		= szHelper;
+	bi.lpszTitle		= helperText.c_str();
 	bi.ulFlags			= BIF_NEWDIALOGSTYLE;
 	bi.lpfn				= NewTabDirectoryBrowseCallbackProc;
 
-	pidl = SHBrowseForFolder(&bi);
+	unique_pidl_absolute pidl(SHBrowseForFolder(&bi));
 
 	CoUninitialize();
 
@@ -1145,9 +1119,7 @@ void Explorerplusplus::OnDefaultSettingsNewTabDir(HWND hDlg)
 	{
 		hEdit = GetDlgItem(hDlg,IDC_DEFAULT_NEWTABDIR_EDIT);
 
-		DefaultSettingsSetNewTabDir(hEdit,pidl);
-
-		CoTaskMemFree(pidl);
+		DefaultSettingsSetNewTabDir(hEdit,pidl.get());
 	}
 }
 
@@ -1166,22 +1138,18 @@ int CALLBACK NewTabDirectoryBrowseCallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam
 	return 0;
 }
 
-void Explorerplusplus::DefaultSettingsSetNewTabDir(HWND hEdit, const TCHAR *szPath)
+void OptionsDialog::DefaultSettingsSetNewTabDir(HWND hEdit, const TCHAR *szPath)
 {
-	LPITEMIDLIST	pidl = NULL;
-	HRESULT			hr;
-
-	hr = GetIdlFromParsingName(szPath,&pidl);
+	unique_pidl_absolute pidl;
+	HRESULT hr = SHParseDisplayName(szPath, nullptr, wil::out_param(pidl), 0, nullptr);
 
 	if(SUCCEEDED(hr))
 	{
-		DefaultSettingsSetNewTabDir(hEdit,pidl);
-
-		CoTaskMemFree(pidl);
+		DefaultSettingsSetNewTabDir(hEdit,pidl.get());
 	}
 }
 
-void Explorerplusplus::DefaultSettingsSetNewTabDir(HWND hEdit,LPITEMIDLIST pidl)
+void OptionsDialog::DefaultSettingsSetNewTabDir(HWND hEdit, PCIDLIST_ABSOLUTE pidl)
 {
 	SFGAOF			Attributes;
 	DWORD			uNameFlags;
@@ -1202,7 +1170,53 @@ void Explorerplusplus::DefaultSettingsSetNewTabDir(HWND hEdit,LPITEMIDLIST pidl)
 	SendMessage(hEdit,WM_SETTEXT,0,(LPARAM)szNewTabDir);
 }
 
-void Explorerplusplus::AddLanguages(HWND hDlg)
+void OptionsDialog::AddIconThemes(HWND dlg)
+{
+	HWND iconThemeControl = GetDlgItem(dlg, IDC_OPTIONS_ICON_THEME);
+	int currentThemeIndex = 0;
+
+	for (auto theme : IconTheme::_values())
+	{
+		UINT stringResourceId = GetIconThemeStringResourceId(theme);
+		std::wstring iconThemeName = ResourceHelper::LoadString(m_instance, stringResourceId);
+
+		int index = static_cast<int>(SendMessage(iconThemeControl, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(iconThemeName.c_str())));
+
+		if (index == CB_ERR)
+		{
+			continue;
+		}
+
+		SendMessage(iconThemeControl, CB_SETITEMDATA, index, theme);
+
+		if (theme == m_config->iconTheme)
+		{
+			currentThemeIndex = index;
+		}
+	}
+
+	SendMessage(iconThemeControl, CB_SETCURSEL, currentThemeIndex, 0);
+}
+
+UINT GetIconThemeStringResourceId(IconTheme iconTheme)
+{
+	switch (iconTheme)
+	{
+	case IconTheme::Color:
+		return IDS_ICON_THEME_COLOR;
+		break;
+
+	case IconTheme::Windows10:
+		return IDS_ICON_THEME_WINDOWS_10;
+		break;
+
+	default:
+		throw std::runtime_error("IconTheme value not found");
+		break;
+	}
+}
+
+void OptionsDialog::AddLanguages(HWND hDlg)
 {
 	HWND			hLanguageComboBox;
 	WIN32_FIND_DATA	wfd;
@@ -1237,7 +1251,7 @@ void Explorerplusplus::AddLanguages(HWND hDlg)
 
 			if(bRet)
 			{
-				if(wLanguage == m_Language)
+				if(wLanguage == m_config->language)
 				{
 					iSel = iIndex;
 				}
@@ -1253,8 +1267,8 @@ void Explorerplusplus::AddLanguages(HWND hDlg)
 	SendMessage(hLanguageComboBox,CB_SETCURSEL,iSel,0);
 }
 
-BOOL Explorerplusplus::AddLanguageToComboBox(HWND hComboBox,
-	const TCHAR *szImageDirectory, const TCHAR *szFileName, WORD *pdwLanguage)
+BOOL OptionsDialog::AddLanguageToComboBox(HWND hComboBox, const TCHAR *szImageDirectory,
+	const TCHAR *szFileName, WORD *pdwLanguage)
 {
 	TCHAR szFullFileName[MAX_PATH];
 	StringCchCopy(szFullFileName, SIZEOF_ARRAY(szFullFileName), szImageDirectory);
@@ -1289,7 +1303,7 @@ BOOL Explorerplusplus::AddLanguageToComboBox(HWND hComboBox,
 	return bSuccess;
 }
 
-int Explorerplusplus::GetLanguageIDFromIndex(HWND hDlg,int iIndex)
+int OptionsDialog::GetLanguageIDFromIndex(HWND hDlg,int iIndex)
 {
 	HWND	hComboBox;
 	int		iLanguage;
@@ -1301,7 +1315,7 @@ int Explorerplusplus::GetLanguageIDFromIndex(HWND hDlg,int iIndex)
 	return iLanguage;
 }
 
-void Explorerplusplus::SetInfoTipWindowStates(HWND hDlg)
+void OptionsDialog::SetInfoTipWindowStates(HWND hDlg)
 {
 	HWND	hCheckSystemInfoTips;
 	HWND	hCheckCustomInfoTips;
@@ -1317,7 +1331,7 @@ void Explorerplusplus::SetInfoTipWindowStates(HWND hDlg)
 	EnableWindow(hCheckCustomInfoTips,bEnable);
 }
 
-void Explorerplusplus::SetFolderSizeWindowState(HWND hDlg)
+void OptionsDialog::SetFolderSizeWindowState(HWND hDlg)
 {
 	HWND hFolderSizesNeworkRemovable;
 	BOOL bEnable;

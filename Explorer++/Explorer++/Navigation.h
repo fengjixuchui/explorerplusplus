@@ -4,39 +4,24 @@
 
 #pragma once
 
-#include "Config.h"
 #include "CoreInterface.h"
-#include "SignalWrapper.h"
 #include "TabContainer.h"
 
 class Navigation
 {
 public:
 
-	Navigation(std::shared_ptr<Config> config, IExplorerplusplus *expp);
-	~Navigation();
+	Navigation(IExplorerplusplus *expp);
 
-	void OnBrowseBack();
-	void OnBrowseForward();
-	void OnNavigateHome();
 	void OnNavigateUp();
-	void OnGotoFolder(int FolderCSIDL);
 
-	HRESULT BrowseFolderInCurrentTab(const TCHAR *szPath, UINT wFlags);
-	HRESULT BrowseFolder(Tab &tab, const TCHAR *szPath, UINT wFlags);
-	HRESULT BrowseFolderInCurrentTab(LPCITEMIDLIST pidlDirectory, UINT wFlags);
-	HRESULT BrowseFolder(Tab &tab, LPCITEMIDLIST pidlDirectory, UINT wFlags);
-	void PlayNavigationSound() const;
+	HRESULT BrowseFolderInCurrentTab(const TCHAR *szPath);
+	HRESULT BrowseFolderInCurrentTab(PCIDLIST_ABSOLUTE pidlDirectory);
 
-	void OpenDirectoryInNewWindow(LPCITEMIDLIST pidlDirectory);
-
-	SignalWrapper<Navigation, void(const Tab &tab)> navigationCompletedSignal;
+	void OpenDirectoryInNewWindow(PCIDLIST_ABSOLUTE pidlDirectory);
 
 private:
 
-	void OnTabCreated(int tabId, BOOL switchToNewTab);
-
-	std::shared_ptr<Config> m_config;
 	IExplorerplusplus *m_expp;
 	TabContainer *m_tabContainer;
 };

@@ -21,18 +21,12 @@
 #include <shobjidl.h>
 #include <list>
 
-#define SORTBY_BASE	50000
-#define SORTBY_END	50099
-
-#define GROUPBY_BASE	50100
-#define GROUPBY_END		50199
-
-void Explorerplusplus::UpdateWindowStates(void)
+void Explorerplusplus::UpdateWindowStates(const Tab &tab)
 {
-	m_pActiveShellBrowser->QueryCurrentDirectory(SIZEOF_ARRAY(m_CurrentDirectory),m_CurrentDirectory);
+	m_CurrentDirectory = tab.GetShellBrowser()->GetDirectory();
 
-	UpdateStatusBarText();
-	UpdateDisplayWindow();
+	UpdateStatusBarText(tab);
+	UpdateDisplayWindow(tab);
 }
 
 /*
@@ -41,8 +35,10 @@ void Explorerplusplus::UpdateWindowStates(void)
 */
 void Explorerplusplus::SetProgramMenuItemStates(HMENU hProgramMenu)
 {
-	ViewMode viewMode = m_pActiveShellBrowser->GetViewMode();
-	BOOL bVirtualFolder = m_pActiveShellBrowser->InVirtualFolder();
+	const Tab &tab = m_tabContainer->GetSelectedTab();
+
+	ViewMode viewMode = tab.GetShellBrowser()->GetViewMode();
+	BOOL bVirtualFolder = tab.GetShellBrowser()->InVirtualFolder();
 
 	lEnableMenuItem(hProgramMenu,IDM_FILE_COPYITEMPATH,AnyItemsSelected());
 	lEnableMenuItem(hProgramMenu,IDM_FILE_COPYUNIVERSALFILEPATHS,AnyItemsSelected());
@@ -81,28 +77,28 @@ void Explorerplusplus::SetProgramMenuItemStates(HMENU hProgramMenu)
 	lCheckMenuItem(hProgramMenu,IDM_TOOLBARS_DRIVES,m_config->showDrivesToolbar);
 	lCheckMenuItem(hProgramMenu,IDM_TOOLBARS_APPLICATIONTOOLBAR,m_config->showApplicationToolbar);
 	lCheckMenuItem(hProgramMenu,IDM_TOOLBARS_LOCKTOOLBARS,m_config->lockToolbars);
-	lCheckMenuItem(hProgramMenu,IDM_VIEW_SHOWHIDDENFILES,m_pActiveShellBrowser->GetShowHidden());
-	lCheckMenuItem(hProgramMenu,IDM_FILTER_APPLYFILTER,m_pActiveShellBrowser->GetFilterStatus());
+	lCheckMenuItem(hProgramMenu,IDM_VIEW_SHOWHIDDENFILES,tab.GetShellBrowser()->GetShowHidden());
+	lCheckMenuItem(hProgramMenu,IDM_FILTER_APPLYFILTER,tab.GetShellBrowser()->GetFilterStatus());
 
 	lEnableMenuItem(hProgramMenu,IDM_ACTIONS_NEWFOLDER,CanCreate());
-	lEnableMenuItem(hProgramMenu,IDM_ACTIONS_SPLITFILE,(m_pActiveShellBrowser->GetNumSelectedFiles() == 1) && !bVirtualFolder);
+	lEnableMenuItem(hProgramMenu,IDM_ACTIONS_SPLITFILE,(tab.GetShellBrowser()->GetNumSelectedFiles() == 1) && !bVirtualFolder);
 	lEnableMenuItem(hProgramMenu,IDM_ACTIONS_MERGEFILES,m_nSelected > 1);
 	lEnableMenuItem(hProgramMenu,IDM_ACTIONS_DESTROYFILES,m_nSelected);
 
 	UINT ItemToCheck = GetViewModeMenuId(viewMode);
 	CheckMenuRadioItem(hProgramMenu,IDM_VIEW_THUMBNAILS,IDM_VIEW_EXTRALARGEICONS,ItemToCheck,MF_BYCOMMAND);
 
-	lEnableMenuItem(hProgramMenu,IDM_GO_BACK,m_pActiveShellBrowser->CanBrowseBack());
-	lEnableMenuItem(hProgramMenu,IDM_GO_FORWARD,m_pActiveShellBrowser->CanBrowseForward());
-	lEnableMenuItem(hProgramMenu,IDM_GO_UPONELEVEL,m_pActiveShellBrowser->CanBrowseUp());
+	lEnableMenuItem(hProgramMenu,IDM_GO_BACK,tab.GetNavigationController()->CanGoBack());
+	lEnableMenuItem(hProgramMenu,IDM_GO_FORWARD,tab.GetNavigationController()->CanGoForward());
+	lEnableMenuItem(hProgramMenu,IDM_GO_UPONELEVEL,tab.GetNavigationController()->CanGoUp());
 
 	lEnableMenuItem(hProgramMenu,IDM_VIEW_AUTOSIZECOLUMNS,viewMode == +ViewMode::Details);
 
 	if(viewMode == +ViewMode::Details)
 	{
 		/* Disable auto arrange menu item. */
-		lEnableMenuItem(hProgramMenu,IDM_ARRANGEICONSBY_AUTOARRANGE,FALSE);
-		lCheckMenuItem(hProgramMenu,IDM_ARRANGEICONSBY_AUTOARRANGE,FALSE);
+		lEnableMenuItem(hProgramMenu,IDM_VIEW_AUTOARRANGE,FALSE);
+		lCheckMenuItem(hProgramMenu,IDM_VIEW_AUTOARRANGE,FALSE);
 
 		lEnableMenuItem(hProgramMenu,IDM_VIEW_GROUPBY,TRUE);
 	}
@@ -112,136 +108,16 @@ void Explorerplusplus::SetProgramMenuItemStates(HMENU hProgramMenu)
 		lEnableMenuItem(hProgramMenu,IDM_VIEW_GROUPBY,FALSE);
 
 		/* Disable auto arrange menu item. */
-		lEnableMenuItem(hProgramMenu,IDM_ARRANGEICONSBY_AUTOARRANGE,FALSE);
-		lCheckMenuItem(hProgramMenu,IDM_ARRANGEICONSBY_AUTOARRANGE,FALSE);
+		lEnableMenuItem(hProgramMenu,IDM_VIEW_AUTOARRANGE,FALSE);
+		lCheckMenuItem(hProgramMenu,IDM_VIEW_AUTOARRANGE,FALSE);
 	}
 	else
 	{
 		lEnableMenuItem(hProgramMenu,IDM_VIEW_GROUPBY,TRUE);
 
-		lEnableMenuItem(hProgramMenu,IDM_ARRANGEICONSBY_AUTOARRANGE,TRUE);
-		lCheckMenuItem(hProgramMenu,IDM_ARRANGEICONSBY_AUTOARRANGE,m_pActiveShellBrowser->GetAutoArrange());
+		lEnableMenuItem(hProgramMenu,IDM_VIEW_AUTOARRANGE,TRUE);
+		lCheckMenuItem(hProgramMenu,IDM_VIEW_AUTOARRANGE,tab.GetShellBrowser()->GetAutoArrange());
 	}
 
-	SetArrangeMenuItemStates();
-}
-
-/*
-* Set the state of the items in the
-* 'arrange menu', which appears as a
-* submenu in other higher level menus.
-*/
-void Explorerplusplus::SetArrangeMenuItemStates()
-{
-	UINT ItemToCheck;
-	BOOL bShowInGroups;
-	BOOL bVirtualFolder;
-	UINT uFirst;
-	UINT uLast;
-	HMENU hMenu;
-	HMENU hMenuRClick;
-	int nItems;
-	int i = 0;
-
-	bVirtualFolder = m_pActiveShellBrowser->InVirtualFolder();
-
-	const SortMode sortMode = m_pActiveShellBrowser->GetSortMode();
-
-	bShowInGroups = m_pActiveShellBrowser->GetShowInGroups();
-
-	/* Go through both the sort by and group by menus and
-	remove all the checkmarks. Alternatively, could remember
-	which items have checkmarks, and just uncheck those. */
-	nItems = GetMenuItemCount(m_hArrangeSubMenu);
-
-	for(i = 0;i < nItems;i++)
-	{
-		CheckMenuItem(m_hArrangeSubMenu,i,MF_BYPOSITION|MF_UNCHECKED);
-		CheckMenuItem(m_hArrangeSubMenuRClick,i,MF_BYPOSITION|MF_UNCHECKED);
-	}
-
-	nItems = GetMenuItemCount(m_hGroupBySubMenu);
-
-	for(i = 0;i < nItems;i++)
-	{
-		CheckMenuItem(m_hGroupBySubMenu,i,MF_BYPOSITION|MF_UNCHECKED);
-		CheckMenuItem(m_hGroupBySubMenuRClick,i,MF_BYPOSITION|MF_UNCHECKED);
-	}
-
-	if(bShowInGroups)
-	{
-		hMenu = m_hGroupBySubMenu;
-		hMenuRClick = m_hGroupBySubMenuRClick;
-
-		ItemToCheck = DetermineGroupModeMenuId(sortMode);
-
-		if(ItemToCheck == -1)
-		{
-			/* Sort mode is invalid. Set it back to the default
-			(i.e. sort by name). */
-			ItemToCheck = IDM_GROUPBY_NAME;
-		}
-
-		uFirst = GROUPBY_BASE;
-		uLast = GROUPBY_END;
-
-		lEnableMenuItem(m_hArrangeSubMenu,IDM_ARRANGEICONSBY_ASCENDING,FALSE);
-		lEnableMenuItem(m_hArrangeSubMenu,IDM_ARRANGEICONSBY_DESCENDING,FALSE);
-		lEnableMenuItem(m_hArrangeSubMenuRClick,IDM_ARRANGEICONSBY_ASCENDING,FALSE);
-		lEnableMenuItem(m_hArrangeSubMenuRClick,IDM_ARRANGEICONSBY_DESCENDING,FALSE);
-
-		lEnableMenuItem(m_hGroupBySubMenu,IDM_ARRANGEICONSBY_ASCENDING,TRUE);
-		lEnableMenuItem(m_hGroupBySubMenu,IDM_ARRANGEICONSBY_DESCENDING,TRUE);
-		lEnableMenuItem(m_hGroupBySubMenuRClick,IDM_ARRANGEICONSBY_ASCENDING,TRUE);
-		lEnableMenuItem(m_hGroupBySubMenuRClick,IDM_ARRANGEICONSBY_DESCENDING,TRUE);
-
-		/* May need to change this (i.e. uncheck each menu item
-		individually). */
-		CheckMenuRadioItem(m_hArrangeSubMenu,SORTBY_BASE,SORTBY_END,
-			0,MF_BYCOMMAND);
-		CheckMenuRadioItem(m_hArrangeSubMenuRClick,SORTBY_BASE,SORTBY_END,
-			0,MF_BYCOMMAND);
-	}
-	else
-	{
-		hMenu = m_hArrangeSubMenu;
-		hMenuRClick = m_hArrangeSubMenuRClick;
-
-		ItemToCheck = DetermineSortModeMenuId(sortMode);
-
-		if(ItemToCheck == -1)
-		{
-			/* Sort mode is invalid. Set it back to the default
-			(i.e. sort by name). */
-			ItemToCheck = IDM_SORTBY_NAME;
-		}
-
-		uFirst = SORTBY_BASE;
-		uLast = SORTBY_END;
-
-		lEnableMenuItem(m_hGroupBySubMenu,IDM_ARRANGEICONSBY_ASCENDING,FALSE);
-		lEnableMenuItem(m_hGroupBySubMenu,IDM_ARRANGEICONSBY_DESCENDING,FALSE);
-		lEnableMenuItem(m_hGroupBySubMenuRClick,IDM_ARRANGEICONSBY_ASCENDING,FALSE);
-		lEnableMenuItem(m_hGroupBySubMenuRClick,IDM_ARRANGEICONSBY_DESCENDING,FALSE);
-
-		lEnableMenuItem(m_hArrangeSubMenu,IDM_ARRANGEICONSBY_ASCENDING,TRUE);
-		lEnableMenuItem(m_hArrangeSubMenu,IDM_ARRANGEICONSBY_DESCENDING,TRUE);
-		lEnableMenuItem(m_hArrangeSubMenuRClick,IDM_ARRANGEICONSBY_ASCENDING,TRUE);
-		lEnableMenuItem(m_hArrangeSubMenuRClick,IDM_ARRANGEICONSBY_DESCENDING,TRUE);
-	}
-
-	CheckMenuRadioItem(hMenu,uFirst,uLast,
-		ItemToCheck,MF_BYCOMMAND);
-	CheckMenuRadioItem(hMenuRClick,uFirst,uLast,
-		ItemToCheck,MF_BYCOMMAND);
-
-	if(m_pActiveShellBrowser->GetSortAscending())
-		ItemToCheck = IDM_ARRANGEICONSBY_ASCENDING;
-	else
-		ItemToCheck = IDM_ARRANGEICONSBY_DESCENDING;
-
-	CheckMenuRadioItem(hMenu,IDM_ARRANGEICONSBY_ASCENDING,IDM_ARRANGEICONSBY_DESCENDING,
-		ItemToCheck,MF_BYCOMMAND);
-	CheckMenuRadioItem(hMenuRClick,IDM_ARRANGEICONSBY_ASCENDING,IDM_ARRANGEICONSBY_DESCENDING,
-		ItemToCheck,MF_BYCOMMAND);
+	SetSortMenuItemStates(tab);
 }

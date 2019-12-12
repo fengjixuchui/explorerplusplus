@@ -26,8 +26,6 @@ class CSearchDialogPersistentSettings : public CDialogSettings
 {
 public:
 
-	~CSearchDialogPersistentSettings();
-
 	static CSearchDialogPersistentSettings &GetInstance();
 
 private:
@@ -83,8 +81,8 @@ private:
 	template <typename T> void	ListToCircularBuffer(const std::list<T> &list,boost::circular_buffer<T> &cb);
 
 	TCHAR						m_szSearchPattern[MAX_PATH];
-	boost::circular_buffer<std::wstring>	*m_pSearchPatterns;
-	boost::circular_buffer<std::wstring>	*m_pSearchDirectories;
+	boost::circular_buffer<std::wstring>	m_searchPatterns;
+	boost::circular_buffer<std::wstring>	m_searchDirectories;
 	BOOL						m_bSearchSubFolders;
 	BOOL						m_bUseRegularExpressions;
 	BOOL						m_bCaseInsensitive;
@@ -138,14 +136,14 @@ class CSearchDialog : public CBaseDialog, public IFileContextMenuExternal
 {
 public:
 
-	CSearchDialog(HINSTANCE hInstance, int iResource, HWND hParent, TCHAR *szSearchDirectory,
+	CSearchDialog(HINSTANCE hInstance, int iResource, HWND hParent, std::wstring_view searchDirectory,
 		IExplorerplusplus *pexpp, TabContainer *tabContainer);
 	~CSearchDialog();
 
 	/* IFileContextMenuExternal methods. */
-	void			AddMenuEntries(LPCITEMIDLIST pidlParent,const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,HMENU hMenu);
-	BOOL			HandleShellMenuItem(LPCITEMIDLIST pidlParent,const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,const TCHAR *szCmd);
-	void			HandleCustomMenuItem(LPCITEMIDLIST pidlParent,const std::list<LPITEMIDLIST> &pidlItemList,int iCmd);
+	void			AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, HMENU hMenu);
+	BOOL			HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd);
+	void			HandleCustomMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, int iCmd);
 
 	/* Sorting methods. */
 	int CALLBACK	SortResults(LPARAM lParam1,LPARAM lParam2);
@@ -185,7 +183,7 @@ private:
 	void						SaveEntry(int comboBoxId, boost::circular_buffer<std::wstring> &buffer);
 	void						UpdateListViewHeader();
 
-	TCHAR m_szSearchDirectory[MAX_PATH];
+	std::wstring m_searchDirectory;
 	wil::unique_hicon m_directoryIcon;
 	BOOL m_bSearching;
 	BOOL m_bStopSearching;
@@ -194,7 +192,7 @@ private:
 	CSearch *m_pSearch;
 
 	/* Listview item information. */
-	std::list<LPITEMIDLIST> m_AwaitingSearchItems;
+	std::list<PIDLIST_ABSOLUTE> m_AwaitingSearchItems;
 	std::unordered_map<int,std::wstring> m_SearchItemsMapInternal;
 	int m_iInternalIndex;
 	int m_iPreviousSelectedColumn;

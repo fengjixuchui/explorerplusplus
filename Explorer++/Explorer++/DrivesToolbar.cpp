@@ -6,6 +6,7 @@
 #include "DrivesToolbar.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
+#include "ResourceHelper.h"
 #include "TabContainer.h"
 #include "../Helper/Controls.h"
 #include "../Helper/DriveInfo.h"
@@ -36,8 +37,6 @@ CDrivesToolbar::CDrivesToolbar(HWND hParent, UINT uIDStart, UINT uIDEnd, HINSTAN
 
 CDrivesToolbar::~CDrivesToolbar()
 {
-	RemoveWindowSubclass(GetParent(m_hwnd),DrivesToolbarParentProcStub,PARENT_SUBCLASS_ID);
-
 	CHardwareChangeNotifier::GetInstance().RemoveObserver(this);
 }
 
@@ -64,8 +63,8 @@ void CDrivesToolbar::Initialize(HWND hParent)
 
 	SendMessage(m_hwnd,TB_SETIMAGELIST,0,reinterpret_cast<LPARAM>(himlSmall));
 
-	SetWindowSubclass(hParent,DrivesToolbarParentProcStub,PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(hParent, DrivesToolbarParentProcStub,
+		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	InsertDrives();
 }
@@ -172,7 +171,7 @@ LRESULT CALLBACK CDrivesToolbar::DrivesToolbarParentProc(HWND hwnd,UINT uMsg,WPA
 			if(iIndex != -1)
 			{
 				std::wstring Path = GetDrivePath(iIndex);
-				m_navigation->BrowseFolderInCurrentTab(Path.c_str(),SBSP_ABSOLUTE);
+				m_navigation->BrowseFolderInCurrentTab(Path.c_str());
 			}
 
 			return 0;
@@ -196,20 +195,18 @@ LRESULT CALLBACK CDrivesToolbar::DrivesToolbarParentProc(HWND hwnd,UINT uMsg,WPA
 						{
 							std::wstring Path = GetDrivePath(iIndex);
 
-							LPITEMIDLIST pidlItem = NULL;
-							HRESULT hr = GetIdlFromParsingName(Path.c_str(),&pidlItem);
+							unique_pidl_absolute pidlItem;
+							HRESULT hr = SHParseDisplayName(Path.c_str(), nullptr, wil::out_param(pidlItem), 0, nullptr);
 
 							if(SUCCEEDED(hr))
 							{
 								ClientToScreen(m_hwnd,&pnmm->pt);
 
-								std::list<LPITEMIDLIST> pidlItemList;
-								CFileContextMenuManager fcmm(m_hwnd,pidlItem,pidlItemList);
+								std::vector<PCITEMID_CHILD> pidlItems;
+								CFileContextMenuManager fcmm(m_hwnd,pidlItem.get(),pidlItems);
 
 								fcmm.ShowMenu(this,MIN_SHELL_MENU_ID,MAX_SHELL_MENU_ID,&pnmm->pt,m_pexpp->GetStatusBar(),
 									NULL,FALSE,IsKeyDown(VK_SHIFT));
-
-								CoTaskMemFree(pidlItem);
 							}
 
 							return TRUE;
@@ -379,28 +376,27 @@ std::wstring CDrivesToolbar::GetDrivePath(int iIndex)
 	return itr->second;
 }
 
-void CDrivesToolbar::AddMenuEntries(LPCITEMIDLIST pidlParent,
-	const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,HMENU hMenu)
+void CDrivesToolbar::AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent,
+	const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, HMENU hMenu)
 {
 	UNREFERENCED_PARAMETER(pidlParent);
-	UNREFERENCED_PARAMETER(pidlItemList);
+	UNREFERENCED_PARAMETER(pidlItems);
 	UNREFERENCED_PARAMETER(dwData);
 
-	TCHAR szTemp[64];
-	LoadString(m_hInstance,IDS_GENERAL_OPEN_IN_NEW_TAB,szTemp,SIZEOF_ARRAY(szTemp));
+	std::wstring openInNewTabText = ResourceHelper::LoadString(m_hInstance,IDS_GENERAL_OPEN_IN_NEW_TAB);
 
 	MENUITEMINFO mii;
 	mii.cbSize		= sizeof(mii);
 	mii.fMask		= MIIM_STRING|MIIM_ID;
 	mii.wID			= MENU_ID_OPEN_IN_NEW_TAB;
-	mii.dwTypeData	= szTemp;
+	mii.dwTypeData	= openInNewTabText.data();
 	InsertMenuItem(hMenu,1,TRUE,&mii);
 }
 
-BOOL CDrivesToolbar::HandleShellMenuItem(LPCITEMIDLIST pidlParent,
-	const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,const TCHAR *szCmd)
+BOOL CDrivesToolbar::HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent,
+	const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd)
 {
-	UNREFERENCED_PARAMETER(pidlItemList);
+	UNREFERENCED_PARAMETER(pidlItems);
 	UNREFERENCED_PARAMETER(dwData);
 
 	if(StrCmpI(szCmd,_T("open")) == 0)
@@ -412,10 +408,10 @@ BOOL CDrivesToolbar::HandleShellMenuItem(LPCITEMIDLIST pidlParent,
 	return FALSE;
 }
 
-void CDrivesToolbar::HandleCustomMenuItem(LPCITEMIDLIST pidlParent,
-	const std::list<LPITEMIDLIST> &pidlItemList,int iCmd)
+void CDrivesToolbar::HandleCustomMenuItem(PCIDLIST_ABSOLUTE pidlParent,
+	const std::vector<PITEMID_CHILD> &pidlItems, int iCmd)
 {
-	UNREFERENCED_PARAMETER(pidlItemList);
+	UNREFERENCED_PARAMETER(pidlItems);
 
 	switch(iCmd)
 	{

@@ -4,12 +4,11 @@
 
 #include "stdafx.h"
 #include "Helper.h"
-#include "FileWrappers.h"
 #include "Macros.h"
 #include "TimeHelper.h"
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
-
+#include <wil/resource.h>
 
 enum VersionSubBlockType_t
 {
@@ -164,13 +163,12 @@ BOOL GetFileSizeEx(const TCHAR *szFileName, PLARGE_INTEGER lpFileSize)
 {
 	BOOL bSuccess = FALSE;
 
-	HFilePtr hFile = CreateFilePtr(szFileName, GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		NULL, OPEN_EXISTING, NULL, NULL);
+	wil::unique_hfile file(CreateFile(szFileName, GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, NULL, NULL));
 
-	if(hFile)
+	if(file)
 	{
-		bSuccess = GetFileSizeEx(hFile.get(), lpFileSize);
+		bSuccess = GetFileSizeEx(file.get(), lpFileSize);
 	}
 
 	return bSuccess;
@@ -193,7 +191,7 @@ BOOL CompareFileTypes(const TCHAR *pszFile1,const TCHAR *pszFile2)
 	return FALSE;
 }
 
-HRESULT BuildFileAttributeString(const TCHAR *lpszFileName, TCHAR *szOutput, DWORD cchMax)
+HRESULT BuildFileAttributeString(const TCHAR *lpszFileName, TCHAR *szOutput, size_t cchMax)
 {
 	/* FindFirstFile is used instead of GetFileAttributes() or
 	GetFileAttributesEx() because of its behaviour
@@ -202,10 +200,10 @@ HRESULT BuildFileAttributeString(const TCHAR *lpszFileName, TCHAR *szOutput, DWO
 	pagefile, which neither of the two functions
 	above can retrieve the attributes of). */
 	WIN32_FIND_DATA wfd;
-	HFindFilePtr hFindFile = FindFirstFilePtr(lpszFileName, &wfd);
+	wil::unique_hfind findFile(FindFirstFile(lpszFileName, &wfd));
 	HRESULT hr = E_FAIL;
 
-	if(hFindFile)
+	if(findFile)
 	{
 		hr = BuildFileAttributeString(wfd.dwFileAttributes, szOutput, cchMax);
 	}
@@ -213,7 +211,7 @@ HRESULT BuildFileAttributeString(const TCHAR *lpszFileName, TCHAR *szOutput, DWO
 	return hr;
 }
 
-HRESULT BuildFileAttributeString(DWORD dwFileAttributes, TCHAR *szOutput, DWORD cchMax)
+HRESULT BuildFileAttributeString(DWORD dwFileAttributes, TCHAR *szOutput, size_t cchMax)
 {
 	TCHAR szAttributes[8];
 	int i = 0;
@@ -247,14 +245,14 @@ BOOL GetFileOwner(const TCHAR *szFile, TCHAR *szOwner, size_t cchMax)
 {
 	BOOL success = FALSE;
 
-	HFilePtr hFile = CreateFilePtr(szFile, READ_CONTROL, FILE_SHARE_READ, NULL,
-		OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+	wil::unique_hfile file(CreateFile(szFile, READ_CONTROL, FILE_SHARE_READ,
+		NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL));
 
-	if(hFile)
+	if(file)
 	{
 		PSID pSidOwner = NULL;
 		PSECURITY_DESCRIPTOR pSD = NULL;
-		DWORD dwRet = GetSecurityInfo(hFile.get(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+		DWORD dwRet = GetSecurityInfo(file.get(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
 			&pSidOwner, NULL, NULL, NULL, &pSD);
 
 		if(dwRet == ERROR_SUCCESS)
@@ -345,13 +343,13 @@ DWORD GetNumFileHardLinks(const TCHAR *lpszFileName)
 {
 	DWORD nLinks = 0;
 
-	HFilePtr hFile = CreateFilePtr(lpszFileName, FILE_READ_ATTRIBUTES,
-		FILE_SHARE_READ, NULL, OPEN_EXISTING, NULL, NULL);
+	wil::unique_hfile file(CreateFile(lpszFileName, FILE_READ_ATTRIBUTES,
+		FILE_SHARE_READ, NULL, OPEN_EXISTING, NULL, NULL));
 
-	if(hFile)
+	if(file)
 	{
 		BY_HANDLE_FILE_INFORMATION FileInfo;
-		BOOL bRet = GetFileInformationByHandle(hFile.get(), &FileInfo);
+		BOOL bRet = GetFileInformationByHandle(file.get(), &FileInfo);
 
 		if(bRet)
 		{

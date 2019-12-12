@@ -6,10 +6,12 @@
 
 #include "BookmarkHelper.h"
 #include "BookmarkTreeView.h"
+#include "CoreInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/Bookmark.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
+#include <wil/resource.h>
 #include <unordered_set>
 
 class CAddBookmarkDialog;
@@ -17,8 +19,6 @@ class CAddBookmarkDialog;
 class CAddBookmarkDialogPersistentSettings : public CDialogSettings
 {
 public:
-
-	~CAddBookmarkDialogPersistentSettings();
 
 	static CAddBookmarkDialogPersistentSettings &GetInstance();
 
@@ -42,8 +42,8 @@ class CAddBookmarkDialog : public CBaseDialog, public NBookmark::IBookmarkItemNo
 {
 public:
 
-	CAddBookmarkDialog(HINSTANCE hInstance,int iResource,HWND hParent,CBookmarkFolder &AllBookmarks,CBookmark &Bookmark);
-	~CAddBookmarkDialog();
+	CAddBookmarkDialog(HINSTANCE hInstance, int iResource, HWND hParent,
+		IExplorerplusplus *expp, CBookmarkFolder &AllBookmarks, CBookmark &Bookmark);
 
 	void	OnBookmarkAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmark &Bookmark,std::size_t Position);
 	void	OnBookmarkFolderAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmarkFolder &BookmarkFolder,std::size_t Position);
@@ -78,12 +78,14 @@ private:
 	void		SaveTreeViewState();
 	void		SaveTreeViewExpansionState(HWND hTreeView,HTREEITEM hItem);
 
+	IExplorerplusplus *m_expp;
+
 	CBookmarkFolder &m_AllBookmarks;
 	CBookmark &m_Bookmark;
 
 	CBookmarkTreeView *m_pBookmarkTreeView;
 
-	HBRUSH m_ErrorBrush;
+	wil::unique_hbrush m_ErrorBrush;
 
 	CAddBookmarkDialogPersistentSettings *m_pabdps;
 };

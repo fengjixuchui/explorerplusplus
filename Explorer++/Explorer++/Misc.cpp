@@ -5,24 +5,15 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "Config.h"
-#include "DefaultColumns.h"
 #include "Explorer++_internal.h"
 #include "HardwareChangeNotifier.h"
 #include "MainResource.h"
 #include "SelectColumnsDialog.h"
 #include "../Helper/Controls.h"
-#include "../Helper/FileOperations.h"
-#include "../Helper/Helper.h"
-#include "../Helper/ListViewHelper.h"
 #include "../Helper/Logging.h"
 #include "../Helper/Macros.h"
-#include "../Helper/ProcessHelper.h"
-#include "../Helper/ShellHelper.h"
 #include "../Helper/WindowHelper.h"
-#include "../MyTreeView/MyTreeView.h"
 #include <boost/range/adaptor/map.hpp>
-#include <shobjidl.h>
-#include <list>
 
 void Explorerplusplus::ValidateLoadedSettings()
 {
@@ -128,11 +119,6 @@ void Explorerplusplus::ValidateSingleColumnSet(int iColumnSet, std::vector<Colum
 	free(pColumnMap);
 }
 
-void Explorerplusplus::ApplyLoadedSettings(void)
-{
-	m_pMyTreeView->SetShowHidden(m_config->defaultFolderSettings.showHidden);
-}
-
 void Explorerplusplus::ApplyToolbarSettings(void)
 {
 	BOOL bVisible = FALSE;
@@ -232,13 +218,13 @@ void Explorerplusplus::CopyToFolder(bool move)
 		return;
 	}
 
-	std::vector<PIDLPointer> pidlPtrs;
-	std::vector<LPCITEMIDLIST> pidls;
+	std::vector<unique_pidl_absolute> pidlPtrs;
+	std::vector<PCIDLIST_ABSOLUTE> pidls;
 	int iItem = -1;
 
 	while ((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
 	{
-		PIDLPointer pidlPtr(m_pActiveShellBrowser->QueryItemCompleteIdl(iItem));
+		auto pidlPtr = m_pActiveShellBrowser->GetItemCompleteIdl(iItem);
 
 		if (!pidlPtr)
 		{
@@ -261,7 +247,7 @@ LRESULT Explorerplusplus::OnDeviceChange(WPARAM wParam,LPARAM lParam)
 	update its contents). */
 	for (auto &tab : m_tabContainer->GetAllTabs() | boost::adaptors::map_values)
 	{
-		tab.GetShellBrowser()->OnDeviceChange(wParam,lParam);
+		tab->GetShellBrowser()->OnDeviceChange(wParam,lParam);
 	}
 
 	/* Forward the message to the treeview, so that
@@ -310,13 +296,12 @@ void *pData)
 
 	if (tab)
 	{
-		TCHAR szDirectory[MAX_PATH];
-		tab->GetShellBrowser()->QueryCurrentDirectory(SIZEOF_ARRAY(szDirectory), szDirectory);
-		LOG(debug) << _T("Directory change notification received for \"") << szDirectory << _T("\", Action = ") << dwAction
+		std::wstring directory = tab->GetShellBrowser()->GetDirectory();
+		LOG(debug) << _T("Directory change notification received for \"") << directory << _T("\", Action = ") << dwAction
 			<< _T(", Filename = \"") << szFileName << _T("\"");
 
-		tab->GetShellBrowser()->FilesModified(dwAction,
-			szFileName, pDirectoryAltered->iIndex, pDirectoryAltered->iFolderIndex);
+		tab->GetShellBrowser()->FilesModified(dwAction, szFileName,
+			pDirectoryAltered->iIndex, pDirectoryAltered->iFolderIndex);
 	}
 }
 
@@ -348,69 +333,12 @@ int nFolders,int nFiles,PULARGE_INTEGER lTotalFolderSize)
 		(WPARAM)pDWFolderSizeCompletion,0);
 }
 
-int Explorerplusplus::CreateDriveFreeSpaceString(const TCHAR *szPath, TCHAR *szBuffer, int nBuffer)
-{
-	ULARGE_INTEGER	TotalNumberOfBytes;
-	ULARGE_INTEGER	TotalNumberOfFreeBytes;
-	ULARGE_INTEGER	BytesAvailableToCaller;
-	TCHAR			szFreeSpace[32];
-	TCHAR			szFree[16];
-	TCHAR			szFreeSpaceString[512];
-
-	if(GetDiskFreeSpaceEx(szPath,&BytesAvailableToCaller,
-	&TotalNumberOfBytes,&TotalNumberOfFreeBytes) == 0)
-	{
-		szBuffer = NULL;
-		return -1;
-	}
-
-	FormatSizeString(TotalNumberOfFreeBytes,szFreeSpace,
-		SIZEOF_ARRAY(szFreeSpace));
-
-	LoadString(m_hLanguageModule,IDS_GENERAL_FREE,szFree,SIZEOF_ARRAY(szFree));
-
-	StringCchPrintf(szFreeSpaceString,SIZEOF_ARRAY(szFreeSpace),
-	_T("%s %s (%.0f%%)"),szFreeSpace,szFree,TotalNumberOfFreeBytes.QuadPart * 100.0 / TotalNumberOfBytes.QuadPart);
-
-	if(nBuffer > lstrlen(szFreeSpaceString))
-		StringCchCopy(szBuffer,nBuffer,szFreeSpaceString);
-	else
-		szBuffer = NULL;
-
-	return lstrlen(szFreeSpaceString);
-}
-
-/*
- * Returns TRUE if there are any selected items
- * in the window that currently has focus; FALSE
- * otherwise.
- */
-BOOL Explorerplusplus::AnyItemsSelected(void)
-{
-	HWND hFocus;
-
-	hFocus = GetFocus();
-
-	if(hFocus == m_hActiveListView)
-	{
-		if(ListView_GetSelectedCount(m_hActiveListView) > 0)
-			return TRUE;
-	}
-	else if(hFocus == m_hTreeView)
-	{
-		if(TreeView_GetSelection(m_hTreeView) != NULL)
-			return TRUE;
-	}
-
-	return FALSE;
-}
-
 void Explorerplusplus::OnSelectColumns()
 {
-	CSelectColumnsDialog SelectColumnsDialog(m_hLanguageModule,IDD_SELECTCOLUMNS,m_hContainer,this,m_tabContainer,this);
+	CSelectColumnsDialog SelectColumnsDialog(m_hLanguageModule, IDD_SELECTCOLUMNS, m_hContainer, this, m_tabContainer);
 	SelectColumnsDialog.ShowModalDialog();
 
-	UpdateArrangeMenuItems();
+	UpdateSortMenuItems(m_tabContainer->GetSelectedTab());
 }
 
 CStatusBar *Explorerplusplus::GetStatusBar()

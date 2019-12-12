@@ -51,24 +51,20 @@ const TCHAR CSearchDialogPersistentSettings::SETTING_SORT_ASCENDING[] = _T("Sort
 const TCHAR CSearchDialogPersistentSettings::SETTING_DIRECTORY_LIST[] = _T("Directory");
 const TCHAR CSearchDialogPersistentSettings::SETTING_PATTERN_LIST[] = _T("Pattern");
 
-CSearchDialog::CSearchDialog(HINSTANCE hInstance,int iResource,
-	HWND hParent,TCHAR *szSearchDirectory,IExplorerplusplus *pexpp,
+CSearchDialog::CSearchDialog(HINSTANCE hInstance, int iResource,
+	HWND hParent, std::wstring_view searchDirectory, IExplorerplusplus *pexpp,
 	TabContainer *tabContainer) :
-CBaseDialog(hInstance,iResource,hParent,true)
+	CBaseDialog(hInstance, iResource, hParent, true),
+	m_searchDirectory(searchDirectory),
+	m_pexpp(pexpp),
+	m_tabContainer(tabContainer),
+	m_bSearching(FALSE),
+	m_bStopSearching(FALSE),
+	m_bSetSearchTimer(TRUE),
+	m_iInternalIndex(0),
+	m_iPreviousSelectedColumn(-1),
+	m_pSearch(nullptr)
 {
-	StringCchCopy(m_szSearchDirectory,SIZEOF_ARRAY(m_szSearchDirectory),
-		szSearchDirectory);
-
-	m_pexpp = pexpp;
-	m_tabContainer = tabContainer;
-
-	m_bSearching		= FALSE;
-	m_bStopSearching	= FALSE;
-	m_bSetSearchTimer	= TRUE;
-	m_iInternalIndex	= 0;
-	m_iPreviousSelectedColumn	= -1;
-	m_pSearch			= NULL;
-
 	m_sdps = &CSearchDialogPersistentSettings::GetInstance();
 }
 
@@ -84,7 +80,7 @@ CSearchDialog::~CSearchDialog()
 INT_PTR CSearchDialog::OnInitDialog()
 {
 	UINT dpi = m_dpiCompat.GetDpiForWindow(m_hDlg);
-	m_directoryIcon = IconResourceLoader::LoadIconFromPNGForDpi(Icon::Folder, 16, 16, dpi);
+	m_directoryIcon = m_pexpp->GetIconResourceLoader()->LoadIconFromPNGForDpi(Icon::Folder, 16, 16, dpi);
 	SendMessage(GetDlgItem(m_hDlg,IDC_BUTTON_DIRECTORY),BM_SETIMAGE,
 		IMAGE_ICON,reinterpret_cast<LPARAM>(m_directoryIcon.get()));
 
@@ -130,20 +126,20 @@ INT_PTR CSearchDialog::OnInitDialog()
 	lCheckDlgButton(m_hDlg,IDC_CHECK_CASEINSENSITIVE,m_sdps->m_bCaseInsensitive);
 	lCheckDlgButton(m_hDlg,IDC_CHECK_USEREGULAREXPRESSIONS,m_sdps->m_bUseRegularExpressions);
 
-	for(const auto &strDirectory : *m_sdps->m_pSearchDirectories)
+	for(const auto &strDirectory : m_sdps->m_searchDirectories)
 	{
 		SendDlgItemMessage(m_hDlg,IDC_COMBO_DIRECTORY,CB_INSERTSTRING,static_cast<WPARAM>(-1),
 			reinterpret_cast<LPARAM>(strDirectory.c_str()));
 	}
 
-	for(const auto strPattern : *m_sdps->m_pSearchPatterns)
+	for(const auto strPattern : m_sdps->m_searchPatterns)
 	{
 		SendDlgItemMessage(m_hDlg,IDC_COMBO_NAME,CB_INSERTSTRING,static_cast<WPARAM>(-1),
 			reinterpret_cast<LPARAM>(strPattern.c_str()));
 	}
 
 	SetDlgItemText(m_hDlg,IDC_COMBO_NAME,m_sdps->m_szSearchPattern);
-	SetDlgItemText(m_hDlg,IDC_COMBO_DIRECTORY,m_szSearchDirectory);
+	SetDlgItemText(m_hDlg,IDC_COMBO_DIRECTORY,m_searchDirectory.c_str());
 
 	CComboBox::CreateNew(GetDlgItem(m_hDlg,IDC_COMBO_NAME));
 	CComboBox::CreateNew(GetDlgItem(m_hDlg,IDC_COMBO_DIRECTORY));
@@ -168,7 +164,7 @@ INT_PTR CSearchDialog::OnInitDialog()
 
 wil::unique_hicon CSearchDialog::GetDialogIcon(int iconWidth, int iconHeight) const
 {
-	return IconResourceLoader::LoadIconFromPNGAndScale(Icon::Search, iconWidth, iconHeight);
+	return m_pexpp->GetIconResourceLoader()->LoadIconFromPNGAndScale(Icon::Search, iconWidth, iconHeight);
 }
 
 void CSearchDialog::GetResizableControlInformation(CBaseDialog::DialogSizeConstraint &dsc,
@@ -278,14 +274,12 @@ INT_PTR CSearchDialog::OnCommand(WPARAM wParam,LPARAM lParam)
 			bi.ulFlags			= BIF_RETURNONLYFSDIRS|BIF_NEWDIALOGSTYLE;
 			bi.lpfn				= NSearchDialog::BrowseCallbackProc;
 			bi.lParam			= reinterpret_cast<LPARAM>(szDirectory);
-			PIDLIST_ABSOLUTE pidl = SHBrowseForFolder(&bi);
+			unique_pidl_absolute pidl(SHBrowseForFolder(&bi));
 
 			if(pidl != NULL)
 			{
-				GetDisplayName(pidl,szParsingPath,SIZEOF_ARRAY(szParsingPath),SHGDN_FORPARSING);
+				GetDisplayName(pidl.get(),szParsingPath,SIZEOF_ARRAY(szParsingPath),SHGDN_FORPARSING);
 				SetDlgItemText(m_hDlg,IDC_COMBO_DIRECTORY,szParsingPath);
-
-				CoTaskMemFree(pidl);
 			}
 		}
 		break;
@@ -402,28 +396,28 @@ void CSearchDialog::StartSearching()
 	the same as the most recent entry). */
 	BOOL bSaveEntry = FALSE;
 
-	if(m_sdps->m_pSearchDirectories->empty() ||
-		lstrcmp(szBaseDirectory, m_sdps->m_pSearchDirectories->begin()->c_str()) != 0)
+	if(m_sdps->m_searchDirectories.empty() ||
+		lstrcmp(szBaseDirectory, m_sdps->m_searchDirectories.begin()->c_str()) != 0)
 	{
 		bSaveEntry = TRUE;
 	}
 
 	if(bSaveEntry)
 	{
-		SaveEntry(IDC_COMBO_DIRECTORY, *m_sdps->m_pSearchDirectories);
+		SaveEntry(IDC_COMBO_DIRECTORY, m_sdps->m_searchDirectories);
 	}
 
 	bSaveEntry = FALSE;
 
-	if(m_sdps->m_pSearchPatterns->empty() ||
-		lstrcmp(szSearchPattern, m_sdps->m_pSearchPatterns->begin()->c_str()) != 0)
+	if(m_sdps->m_searchPatterns.empty() ||
+		lstrcmp(szSearchPattern, m_sdps->m_searchPatterns.begin()->c_str()) != 0)
 	{
 		bSaveEntry = TRUE;
 	}
 
 	if(bSaveEntry)
 	{
-		SaveEntry(IDC_COMBO_NAME, *m_sdps->m_pSearchPatterns);
+		SaveEntry(IDC_COMBO_NAME, m_sdps->m_searchPatterns);
 	}
 
 	GetDlgItemText(m_hDlg, IDSEARCH, m_szSearchButton, SIZEOF_ARRAY(m_szSearchButton));
@@ -613,15 +607,14 @@ int CALLBACK CSearchDialog::SortResultsByPath(LPARAM lParam1,LPARAM lParam2)
 	return StrCmpLogicalW(szPath1,szPath2);
 }
 
-void CSearchDialog::AddMenuEntries(LPCITEMIDLIST pidlParent,
-	const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,HMENU hMenu)
+void CSearchDialog::AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent,
+	const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, HMENU hMenu)
 {
 	UNREFERENCED_PARAMETER(dwData);
 
-	LPITEMIDLIST pidlComplete = ILCombine(pidlParent,pidlItemList.front());
+	unique_pidl_absolute pidlComplete(ILCombine(pidlParent, pidlItems.front()));
 	SFGAOF ItemAttributes = SFGAO_FOLDER;
-	GetItemAttributes(pidlComplete,&ItemAttributes);
-	CoTaskMemFree(pidlComplete);
+	GetItemAttributes(pidlComplete.get(),&ItemAttributes);
 
 	TCHAR szTemp[64];
 
@@ -644,18 +637,17 @@ void CSearchDialog::AddMenuEntries(LPCITEMIDLIST pidlParent,
 	InsertMenuItem(hMenu,1,TRUE,&mii);
 }
 
-BOOL CSearchDialog::HandleShellMenuItem(LPCITEMIDLIST pidlParent,
-	const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,const TCHAR *szCmd)
+BOOL CSearchDialog::HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent,
+	const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd)
 {
 	UNREFERENCED_PARAMETER(dwData);
 
 	if(StrCmpI(szCmd,_T("open")) == 0)
 	{
-		for(auto pidlItem : pidlItemList)
+		for(auto pidlItem : pidlItems)
 		{
-			LPITEMIDLIST pidlComplete = ILCombine(pidlParent,pidlItem);
-			m_pexpp->OpenItem(pidlComplete,FALSE,FALSE);
-			CoTaskMemFree(pidlComplete);
+			unique_pidl_absolute pidlComplete(ILCombine(pidlParent, pidlItem));
+			m_pexpp->OpenItem(pidlComplete.get(), FALSE, FALSE);
 		}
 
 		return TRUE;
@@ -664,8 +656,8 @@ BOOL CSearchDialog::HandleShellMenuItem(LPCITEMIDLIST pidlParent,
 	return FALSE;
 }
 
-void CSearchDialog::HandleCustomMenuItem(LPCITEMIDLIST pidlParent,
-	const std::list<LPITEMIDLIST> &pidlItemList,int iCmd)
+void CSearchDialog::HandleCustomMenuItem(PCIDLIST_ABSOLUTE pidlParent,
+	const std::vector<PITEMID_CHILD> &pidlItems, int iCmd)
 {
 	switch(iCmd)
 	{
@@ -674,9 +666,8 @@ void CSearchDialog::HandleCustomMenuItem(LPCITEMIDLIST pidlParent,
 			m_tabContainer->CreateNewTab(pidlParent, TabSettings(_selected = true));
 
 			TCHAR szFilename[MAX_PATH];
-			LPITEMIDLIST pidlComplete = ILCombine(pidlParent,pidlItemList.front());
-			GetDisplayName(pidlComplete,szFilename,SIZEOF_ARRAY(szFilename),SHGDN_INFOLDER|SHGDN_FORPARSING);
-			CoTaskMemFree(pidlComplete);
+			unique_pidl_absolute pidlComplete(ILCombine(pidlParent, pidlItems.front()));
+			GetDisplayName(pidlComplete.get(), szFilename, SIZEOF_ARRAY(szFilename), SHGDN_INFOLDER | SHGDN_FORPARSING);
 
 			m_pexpp->GetActiveShellBrowser()->SelectFiles(szFilename);
 		}
@@ -711,15 +702,12 @@ INT_PTR CSearchDialog::OnNotify(NMHDR *pnmhdr)
 					/* Item should always exist. */
 					assert(itr != m_SearchItemsMapInternal.end());
 
-					LPITEMIDLIST pidlFull = NULL;
-
-					HRESULT hr = GetIdlFromParsingName(itr->second.c_str(),&pidlFull);
+					unique_pidl_absolute pidlFull;
+					HRESULT hr = SHParseDisplayName(itr->second.c_str(), nullptr, wil::out_param(pidlFull), 0, nullptr);
 
 					if(hr == S_OK)
 					{
-						m_pexpp->OpenItem(pidlFull,FALSE,FALSE);
-
-						CoTaskMemFree(pidlFull);
+						m_pexpp->OpenItem(pidlFull.get(),FALSE,FALSE);
 					}
 				}
 			}
@@ -758,20 +746,18 @@ INT_PTR CSearchDialog::OnNotify(NMHDR *pnmhdr)
 						auto itr = m_SearchItemsMapInternal.find(static_cast<int>(lvItem.lParam));
 						assert(itr != m_SearchItemsMapInternal.end());
 
-						LPITEMIDLIST pidlFull = NULL;
-
-						HRESULT hr = GetIdlFromParsingName(itr->second.c_str(),&pidlFull);
+						unique_pidl_absolute pidlFull;
+						HRESULT hr = SHParseDisplayName(itr->second.c_str(), nullptr, wil::out_param(pidlFull), 0, nullptr);
 
 						if(hr == S_OK)
 						{
-							std::list<LPITEMIDLIST> pidlList;
-							pidlList.push_back(ILFindLastID(pidlFull));
+							std::vector<PCITEMID_CHILD> pidlItems;
+							pidlItems.push_back(ILFindLastID(pidlFull.get()));
 
-							LPITEMIDLIST pidlDirectory = ILClone(pidlFull);
-							ILRemoveLastID(pidlDirectory);
+							unique_pidl_absolute pidlDirectory(ILCloneFull(pidlFull.get()));
+							ILRemoveLastID(pidlDirectory.get());
 
-							CFileContextMenuManager fcmm(m_hDlg,pidlDirectory,
-								pidlList);
+							CFileContextMenuManager fcmm(m_hDlg, pidlDirectory.get(), pidlItems);
 
 							DWORD dwCursorPos = GetMessagePos();
 
@@ -781,9 +767,6 @@ INT_PTR CSearchDialog::OnNotify(NMHDR *pnmhdr)
 
 							fcmm.ShowMenu(this,MIN_SHELL_MENU_ID,MAX_SHELL_MENU_ID,&ptCursor,m_pexpp->GetStatusBar(),
 								NULL,FALSE,IsKeyDown(VK_SHIFT));
-
-							CoTaskMemFree(pidlDirectory);
-							CoTaskMemFree(pidlFull);
 						}
 					}
 				}
@@ -830,7 +813,7 @@ INT_PTR CSearchDialog::OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 		main GUI (also see http://www.flounder.com/iocompletion.htm). */
 		case NSearchDialog::WM_APP_SEARCHITEMFOUND:
 			{
-				m_AwaitingSearchItems.push_back(reinterpret_cast<LPITEMIDLIST>(wParam));
+				m_AwaitingSearchItems.push_back(reinterpret_cast<PIDLIST_ABSOLUTE>(wParam));
 
 				if(m_bSetSearchTimer)
 				{
@@ -948,7 +931,7 @@ INT_PTR CSearchDialog::OnTimer(int iTimerID)
 		SHFILEINFO shfi;
 		int iIndex;
 
-		LPITEMIDLIST pidl = *itr;
+		PIDLIST_ABSOLUTE pidl = *itr;
 
 		GetDisplayName(pidl,szDirectory,SIZEOF_ARRAY(szDirectory),SHGDN_FORPARSING);
 		PathRemoveFileSpec(szDirectory);
@@ -1171,16 +1154,14 @@ void CSearch::SearchDirectoryInternal(const TCHAR *szSearchDirectory,
 					else
 						m_iFilesFound++;
 
-					LPITEMIDLIST pidl = NULL;
 					TCHAR szFullFileName[MAX_PATH];
-
 					PathCombine(szFullFileName,szSearchDirectory,wfd.cFileName);
-					GetIdlFromParsingName(szFullFileName,&pidl);
+
+					unique_pidl_absolute pidl;
+					SHParseDisplayName(szFullFileName, nullptr, wil::out_param(pidl), 0, nullptr);
 
 					PostMessage(m_hDlg,NSearchDialog::WM_APP_SEARCHITEMFOUND,
-						reinterpret_cast<WPARAM>(ILClone(pidl)),0);
-
-					CoTaskMemFree(pidl);
+						reinterpret_cast<WPARAM>(ILCloneFull(pidl.get())),0);
 				}
 
 				if((wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ==
@@ -1253,7 +1234,9 @@ void CSearchDialog::SaveState()
 }
 
 CSearchDialogPersistentSettings::CSearchDialogPersistentSettings() :
-CDialogSettings(SETTINGS_KEY)
+	CDialogSettings(SETTINGS_KEY),
+	m_searchPatterns(NDialogHelper::DEFAULT_HISTORY_SIZE),
+	m_searchDirectories(NDialogHelper::DEFAULT_HISTORY_SIZE)
 {
 	m_bSearchSubFolders			= TRUE;
 	m_bUseRegularExpressions	= FALSE;
@@ -1268,9 +1251,6 @@ CDialogSettings(SETTINGS_KEY)
 	StringCchCopy(m_szSearchPattern,SIZEOF_ARRAY(m_szSearchPattern),
 		EMPTY_STRING);
 
-	m_pSearchPatterns	= new boost::circular_buffer<std::wstring>(NDialogHelper::DEFAULT_HISTORY_SIZE);
-	m_pSearchDirectories = new boost::circular_buffer<std::wstring>(NDialogHelper::DEFAULT_HISTORY_SIZE);
-
 	ColumnInfo_t ci;
 	ci.SortMode			= SORT_NAME;
 	ci.uStringID		= IDS_SEARCH_COLUMN_NAME;
@@ -1284,11 +1264,6 @@ CDialogSettings(SETTINGS_KEY)
 
 	m_SortMode			= m_Columns.front().SortMode;
 	m_bSortAscending	= m_Columns.front().bSortAscending;
-}
-
-CSearchDialogPersistentSettings::~CSearchDialogPersistentSettings()
-{
-	delete m_pSearchPatterns;
 }
 
 CSearchDialogPersistentSettings& CSearchDialogPersistentSettings::GetInstance()
@@ -1313,11 +1288,11 @@ void CSearchDialogPersistentSettings::SaveExtraRegistrySettings(HKEY hKey)
 	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_SORT_ASCENDING, m_bSortAscending);
 
 	std::list<std::wstring> SearchDirectoriesList;
-	CircularBufferToList(*m_pSearchDirectories, SearchDirectoriesList);
+	CircularBufferToList(m_searchDirectories, SearchDirectoriesList);
 	NRegistrySettings::SaveStringListToRegistry(hKey, SETTING_DIRECTORY_LIST, SearchDirectoriesList);
 
 	std::list<std::wstring> SearchPatternList;
-	CircularBufferToList(*m_pSearchPatterns,SearchPatternList);
+	CircularBufferToList(m_searchPatterns,SearchPatternList);
 	NRegistrySettings::SaveStringListToRegistry(hKey, SETTING_PATTERN_LIST, SearchPatternList);
 }
 
@@ -1338,11 +1313,11 @@ void CSearchDialogPersistentSettings::LoadExtraRegistrySettings(HKEY hKey)
 
 	std::list<std::wstring> SearchDirectoriesList;
 	NRegistrySettings::ReadStringListFromRegistry(hKey, SETTING_DIRECTORY_LIST, SearchDirectoriesList);
-	ListToCircularBuffer(SearchDirectoriesList, *m_pSearchDirectories);
+	ListToCircularBuffer(SearchDirectoriesList, m_searchDirectories);
 
 	std::list<std::wstring> SearchPatternList;
 	NRegistrySettings::ReadStringListFromRegistry(hKey, SETTING_PATTERN_LIST, SearchPatternList);
-	ListToCircularBuffer(SearchPatternList,*m_pSearchPatterns);
+	ListToCircularBuffer(SearchPatternList, m_searchPatterns);
 }
 
 void CSearchDialogPersistentSettings::SaveExtraXMLSettings(
@@ -1362,11 +1337,11 @@ void CSearchDialogPersistentSettings::SaveExtraXMLSettings(
 	NXMLSettings::AddAttributeToNode(pXMLDom, pParentNode, SETTING_SORT_ASCENDING, NXMLSettings::EncodeBoolValue(m_bSortAscending));
 
 	std::list<std::wstring> SearchDirectoriesList;
-	CircularBufferToList(*m_pSearchDirectories, SearchDirectoriesList);
+	CircularBufferToList(m_searchDirectories, SearchDirectoriesList);
 	NXMLSettings::AddStringListToNode(pXMLDom, pParentNode, SETTING_DIRECTORY_LIST, SearchDirectoriesList);
 
 	std::list<std::wstring> SearchPatternList;
-	CircularBufferToList(*m_pSearchPatterns, SearchPatternList);
+	CircularBufferToList(m_searchPatterns, SearchPatternList);
 	NXMLSettings::AddStringListToNode(pXMLDom, pParentNode, SETTING_PATTERN_LIST, SearchPatternList);
 }
 
@@ -1434,12 +1409,12 @@ void CSearchDialogPersistentSettings::LoadExtraXMLSettings(BSTR bstrName,BSTR bs
 	else if(CompareString(LOCALE_INVARIANT, NORM_IGNORECASE, bstrName, lstrlen(SETTING_DIRECTORY_LIST),
 		SETTING_DIRECTORY_LIST, lstrlen(SETTING_DIRECTORY_LIST)) == CSTR_EQUAL)
 	{
-		m_pSearchDirectories->push_back(bstrValue);
+		m_searchDirectories.push_back(bstrValue);
 	}
 	else if(CompareString(LOCALE_INVARIANT, NORM_IGNORECASE, bstrName, lstrlen(SETTING_PATTERN_LIST),
 		SETTING_PATTERN_LIST, lstrlen(SETTING_PATTERN_LIST)) == CSTR_EQUAL)
 	{
-		m_pSearchPatterns->push_back(bstrValue);
+		m_searchPatterns.push_back(bstrValue);
 	}
 }
 

@@ -6,7 +6,6 @@
 
 #include "CoreInterface.h"
 #include "TabContainer.h"
-#include "TabInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 
@@ -15,8 +14,6 @@ class CRenameTabDialog;
 class CRenameTabDialogPersistentSettings : public CDialogSettings
 {
 public:
-
-	~CRenameTabDialogPersistentSettings();
 
 	static CRenameTabDialogPersistentSettings &GetInstance();
 
@@ -38,7 +35,6 @@ public:
 
 	CRenameTabDialog(HINSTANCE hInstance, int iResource, HWND hParent,
 		int tabId, TabContainer *tabContainer);
-	~CRenameTabDialog();
 
 protected:
 

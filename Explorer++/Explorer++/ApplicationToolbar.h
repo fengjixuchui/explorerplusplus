@@ -7,6 +7,7 @@
 #include "ApplicationToolbarDropHandler.h"
 #include "CoreInterface.h"
 #include "../Helper/BaseWindow.h"
+#include "../Helper/WindowSubclassWrapper.h"
 #include <MsXml2.h>
 #include <objbase.h>
 #include <vector>
@@ -26,8 +27,6 @@ struct ApplicationButton_t
 class CApplicationToolbarPersistentSettings
 {
 public:
-
-	~CApplicationToolbarPersistentSettings();
 
 	static CApplicationToolbarPersistentSettings &GetInstance();
 
@@ -111,5 +110,6 @@ private:
 
 	CApplicationToolbarPersistentSettings	*m_atps;
 
+	std::vector<WindowSubclassWrapper> m_windowSubclasses;
 	std::vector<boost::signals2::scoped_connection>	m_connections;
 };

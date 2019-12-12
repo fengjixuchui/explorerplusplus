@@ -4,38 +4,32 @@
 
 #pragma once
 
-#include "Explorer++_internal.h"
 #include "ToolbarButtons.h"
 
-struct ToolbarButton_t
+const ToolbarButton DEFAULT_TOOLBAR_BUTTONS[] =
 {
-	int iItemID;
-};
-
-const ToolbarButton_t DEFAULT_TOOLBAR_BUTTONS[] =
-{
-	{TOOLBAR_BACK},
-	{TOOLBAR_FORWARD},
-	{TOOLBAR_UP},
-	{TOOLBAR_SEPARATOR},
-	{TOOLBAR_FOLDERS},
-	{TOOLBAR_SEPARATOR},
-	{TOOLBAR_CUT},
-	{TOOLBAR_COPY},
-	{TOOLBAR_PASTE},
-	{TOOLBAR_DELETE},
-	{TOOLBAR_DELETEPERMANENTLY},
-	{TOOLBAR_PROPERTIES},
-	{TOOLBAR_SEARCH},
-	{TOOLBAR_SEPARATOR},
-	{TOOLBAR_NEWFOLDER},
-	{TOOLBAR_COPYTO},
-	{TOOLBAR_MOVETO},
-	{TOOLBAR_SEPARATOR},
-	{TOOLBAR_VIEWS},
-	{TOOLBAR_OPENCOMMANDPROMPT},
-	{TOOLBAR_REFRESH},
-	{TOOLBAR_SEPARATOR},
-	{TOOLBAR_ADDBOOKMARK},
-	{TOOLBAR_ORGANIZEBOOKMARKS}
+	ToolbarButton::Back,
+	ToolbarButton::Forward,
+	ToolbarButton::Up,
+	ToolbarButton::Separator,
+	ToolbarButton::Folders,
+	ToolbarButton::Separator,
+	ToolbarButton::Cut,
+	ToolbarButton::Copy,
+	ToolbarButton::Paste,
+	ToolbarButton::Delete,
+	ToolbarButton::DeletePermanently,
+	ToolbarButton::Properties,
+	ToolbarButton::Search,
+	ToolbarButton::Separator,
+	ToolbarButton::NewFolder,
+	ToolbarButton::CopyTo,
+	ToolbarButton::MoveTo,
+	ToolbarButton::Separator,
+	ToolbarButton::Views,
+	ToolbarButton::OpenCommandPrompt,
+	ToolbarButton::Refresh,
+	ToolbarButton::Separator,
+	ToolbarButton::AddBookmark,
+	ToolbarButton::Bookmarks
 };

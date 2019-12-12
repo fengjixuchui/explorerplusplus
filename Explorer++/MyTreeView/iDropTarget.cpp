@@ -4,15 +4,19 @@
 
 #include "stdafx.h"
 #include "MyTreeView.h"
-#include "MyTreeViewInternal.h"
-#include "../Helper/Helper.h"
 #include "../Helper/DropHandler.h"
-#include "../Helper/ShellHelper.h"
+#include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
+#include "../Helper/ShellHelper.h"
 
+const LONG MIN_X_POS = 10;
+const LONG MIN_Y_POS = 10;
 
-#define MIN_X_POS	10
-#define MIN_Y_POS	10
+const UINT DRAGEXPAND_TIMER_ID = 1;
+const UINT DRAGEXPAND_TIMER_ELAPSE = 800;
+
+const UINT DRAGSCROLL_TIMER_ID = 2;
+const UINT DRAGSCROLL_TIMER_ELAPSE = 1000;
 
 void CALLBACK DragExpandTimerProc(HWND hwnd,UINT uMsg,
 UINT_PTR idEvent,DWORD dwTime);
@@ -189,7 +193,6 @@ int iDroppedItem)
 	FORMATETC	ftc;
 	STGMEDIUM	stg;
 	DROPFILES	*pdf = NULL;
-	LPITEMIDLIST	pidlDest = NULL;
 	TCHAR		szDestDirectory[MAX_PATH];
 	TCHAR		szFullFileName[MAX_PATH];
 	HRESULT		hr;
@@ -215,19 +218,17 @@ int iDroppedItem)
 
 			if(iDroppedItem < nDroppedFiles)
 			{
-				pidlDest = BuildPath(hItem);
+				auto pidlDest = GetItemPidl(hItem);
 
-				if(pidlDest != NULL)
+				if(pidlDest)
 				{
 					/* Determine the name of the first dropped file. */
 					DragQueryFile((HDROP)pdf,iDroppedItem,szFullFileName,
 						SIZEOF_ARRAY(szFullFileName));
 
-					GetDisplayName(pidlDest,szDestDirectory,SIZEOF_ARRAY(szDestDirectory),SHGDN_FORPARSING);
+					GetDisplayName(pidlDest.get(),szDestDirectory,SIZEOF_ARRAY(szDestDirectory),SHGDN_FORPARSING);
 
 					bOnSameDrive = PathIsSameRoot(szDestDirectory,szFullFileName);
-
-					CoTaskMemFree(pidlDest);
 				}
 			}
 
@@ -252,14 +253,11 @@ HRESULT _stdcall CMyTreeView::DragLeave(void)
 HRESULT _stdcall CMyTreeView::Drop(IDataObject *pDataObject,DWORD grfKeyState,
 POINTL pt,DWORD *pdwEffect)
 {
-	TVHITTESTINFO	tvht;
-	LPITEMIDLIST	pidlDirectory = NULL;
-	TCHAR			szDestDirectory[MAX_PATH + 1];
-
 	KillTimer(m_hTreeView,DRAGEXPAND_TIMER_ID);
 
-	tvht.pt.x	= pt.x;
-	tvht.pt.y	= pt.y;
+	TVHITTESTINFO tvht;
+	tvht.pt.x = pt.x;
+	tvht.pt.y = pt.y;
 
 	ScreenToClient(m_hTreeView,(LPPOINT)&tvht.pt);
 	TreeView_HitTest(m_hTreeView,&tvht);
@@ -267,17 +265,16 @@ POINTL pt,DWORD *pdwEffect)
 	/* Is the mouse actually over an item? */
 	if(!(tvht.flags & LVHT_NOWHERE) && (tvht.hItem != NULL) && m_bDataAccept)
 	{
-		pidlDirectory = BuildPath(tvht.hItem);
+		auto pidlDirectory = GetItemPidl(tvht.hItem);
 
-		GetDisplayName(pidlDirectory,szDestDirectory,SIZEOF_ARRAY(szDestDirectory),SHGDN_FORPARSING);
+		TCHAR szDestDirectory[MAX_PATH];
+		GetDisplayName(pidlDirectory.get(),szDestDirectory,SIZEOF_ARRAY(szDestDirectory),SHGDN_FORPARSING);
 
 		CDropHandler *pDropHandler = CDropHandler::CreateNew();
 		pDropHandler->Drop(pDataObject,
 			grfKeyState,pt,pdwEffect,m_hTreeView,
 			m_DragType,szDestDirectory,NULL,FALSE);
 		pDropHandler->Release();
-
-		CoTaskMemFree(pidlDirectory);
 	}
 
 	RestoreState();

@@ -4,33 +4,35 @@
 
 #pragma once
 
-#include <list>
-#include "StatusBar.h"
 #include "Macros.h"
+#include "ShellHelper.h"
+#include "StatusBar.h"
+#include <wil/com.h>
+#include <list>
 
 __interface IFileContextMenuExternal
 {
 	/* Allows the caller to add custom entries to the
 	context menu before it is shown. */
-	void	AddMenuEntries(LPCITEMIDLIST pidlParent,const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,HMENU hMenu);
+	void AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, HMENU hMenu);
 
 	/* Allows the caller to handle the processing
 	of a shell menu item. For example, the 'Open'
 	item may be processed internally.
 	Returns TRUE if the item was processed;
 	FALSE otherwise. */
-	BOOL	HandleShellMenuItem(LPCITEMIDLIST pidlParent,const std::list<LPITEMIDLIST> &pidlItemList,DWORD_PTR dwData,const TCHAR *szCmd);
+	BOOL HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd);
 
 	/* Handles the processing for one of the menu
 	items that was added by the caller. */
-	void	HandleCustomMenuItem(LPCITEMIDLIST pidlParent,const std::list<LPITEMIDLIST> &pidlItemList,int iCmd);
+	void HandleCustomMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, int iCmd);
 };
 
 class CFileContextMenuManager
 {
 public:
 
-	CFileContextMenuManager(HWND hwnd, LPCITEMIDLIST pidlParent, const std::list<LPITEMIDLIST> &pidlItemList);
+	CFileContextMenuManager(HWND hwnd, PCIDLIST_ABSOLUTE pidlParent, const std::vector<PCITEMID_CHILD> &pidlItems);
 	~CFileContextMenuManager();
 
 	/* Shows the context menu. */
@@ -42,19 +44,19 @@ private:
 
 	DISALLOW_COPY_AND_ASSIGN(CFileContextMenuManager);
 
-	static const int	CONTEXT_MENU_SUBCLASS_ID = 1;
+	static const int CONTEXT_MENU_SUBCLASS_ID = 1;
 
-	IContextMenu3		*m_pShellContext3;
-	IContextMenu2		*m_pShellContext2;
-	IContextMenu		*m_pShellContext;
-	IContextMenu		*m_pActualContext;
+	wil::com_ptr<IContextMenu3> m_pShellContext3;
+	wil::com_ptr<IContextMenu2> m_pShellContext2;
+	wil::com_ptr<IContextMenu> m_pShellContext;
+	IContextMenu *m_pActualContext;
 
-	const HWND			m_hwnd;
-	int					m_iMinID;
-	int					m_iMaxID;
+	const HWND m_hwnd;
+	int m_iMinID;
+	int m_iMaxID;
 
-	CStatusBar			*m_pStatusBar;
+	CStatusBar *m_pStatusBar;
 
-	LPITEMIDLIST		m_pidlParent;
-	std::list<LPITEMIDLIST>	m_pidlItemList;
+	const unique_pidl_absolute m_pidlParent;
+	std::vector<PITEMID_CHILD> m_pidlItems;
 };

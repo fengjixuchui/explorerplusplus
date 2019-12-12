@@ -6,7 +6,7 @@
 #include "SetDefaultColumnsDialog.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/Helper.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
@@ -26,11 +26,6 @@ CSetDefaultColumnsDialog::CSetDefaultColumnsDialog(HINSTANCE hInstance, int iRes
 	m_folderColumns(folderColumns)
 {
 	m_psdcdps = &CSetDefaultColumnsDialogPersistentSettings::GetInstance();
-}
-
-CSetDefaultColumnsDialog::~CSetDefaultColumnsDialog()
-{
-
 }
 
 INT_PTR CSetDefaultColumnsDialog::OnInitDialog()
@@ -399,11 +394,6 @@ CSetDefaultColumnsDialogPersistentSettings::CSetDefaultColumnsDialogPersistentSe
 CDialogSettings(SETTINGS_KEY)
 {
 	m_FolderType = FOLDER_TYPE_GENERAL;
-}
-
-CSetDefaultColumnsDialogPersistentSettings::~CSetDefaultColumnsDialogPersistentSettings()
-{
-	
 }
 
 CSetDefaultColumnsDialogPersistentSettings& CSetDefaultColumnsDialogPersistentSettings::GetInstance()

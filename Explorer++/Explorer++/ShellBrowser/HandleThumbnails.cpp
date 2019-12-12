@@ -3,8 +3,7 @@
 // See LICENSE in the top level directory
 
 #include "stdafx.h"
-#include "iShellView.h"
-#include "iShellBrowser_internal.h"
+#include "ShellBrowser.h"
 #include "ViewModes.h"
 #include "../Helper/Controls.h"
 #include "../Helper/FileOperations.h"
@@ -15,6 +14,9 @@
 #include <list>
 
 #pragma warning(disable:4459) // declaration of 'boost_scope_exit_aux_args' hides global declaration
+
+#define THUMBNAIL_TYPE_ICON			0
+#define THUMBNAIL_TYPE_EXTRACTED	1
 
 void CShellBrowser::SetupThumbnailsView(void)
 {
@@ -71,7 +73,7 @@ void CShellBrowser::RemoveThumbnailsView(void)
 
 	nItems = ListView_GetItemCount(m_hListView);
 
-	m_itemImageThreadPool.clear_queue();
+	m_thumbnailThreadPool.clear_queue();
 	m_thumbnailResults.clear();
 
 	for(i = 0;i < nItems;i++)
@@ -97,7 +99,7 @@ void CShellBrowser::QueueThumbnailTask(int internalIndex)
 
 	BasicItemInfo_t basicItemInfo = getBasicItemInfo(internalIndex);
 
-	auto result = m_itemImageThreadPool.push([this, thumbnailResultID, internalIndex, basicItemInfo](int id) {
+	auto result = m_thumbnailThreadPool.push([this, thumbnailResultID, internalIndex, basicItemInfo](int id) {
 		UNREFERENCED_PARAMETER(id);
 
 		return FindThumbnailAsync(m_hListView, thumbnailResultID, internalIndex, basicItemInfo);
@@ -122,8 +124,8 @@ boost::optional<CShellBrowser::ThumbnailResult_t> CShellBrowser::FindThumbnailAs
 	} BOOST_SCOPE_EXIT_END
 
 	IExtractImage *pExtractImage = nullptr;
-	LPCITEMIDLIST pridl = basicItemInfo.pridl.get();
-	hr = GetUIObjectOf(pShellFolder, NULL, 1, &pridl, IID_PPV_ARGS(&pExtractImage));
+	auto pridl = basicItemInfo.pridl.get();
+	hr = GetUIObjectOf(pShellFolder, NULL, 1, const_cast<PCUITEMID_CHILD *>(&pridl), IID_PPV_ARGS(&pExtractImage));
 
 	if (FAILED(hr))
 	{
@@ -151,8 +153,8 @@ boost::optional<CShellBrowser::ThumbnailResult_t> CShellBrowser::FindThumbnailAs
 		return boost::none;
 	}
 
-	HBITMAP hThumbnailBitmap;
-	hr = pExtractImage->Extract(&hThumbnailBitmap);
+	wil::unique_hbitmap thumbnailBitmap;
+	hr = pExtractImage->Extract(&thumbnailBitmap);
 
 	if (FAILED(hr))
 	{
@@ -163,7 +165,7 @@ boost::optional<CShellBrowser::ThumbnailResult_t> CShellBrowser::FindThumbnailAs
 
 	ThumbnailResult_t result;
 	result.itemInternalIndex = internalIndex;
-	result.bitmap = HBitmapPtr(hThumbnailBitmap);
+	result.bitmap = std::move(thumbnailBitmap);
 
 	return result;
 }

@@ -10,17 +10,12 @@
 
 #include "stdafx.h"
 #include "INewMenuClient.h"
-#include "ShellBrowser/iShellView.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/Logging.h"
 
 CNewMenuClient::CNewMenuClient(IExplorerplusplus *pexpp) :
 m_pexpp(pexpp),
 m_RefCount(1)
-{
-
-}
-
-CNewMenuClient::~CNewMenuClient()
 {
 
 }

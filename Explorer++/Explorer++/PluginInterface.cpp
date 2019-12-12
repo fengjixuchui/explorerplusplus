@@ -12,14 +12,9 @@ TabContainer *Explorerplusplus::GetTabContainer()
 	return m_tabContainer;
 }
 
-TabInterface *Explorerplusplus::GetTabInterface()
-{
-	return this;
-}
-
 Navigation *Explorerplusplus::GetNavigation()
 {
-	return m_navigation;
+	return m_navigation.get();
 }
 
 Plugins::PluginMenuManager *Explorerplusplus::GetPluginMenuManager()

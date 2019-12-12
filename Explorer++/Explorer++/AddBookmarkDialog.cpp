@@ -15,9 +15,10 @@
 
 const TCHAR CAddBookmarkDialogPersistentSettings::SETTINGS_KEY[] = _T("AddBookmark");
 
-CAddBookmarkDialog::CAddBookmarkDialog(HINSTANCE hInstance,int iResource,HWND hParent,
-	CBookmarkFolder &AllBookmarks,CBookmark &Bookmark) :
+CAddBookmarkDialog::CAddBookmarkDialog(HINSTANCE hInstance, int iResource, HWND hParent,
+	IExplorerplusplus *expp, CBookmarkFolder &AllBookmarks, CBookmark &Bookmark) :
 	CBaseDialog(hInstance, iResource, hParent, true),
+	m_expp(expp),
 	m_AllBookmarks(AllBookmarks),
 	m_Bookmark(Bookmark),
 	m_ErrorBrush(CreateSolidBrush(ERROR_BACKGROUND_COLOR))
@@ -38,11 +39,6 @@ CAddBookmarkDialog::CAddBookmarkDialog(HINSTANCE hInstance,int iResource,HWND hP
 	}
 }
 
-CAddBookmarkDialog::~CAddBookmarkDialog()
-{
-	DeleteObject(m_ErrorBrush);
-}
-
 INT_PTR CAddBookmarkDialog::OnInitDialog()
 {
 	SetDlgItemText(m_hDlg,IDC_BOOKMARK_NAME,m_Bookmark.GetName().c_str());
@@ -56,7 +52,7 @@ INT_PTR CAddBookmarkDialog::OnInitDialog()
 
 	HWND hTreeView = GetDlgItem(m_hDlg,IDC_BOOKMARK_TREEVIEW);
 
-	m_pBookmarkTreeView = new CBookmarkTreeView(hTreeView,GetInstance(),&m_AllBookmarks,
+	m_pBookmarkTreeView = new CBookmarkTreeView(hTreeView,GetInstance(),m_expp,&m_AllBookmarks,
 		m_pabdps->m_guidSelected,m_pabdps->m_setExpansion);
 
 	HWND hEditName = GetDlgItem(m_hDlg,IDC_BOOKMARK_NAME);
@@ -72,7 +68,7 @@ INT_PTR CAddBookmarkDialog::OnInitDialog()
 
 wil::unique_hicon CAddBookmarkDialog::GetDialogIcon(int iconWidth, int iconHeight) const
 {
-	return IconResourceLoader::LoadIconFromPNGAndScale(Icon::AddBookmark, iconWidth, iconHeight);
+	return m_expp->GetIconResourceLoader()->LoadIconFromPNGAndScale(Icon::AddBookmark, iconWidth, iconHeight);
 }
 
 void CAddBookmarkDialog::GetResizableControlInformation(CBaseDialog::DialogSizeConstraint &dsc,
@@ -126,7 +122,7 @@ INT_PTR CAddBookmarkDialog::OnCtlColorEdit(HWND hwnd,HDC hdc)
 		if(GetWindowTextLength(hwnd) == 0)
 		{
 			SetBkMode(hdc,TRANSPARENT);
-			return reinterpret_cast<INT_PTR>(m_ErrorBrush);
+			return reinterpret_cast<INT_PTR>(m_ErrorBrush.get());
 		}
 	}
 
@@ -306,11 +302,6 @@ CAddBookmarkDialogPersistentSettings::CAddBookmarkDialogPersistentSettings() :
 CDialogSettings(SETTINGS_KEY)
 {
 	m_bInitialized = false;
-}
-
-CAddBookmarkDialogPersistentSettings::~CAddBookmarkDialogPersistentSettings()
-{
-	
 }
 
 CAddBookmarkDialogPersistentSettings& CAddBookmarkDialogPersistentSettings::GetInstance()

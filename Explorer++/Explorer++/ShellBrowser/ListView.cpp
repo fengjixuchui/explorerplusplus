@@ -3,9 +3,11 @@
 // See LICENSE in the top level directory
 
 #include "stdafx.h"
+#include "ShellBrowser.h"
 #include "Config.h"
-#include "iShellView.h"
 #include "MainResource.h"
+#include "../Helper/CachedIcons.h"
+#include "../Helper/ShellHelper.h"
 #include <boost/format.hpp>
 
 LRESULT CALLBACK CShellBrowser::ListViewProcStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
@@ -20,16 +22,28 @@ LRESULT CALLBACK CShellBrowser::ListViewProc(HWND hwnd, UINT uMsg, WPARAM wParam
 {
 	switch (uMsg)
 	{
+	case WM_MBUTTONDOWN:
+	{
+		POINT pt;
+		POINTSTOPOINT(pt, MAKEPOINTS(lParam));
+		OnListViewMButtonDown(&pt);
+	}
+	break;
+
+	case WM_MBUTTONUP:
+	{
+		POINT pt;
+		POINTSTOPOINT(pt, MAKEPOINTS(lParam));
+		OnListViewMButtonUp(&pt);
+	}
+	break;
+
 	case WM_APP_COLUMN_RESULT_READY:
 		ProcessColumnResult(static_cast<int>(wParam));
 		break;
 
 	case WM_APP_THUMBNAIL_RESULT_READY:
 		ProcessThumbnailResult(static_cast<int>(wParam));
-		break;
-
-	case WM_APP_ICON_RESULT_READY:
-		ProcessIconResult(static_cast<int>(wParam));
 		break;
 
 	case WM_APP_INFO_TIP_READY:
@@ -76,6 +90,52 @@ LRESULT CALLBACK CShellBrowser::ListViewParentProc(HWND hwnd, UINT uMsg, WPARAM 
 	return DefSubclassProc(hwnd, uMsg, wParam, lParam);
 }
 
+void CShellBrowser::OnListViewMButtonDown(const POINT *pt)
+{
+	LV_HITTESTINFO ht;
+	ht.pt = *pt;
+	ListView_HitTest(m_hListView, &ht);
+
+	if (ht.flags != LVHT_NOWHERE && ht.iItem != -1)
+	{
+		m_middleButtonItem = ht.iItem;
+
+		ListView_SetItemState(m_hListView, ht.iItem, LVIS_FOCUSED, LVIS_FOCUSED);
+	}
+	else
+	{
+		m_middleButtonItem = -1;
+	}
+}
+
+void CShellBrowser::OnListViewMButtonUp(const POINT *pt)
+{
+	LV_HITTESTINFO	ht;
+	ht.pt = *pt;
+	ListView_HitTest(m_hListView, &ht);
+
+	if (ht.flags == LVHT_NOWHERE)
+	{
+		return;
+	}
+
+	// Only open an item if it was the one on which the middle mouse button was
+	// initially clicked on.
+	if (ht.iItem != m_middleButtonItem)
+	{
+		return;
+	}
+
+	const ItemInfo_t &itemInfo = GetItemByIndex(m_middleButtonItem);
+
+	if (!WI_IsAnyFlagSet(itemInfo.wfd.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_ARCHIVE))
+	{
+		return;
+	}
+
+	m_tabNavigation->CreateNewTab(itemInfo.pidlComplete.get(), false);
+}
+
 void CShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 {
 	NMLVDISPINFO	*pnmv = NULL;
@@ -85,6 +145,8 @@ void CShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 	pnmv = (NMLVDISPINFO *)lParam;
 	plvItem = &pnmv->item;
 	nmhdr = &pnmv->hdr;
+
+	int internalIndex = static_cast<int>(plvItem->lParam);
 
 	/* Construct an image here using the items
 	actual icon. This image will be shown initially.
@@ -97,22 +159,22 @@ void CShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 	image. */
 	if (m_folderSettings.viewMode == +ViewMode::Thumbnails && (plvItem->mask & LVIF_IMAGE) == LVIF_IMAGE)
 	{
-		plvItem->iImage = GetIconThumbnail((int)plvItem->lParam);
+		plvItem->iImage = GetIconThumbnail(internalIndex);
 		plvItem->mask |= LVIF_DI_SETITEM;
 
-		QueueThumbnailTask(static_cast<int>(plvItem->lParam));
+		QueueThumbnailTask(internalIndex);
 
 		return;
 	}
 
 	if (m_folderSettings.viewMode == +ViewMode::Details && (plvItem->mask & LVIF_TEXT) == LVIF_TEXT)
 	{
-		QueueColumnTask(static_cast<int>(plvItem->lParam), plvItem->iSubItem);
+		QueueColumnTask(internalIndex, plvItem->iSubItem);
 	}
 
 	if ((plvItem->mask & LVIF_IMAGE) == LVIF_IMAGE)
 	{
-		const ItemInfo_t &itemInfo = m_itemInfoMap.at(static_cast<int>(plvItem->lParam));
+		const ItemInfo_t &itemInfo = m_itemInfoMap.at(internalIndex);
 		auto cachedIconIndex = GetCachedIconIndex(itemInfo);
 
 		if (cachedIconIndex)
@@ -146,10 +208,54 @@ void CShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 			}
 		}
 
-		QueueIconTask(static_cast<int>(plvItem->lParam));
+		m_iconFetcher->QueueIconTask(itemInfo.pidlComplete.get(), [this, internalIndex] (PCIDLIST_ABSOLUTE pidl, int iconIndex) {
+			UNREFERENCED_PARAMETER(pidl);
+
+			ProcessIconResult(internalIndex, iconIndex);
+		});
 	}
 
 	plvItem->mask |= LVIF_DI_SETITEM;
+}
+
+boost::optional<int> CShellBrowser::GetCachedIconIndex(const ItemInfo_t &itemInfo)
+{
+	TCHAR filePath[MAX_PATH];
+	HRESULT hr = GetDisplayName(itemInfo.pidlComplete.get(),
+		filePath, SIZEOF_ARRAY(filePath), SHGDN_FORPARSING);
+
+	if (FAILED(hr))
+	{
+		return boost::none;
+	}
+
+	auto cachedItr = m_cachedIcons->findByPath(filePath);
+
+	if (cachedItr == m_cachedIcons->end())
+	{
+		return boost::none;
+	}
+
+	return cachedItr->iconIndex;
+}
+
+void CShellBrowser::ProcessIconResult(int internalIndex, int iconIndex)
+{
+	auto index = LocateItemByInternalIndex(internalIndex);
+
+	if (!index)
+	{
+		return;
+	}
+
+	LVITEM lvItem;
+	lvItem.mask = LVIF_IMAGE | LVIF_STATE;
+	lvItem.iItem = *index;
+	lvItem.iSubItem = 0;
+	lvItem.iImage = iconIndex;
+	lvItem.stateMask = LVIS_OVERLAYMASK;
+	lvItem.state = INDEXTOOVERLAYMASK(iconIndex >> 24);
+	ListView_SetItem(m_hListView, &lvItem);
 }
 
 LRESULT CShellBrowser::OnListViewGetInfoTip(NMLVGETINFOTIP *getInfoTip)
@@ -276,6 +382,12 @@ void CShellBrowser::ProcessInfoTipResult(int infoTipResultId)
 	ListView_SetInfoTip(m_hListView, &infoTip);
 }
 
+CShellBrowser::ItemInfo_t &CShellBrowser::GetItemByIndex(int index)
+{
+	int internalIndex = GetItemInternalIndex(index);
+	return m_itemInfoMap.at(internalIndex);
+}
+
 int CShellBrowser::GetItemInternalIndex(int item) const
 {
 	LVITEM lvItem;
@@ -290,4 +402,68 @@ int CShellBrowser::GetItemInternalIndex(int item) const
 	}
 
 	return static_cast<int>(lvItem.lParam);
+}
+
+BOOL CShellBrowser::GhostItem(int iItem)
+{
+	return GhostItemInternal(iItem, TRUE);
+}
+
+BOOL CShellBrowser::DeghostItem(int iItem)
+{
+	return GhostItemInternal(iItem, FALSE);
+}
+
+BOOL CShellBrowser::GhostItemInternal(int iItem, BOOL bGhost)
+{
+	LVITEM	lvItem;
+	BOOL	bRet;
+
+	lvItem.mask = LVIF_PARAM;
+	lvItem.iItem = iItem;
+	lvItem.iSubItem = 0;
+	bRet = ListView_GetItem(m_hListView, &lvItem);
+
+	if (bRet)
+	{
+		/* If the file is hidden, prevent changes to its visibility state (i.e.
+		hidden items will ALWAYS be ghosted). */
+		if (m_itemInfoMap.at((int)lvItem.lParam).wfd.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN)
+			return FALSE;
+
+		if (bGhost)
+		{
+			ListView_SetItemState(m_hListView, iItem, LVIS_CUT, LVIS_CUT);
+		}
+		else
+		{
+			ListView_SetItemState(m_hListView, iItem, 0, LVIS_CUT);
+		}
+	}
+
+	return TRUE;
+}
+
+void CShellBrowser::ShowPropertiesForSelectedFiles() const
+{
+	std::vector<unique_pidl_child> pidls;
+	std::vector<PCITEMID_CHILD> rawPidls;
+
+	int item = -1;
+
+	while ((item = ListView_GetNextItem(m_hListView, item, LVNI_SELECTED)) != -1)
+	{
+		auto pidl = GetItemChildIdl(item);
+
+		rawPidls.push_back(pidl.get());
+		pidls.push_back(std::move(pidl));
+	}
+
+	if (rawPidls.empty())
+	{
+		return;
+	}
+
+	auto pidlDirectory = GetDirectoryIdl();
+	ShowMultipleFileProperties(pidlDirectory.get(), rawPidls.data(), m_hOwner, static_cast<int>(rawPidls.size()));
 }

@@ -13,14 +13,9 @@ CLoadSaveRegistry::CLoadSaveRegistry(Explorerplusplus *pContainer) :
 
 }
 
-CLoadSaveRegistry::~CLoadSaveRegistry()
-{
-
-}
-
 void CLoadSaveRegistry::LoadGenericSettings()
 {
-	m_pContainer->LoadSettings();
+	m_pContainer->LoadGenericSettingsFromRegistry();
 }
 
 void CLoadSaveRegistry::LoadBookmarks()
@@ -60,7 +55,7 @@ void CLoadSaveRegistry::LoadDialogStates()
 
 void CLoadSaveRegistry::SaveGenericSettings()
 {
-	m_pContainer->SaveSettings();
+	m_pContainer->SaveGenericSettingsToRegistry();
 }
 
 void CLoadSaveRegistry::SaveBookmarks()

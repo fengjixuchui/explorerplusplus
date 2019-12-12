@@ -15,6 +15,7 @@
 #include "IModelessDialogNotification.h"
 #include "MergeFilesDialog.h"
 #include "ModelessDialogs.h"
+#include "OptionsDialog.h"
 #include "ScriptingDialog.h"
 #include "SearchDialog.h"
 #include "SplitFileDialog.h"
@@ -25,6 +26,7 @@
 #include "../Helper/ProcessHelper.h"
 #include "../Helper/ShellHelper.h"
 #include <boost/scope_exit.hpp>
+#include <wil/com.h>
 
 #pragma warning(disable:4459) // declaration of 'boost_scope_exit_aux_args' hides global declaration
 
@@ -44,8 +46,7 @@ void Explorerplusplus::OnFilterResults()
 
 void Explorerplusplus::OnMergeFiles()
 {
-	TCHAR szCurrentDirectory[MAX_PATH];
-	m_pActiveShellBrowser->QueryCurrentDirectory(SIZEOF_ARRAY(szCurrentDirectory), szCurrentDirectory);
+	std::wstring currentDirectory = m_pActiveShellBrowser->GetDirectory();
 
 	std::list<std::wstring>	FullFilenameList;
 	int iItem = -1;
@@ -53,12 +54,12 @@ void Explorerplusplus::OnMergeFiles()
 	while((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
 	{
 		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->QueryFullItemName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
+		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
 		FullFilenameList.push_back(szFullFilename);
 	}
 
-	CMergeFilesDialog CMergeFilesDialog(m_hLanguageModule, IDD_MERGEFILES,
-		m_hContainer, szCurrentDirectory, FullFilenameList, m_config->globalFolderSettings.showFriendlyDates);
+	CMergeFilesDialog CMergeFilesDialog(m_hLanguageModule, IDD_MERGEFILES, m_hContainer,
+		this, currentDirectory, FullFilenameList, m_config->globalFolderSettings.showFriendlyDates);
 	CMergeFilesDialog.ShowModalDialog();
 }
 
@@ -69,9 +70,9 @@ void Explorerplusplus::OnSplitFile()
 	if(iSelected != -1)
 	{
 		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->QueryFullItemName(iSelected, szFullFilename, SIZEOF_ARRAY(szFullFilename));
+		m_pActiveShellBrowser->GetItemFullName(iSelected, szFullFilename, SIZEOF_ARRAY(szFullFilename));
 
-		CSplitFileDialog SplitFileDialog(m_hLanguageModule, IDD_SPLITFILE, m_hContainer, szFullFilename);
+		CSplitFileDialog SplitFileDialog(m_hLanguageModule, IDD_SPLITFILE, m_hContainer, this, szFullFilename);
 		SplitFileDialog.ShowModalDialog();
 	}
 }
@@ -84,7 +85,7 @@ void Explorerplusplus::OnDestroyFiles()
 	while((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
 	{
 		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->QueryFullItemName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
+		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
 		FullFilenameList.push_back(szFullFilename);
 	}
 
@@ -103,10 +104,11 @@ void Explorerplusplus::OnSearch()
 {
 	if(g_hwndSearch == NULL)
 	{
-		TCHAR szCurrentDirectory[MAX_PATH];
-		m_pActiveShellBrowser->QueryCurrentDirectory(SIZEOF_ARRAY(szCurrentDirectory), szCurrentDirectory);
+		Tab &selectedTab = m_tabContainer->GetSelectedTab();
+		std::wstring currentDirectory = selectedTab.GetShellBrowser()->GetDirectory();
 
-		CSearchDialog *SearchDialog = new CSearchDialog(m_hLanguageModule, IDD_SEARCH, m_hContainer, szCurrentDirectory, this, m_tabContainer);
+		CSearchDialog *SearchDialog = new CSearchDialog(m_hLanguageModule, IDD_SEARCH, m_hContainer,
+			currentDirectory, this, m_tabContainer);
 		g_hwndSearch = SearchDialog->ShowModelessDialog(new CModelessDialogNotification());
 	}
 	else
@@ -117,7 +119,7 @@ void Explorerplusplus::OnSearch()
 
 void Explorerplusplus::OnCustomizeColors()
 {
-	CCustomizeColorsDialog CustomizeColorsDialog(m_hLanguageModule, IDD_CUSTOMIZECOLORS, m_hContainer, &m_ColorRules);
+	CCustomizeColorsDialog CustomizeColorsDialog(m_hLanguageModule, IDD_CUSTOMIZECOLORS, m_hContainer, this, &m_ColorRules);
 	CustomizeColorsDialog.ShowModalDialog();
 
 	/* Causes the active listview to redraw (therefore
@@ -142,7 +144,8 @@ void Explorerplusplus::OnShowOptions()
 {
 	if(g_hwndOptions == NULL)
 	{
-		ShowOptions();
+		OptionsDialog *optionsDialog = OptionsDialog::Create(m_config, m_hLanguageModule, this, m_tabContainer);
+		g_hwndOptions = optionsDialog->Show(m_hContainer);
 	}
 	else
 	{
@@ -157,21 +160,19 @@ void Explorerplusplus::OnShowHelp()
 	PathRemoveFileSpec(szHelpFile);
 	PathAppend(szHelpFile, NExplorerplusplus::HELP_FILE_NAME);
 
-	LPITEMIDLIST pidl = NULL;
-	HRESULT hr = GetIdlFromParsingName(szHelpFile, &pidl);
+	unique_pidl_absolute pidl;
+	HRESULT hr = SHParseDisplayName(szHelpFile, nullptr, wil::out_param(pidl), 0, nullptr);
 
 	bool bOpenedHelpFile = false;
 
 	if(SUCCEEDED(hr))
 	{
-		BOOL bRes = ExecuteFileAction(m_hContainer, NULL, NULL, NULL, pidl);
+		BOOL bRes = ExecuteFileAction(m_hContainer, NULL, NULL, NULL, pidl.get());
 
 		if(bRes)
 		{
 			bOpenedHelpFile = true;
 		}
-
-		CoTaskMemFree(pidl);
 	}
 
 	if(!bOpenedHelpFile)
@@ -198,7 +199,7 @@ void Explorerplusplus::OnSaveDirectoryListing() const
 	TCHAR FileName[MAX_PATH];
 	LoadString(m_hLanguageModule, IDS_GENERAL_DIRECTORY_LISTING_FILENAME, FileName, SIZEOF_ARRAY(FileName));
 	StringCchCat(FileName, SIZEOF_ARRAY(FileName), _T(".txt"));
-	BOOL bSaveNameRetrieved = GetFileNameFromUser(m_hContainer, FileName, SIZEOF_ARRAY(FileName), m_CurrentDirectory);
+	BOOL bSaveNameRetrieved = GetFileNameFromUser(m_hContainer, FileName, SIZEOF_ARRAY(FileName), m_CurrentDirectory.c_str());
 
 	if(bSaveNameRetrieved)
 	{
@@ -208,19 +209,15 @@ void Explorerplusplus::OnSaveDirectoryListing() const
 
 void Explorerplusplus::OnCreateNewFolder()
 {
-	PIDLPointer pidlDirectory(m_pActiveShellBrowser->QueryCurrentDirectoryIdl());
+	auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
 
-	IShellItem *directoryShellItem = nullptr;
+	wil::com_ptr<IShellItem> directoryShellItem;
 	HRESULT hr = SHCreateItemFromIDList(pidlDirectory.get(), IID_PPV_ARGS(&directoryShellItem));
 
 	if (FAILED(hr))
 	{
 		return;
 	}
-
-	BOOST_SCOPE_EXIT(directoryShellItem) {
-		directoryShellItem->Release();
-	} BOOST_SCOPE_EXIT_END
 
 	FileProgressSink *sink = FileProgressSink::CreateNew();
 	sink->SetPostNewItemObserver([this] (PIDLIST_ABSOLUTE pidl) {
@@ -233,7 +230,7 @@ void Explorerplusplus::OnCreateNewFolder()
 
 	TCHAR newFolderName[128];
 	LoadString(m_hLanguageModule, IDS_NEW_FOLDER_NAME, newFolderName, SIZEOF_ARRAY(newFolderName));
-	hr = NFileOperations::CreateNewFolder(directoryShellItem, newFolderName, sink);
+	hr = NFileOperations::CreateNewFolder(directoryShellItem.get(), newFolderName, sink);
 	sink->Release();
 
 	if(FAILED(hr))
@@ -260,7 +257,7 @@ void Explorerplusplus::OnResolveLink()
 
 	if(iItem != -1)
 	{
-		m_pActiveShellBrowser->QueryFullItemName(iItem, ShortcutFileName, SIZEOF_ARRAY(ShortcutFileName));
+		m_pActiveShellBrowser->GetItemFullName(iItem, ShortcutFileName, SIZEOF_ARRAY(ShortcutFileName));
 
 		hr = NFileOperations::ResolveLink(m_hContainer, 0, ShortcutFileName, szFullFileName, SIZEOF_ARRAY(szFullFileName));
 
@@ -283,4 +280,49 @@ void Explorerplusplus::OnResolveLink()
 			}
 		}
 	}
+}
+
+HRESULT Explorerplusplus::OnGoBack()
+{
+	Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	return selectedTab.GetNavigationController()->GoBack();
+}
+
+HRESULT Explorerplusplus::OnGoForward()
+{
+	Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	return selectedTab.GetNavigationController()->GoForward();
+}
+
+HRESULT Explorerplusplus::OnGoToOffset(int offset)
+{
+	Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	return selectedTab.GetNavigationController()->GoToOffset(offset);
+}
+
+HRESULT Explorerplusplus::OnGoToKnownFolder(REFKNOWNFOLDERID knownFolderId)
+{
+	unique_pidl_absolute pidl;
+	HRESULT hr = SHGetKnownFolderIDList(knownFolderId, KF_FLAG_DEFAULT, nullptr, wil::out_param(pidl));
+
+	if (FAILED(hr))
+	{
+		return hr;
+	}
+
+	Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	return selectedTab.GetNavigationController()->BrowseFolder(pidl.get());
+}
+
+HRESULT Explorerplusplus::OnGoHome()
+{
+	Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	HRESULT hr = selectedTab.GetNavigationController()->BrowseFolder(m_config->defaultTabDirectory);
+
+	if (FAILED(hr))
+	{
+		hr = selectedTab.GetNavigationController()->BrowseFolder(m_config->defaultTabDirectoryStatic);
+	}
+
+	return hr;
 }

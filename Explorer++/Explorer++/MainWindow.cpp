@@ -8,38 +8,33 @@
 #include "Explorer++_internal.h"
 #include "MainResource.h"
 #include "TabContainer.h"
-#include "../Helper/PIDLWrapper.h"
 #include "../Helper/ProcessHelper.h"
+#include <wil/resource.h>
 
 MainWindow *MainWindow::Create(HWND hwnd, std::shared_ptr<Config> config, HINSTANCE instance,
-	IExplorerplusplus *expp, Navigation *navigation)
+	IExplorerplusplus *expp)
 {
-	return new MainWindow(hwnd, config, instance, expp, navigation);
+	return new MainWindow(hwnd, config, instance, expp);
 }
 
 MainWindow::MainWindow(HWND hwnd, std::shared_ptr<Config> config, HINSTANCE instance,
-	IExplorerplusplus *expp, Navigation *navigation) :
+	IExplorerplusplus *expp) :
 	CBaseWindow(hwnd),
 	m_hwnd(hwnd),
 	m_config(config),
 	m_instance(instance),
-	m_expp(expp),
-	m_navigation(navigation)
+	m_expp(expp)
 {
 	m_expp->AddTabsInitializedObserver([this] {
-		m_connections.push_back(m_expp->GetTabContainer()->tabSelectedSignal.AddObserver(boost::bind(&MainWindow::OnTabSelected, this, _1)));
+		m_connections.push_back(m_expp->GetTabContainer()->tabSelectedSignal.AddObserver(
+			boost::bind(&MainWindow::OnTabSelected, this, _1)));
+		m_connections.push_back(m_expp->GetTabContainer()->tabNavigationCompletedSignal.AddObserver(
+			boost::bind(&MainWindow::OnNavigationCompleted, this, _1)));
 	});
-
-	m_connections.push_back(m_navigation->navigationCompletedSignal.AddObserver(boost::bind(&MainWindow::OnNavigationCompleted, this, _1)));
 
 	m_connections.push_back(m_config->showFullTitlePath.addObserver(boost::bind(&MainWindow::OnShowFullTitlePathUpdated, this, _1)));
 	m_connections.push_back(m_config->showUserNameInTitleBar.addObserver(boost::bind(&MainWindow::OnShowUserNameInTitleBarUpdated, this, _1)));
 	m_connections.push_back(m_config->showPrivilegeLevelInTitleBar.addObserver(boost::bind(&MainWindow::OnShowPrivilegeLevelInTitleBarUpdated, this, _1)));
-}
-
-MainWindow::~MainWindow()
-{
-
 }
 
 void MainWindow::OnNavigationCompleted(const Tab &tab)
@@ -81,7 +76,7 @@ void MainWindow::OnShowPrivilegeLevelInTitleBarUpdated(BOOL newValue)
 void MainWindow::UpdateWindowText()
 {
 	const Tab &tab = m_expp->GetTabContainer()->GetSelectedTab();
-	PIDLPointer pidlDirectory(tab.GetShellBrowser()->QueryCurrentDirectoryIdl());
+	auto pidlDirectory = tab.GetShellBrowser()->GetDirectoryIdl();
 
 	TCHAR szFolderDisplayName[MAX_PATH];
 

@@ -6,12 +6,13 @@
 #include "ColorRuleDialog.h"
 #include "ColorRuleHelper.h"
 #include "MainResource.h"
+#include "ResourceHelper.h"
 #include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/StringHelper.h"
 #include "../Helper/WindowHelper.h"
 #include "../Helper/XMLSettings.h"
-
+#include <wil/resource.h>
 
 namespace NColorRuleDialog
 {
@@ -33,11 +34,6 @@ CBaseDialog(hInstance,iResource,hParent,false)
 	m_bEdit = bEdit;
 
 	m_pcrdps = &CColorRuleDialogPersistentSettings::GetInstance();
-}
-
-CColorRuleDialog::~CColorRuleDialog()
-{
-
 }
 
 INT_PTR CColorRuleDialog::OnInitDialog()
@@ -73,10 +69,8 @@ INT_PTR CColorRuleDialog::OnInitDialog()
 		if(m_pColorRule->dwFilterAttributes & FILE_ATTRIBUTE_SYSTEM)
 			CheckDlgButton(m_hDlg,IDC_CHECK_SYSTEM,BST_CHECKED);
 
-		TCHAR szTemp[64];
-		LoadString(GetInstance(),IDS_EDITCOLORRULE,
-			szTemp,SIZEOF_ARRAY(szTemp));
-		SetWindowText(m_hDlg,szTemp);
+		std::wstring editText = ResourceHelper::LoadString(GetInstance(), IDS_EDITCOLORRULE);
+		SetWindowText(m_hDlg, editText.c_str());
 	}
 	else
 	{
@@ -223,9 +217,8 @@ LRESULT CALLBACK CColorRuleDialog::StaticColorProc(HWND hwnd,UINT Msg,WPARAM wPa
 			RECT rc;
 			GetClientRect(hwnd,&rc);
 
-			HBRUSH hBrush = CreateSolidBrush(m_cfCurrentColor);
-			FillRect(hdc,&rc,hBrush);
-			DeleteObject(hBrush);
+			wil::unique_hbrush hBrush(CreateSolidBrush(m_cfCurrentColor));
+			FillRect(hdc,&rc,hBrush.get());
 
 			return 1;
 		}
@@ -244,11 +237,6 @@ CDialogSettings(SETTINGS_KEY)
 	{
 		m_cfCustomColors[i] = RGB(255,255,255);
 	}
-}
-
-CColorRuleDialogPersistentSettings::~CColorRuleDialogPersistentSettings()
-{
-	
 }
 
 CColorRuleDialogPersistentSettings& CColorRuleDialogPersistentSettings::GetInstance()

@@ -3,9 +3,8 @@
 // See LICENSE in the top level directory
 
 #include "stdafx.h"
-#include "iShellView.h"
+#include "ShellBrowser.h"
 #include "Config.h"
-#include "iShellBrowser_internal.h"
 #include "MainResource.h"
 #include "ViewModes.h"
 #include "../Helper/Controls.h"
@@ -15,57 +14,23 @@
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
+#include <wil/com.h>
 #include <list>
 
-
-HRESULT CShellBrowser::BrowseFolder(const TCHAR *szPath,UINT wFlags)
+HRESULT CShellBrowser::BrowseFolder(PCIDLIST_ABSOLUTE pidlDirectory, bool addHistoryEntry)
 {
-	LPITEMIDLIST pidlDirectory = NULL;
-	HRESULT hr = GetIdlFromParsingName(szPath,&pidlDirectory);
+	SetCursor(LoadCursor(NULL, IDC_WAIT));
 
-	if(SUCCEEDED(hr))
-	{
-		hr = BrowseFolder(pidlDirectory,wFlags);
-
-		CoTaskMemFree(pidlDirectory);
-	}
-
-	return hr;
-}
-
-HRESULT CShellBrowser::BrowseFolder(LPCITEMIDLIST pidlDirectory,UINT wFlags)
-{
-	SetCursor(LoadCursor(NULL,IDC_WAIT));
-
-	LPITEMIDLIST pidl = ILClone(pidlDirectory);
+	auto resetCursor = wil::scope_exit([] {
+		SetCursor(LoadCursor(NULL, IDC_ARROW));
+	});
 
 	if(m_bFolderVisited)
 	{
 		SaveColumnWidths();
 	}
 
-	/* The path may not be absolute, in which case it will
-	need to be completed. */
-	BOOL StoreHistory = TRUE;
-	HRESULT hr = ParsePath(&pidl,wFlags,&StoreHistory);
-
-	if(hr != S_OK)
-	{
-		SetCursor(LoadCursor(NULL,IDC_ARROW));
-		return E_FAIL;
-	}
-
-	/* TODO: Wait for any background threads to finish processing. */
-
-	m_columnThreadPool.clear_queue();
-	m_columnResults.clear();
-
-	m_itemImageThreadPool.clear_queue();
-	m_iconResults.clear();
-	m_thumbnailResults.clear();
-
-	m_infoTipsThreadPool.clear_queue();
-	m_infoTipResults.clear();
+	ClearPendingResults();
 
 	EnterCriticalSection(&m_csDirectoryAltered);
 	m_FilesAdded.clear();
@@ -73,17 +38,12 @@ HRESULT CShellBrowser::BrowseFolder(LPCITEMIDLIST pidlDirectory,UINT wFlags)
 	LeaveCriticalSection(&m_csDirectoryAltered);
 
 	TCHAR szParsingPath[MAX_PATH];
-	GetDisplayName(pidl,szParsingPath,SIZEOF_ARRAY(szParsingPath),SHGDN_FORPARSING);
+	GetDisplayName(pidlDirectory,szParsingPath,SIZEOF_ARRAY(szParsingPath),SHGDN_FORPARSING);
 
 	/* TODO: Method callback. */
 	SendMessage(m_hOwner,WM_USER_STARTEDBROWSING,m_ID,reinterpret_cast<WPARAM>(szParsingPath));
 
 	StringCchCopy(m_CurDir,SIZEOF_ARRAY(m_CurDir),szParsingPath);
-
-	if(StoreHistory)
-	{
-		m_pathManager.StoreIdl(pidl);
-	}
 
 	/* Stop the list view from redrawing itself each time is inserted.
 	Redrawing will be allowed once all items have being inserted.
@@ -94,21 +54,16 @@ HRESULT CShellBrowser::BrowseFolder(LPCITEMIDLIST pidlDirectory,UINT wFlags)
 
 	if(m_bFolderVisited)
 	{
-		ResetFolderMemoryAllocations();
+		ResetFolderState();
 	}
-
-	m_iFolderIcon = GetDefaultFolderIconIndex();
-	m_iFileIcon = GetDefaultFileIconIndex();
 
 	m_nTotalItems = 0;
 
-	BrowseVirtualFolder(pidl);
-
-	CoTaskMemFree(pidl);
+	EnumerateFolder(pidlDirectory);
 
 	/* Window updates needs these to be set. */
-	m_NumFilesSelected		= 0;
-	m_NumFoldersSelected	= 0;
+	m_NumFilesSelected = 0;
+	m_NumFoldersSelected = 0;
 
 	m_ulTotalDirSize.QuadPart = 0;
 	m_ulFileSelectionSize.QuadPart = 0;
@@ -131,26 +86,222 @@ HRESULT CShellBrowser::BrowseFolder(LPCITEMIDLIST pidlDirectory,UINT wFlags)
 
 	m_bFolderVisited = TRUE;
 
-	SetCursor(LoadCursor(NULL,IDC_ARROW));
+	PlayNavigationSound();
 
-	m_iUniqueFolderIndex++;
+	m_uniqueFolderId++;
+
+	navigationCompletedSignal.m_signal(pidlDirectory, addHistoryEntry);
 
 	return S_OK;
 }
 
+void CShellBrowser::ClearPendingResults()
+{
+	m_columnThreadPool.clear_queue();
+	m_columnResults.clear();
+
+	m_iconFetcher->ClearQueue();
+
+	m_thumbnailThreadPool.clear_queue();
+	m_thumbnailResults.clear();
+
+	m_infoTipsThreadPool.clear_queue();
+	m_infoTipResults.clear();
+}
+
+void CShellBrowser::ResetFolderState()
+{
+	/* If we're in thumbnails view, destroy the current
+	imagelist, and create a new one. */
+	if (m_folderSettings.viewMode == +ViewMode::Thumbnails)
+	{
+		HIMAGELIST himlOld = ListView_GetImageList(m_hListView, LVSIL_NORMAL);
+
+		int nItems = ListView_GetItemCount(m_hListView);
+
+		/* Create and set the new imagelist. */
+		HIMAGELIST himl = ImageList_Create(THUMBNAIL_ITEM_WIDTH, THUMBNAIL_ITEM_HEIGHT,
+			ILC_COLOR32, nItems, nItems + 100);
+		ListView_SetImageList(m_hListView, himl, LVSIL_NORMAL);
+
+		ImageList_Destroy(himlOld);
+	}
+
+	m_directoryState = DirectoryState();
+
+	EnterCriticalSection(&m_csDirectoryAltered);
+	m_AlteredList.clear();
+	LeaveCriticalSection(&m_csDirectoryAltered);
+
+	m_itemInfoMap.clear();
+	m_cachedFolderSizes.clear();
+	m_FilteredItemsList.clear();
+	m_AwaitingAddList.clear();
+}
+
+HRESULT CShellBrowser::EnumerateFolder(PCIDLIST_ABSOLUTE pidlDirectory)
+{
+	DetermineFolderVirtual(pidlDirectory);
+
+	wil::com_ptr<IShellFolder> pShellFolder;
+	HRESULT hr = BindToIdl(pidlDirectory, IID_PPV_ARGS(&pShellFolder));
+
+	if (FAILED(hr))
+	{
+		return hr;
+	}
+
+	m_directoryState.pidlDirectory.reset(ILCloneFull(pidlDirectory));
+
+	SHCONTF enumFlags = SHCONTF_FOLDERS | SHCONTF_NONFOLDERS;
+
+	if (m_folderSettings.showHidden)
+	{
+		enumFlags |= SHCONTF_INCLUDEHIDDEN | SHCONTF_INCLUDESUPERHIDDEN;
+	}
+
+	wil::com_ptr<IEnumIDList> pEnumIDList;
+	hr = pShellFolder->EnumObjects(m_hOwner, enumFlags, &pEnumIDList);
+
+	if (FAILED(hr) || !pEnumIDList)
+	{
+		return hr;
+	}
+
+	ULONG uFetched = 1;
+	unique_pidl_child pidlItem;
+
+	while (pEnumIDList->Next(1, wil::out_param(pidlItem), &uFetched) == S_OK && (uFetched == 1))
+	{
+		ULONG uAttributes = SFGAO_FOLDER;
+		PCITEMID_CHILD items[] = { pidlItem.get() };
+		pShellFolder->GetAttributesOf(1, items, &uAttributes);
+
+		STRRET str;
+
+		/* If this is a virtual folder, only use SHGDN_INFOLDER. If this is
+		a real folder, combine SHGDN_INFOLDER with SHGDN_FORPARSING. This is
+		so that items in real folders can still be shown with extensions, even
+		if the global, Explorer option is disabled.
+		Also use only SHGDN_INFOLDER if this item is a folder. This is to ensure
+		that specific folders in Windows 7 (those under C:\Users\Username) appear
+		correctly. */
+		if (m_bVirtualFolder || (uAttributes & SFGAO_FOLDER))
+		{
+			hr = pShellFolder->GetDisplayNameOf(pidlItem.get(), SHGDN_INFOLDER, &str);
+		}
+		else
+		{
+			hr = pShellFolder->GetDisplayNameOf(pidlItem.get(), SHGDN_INFOLDER | SHGDN_FORPARSING, &str);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			TCHAR szFileName[MAX_PATH];
+			StrRetToBuf(&str, pidlItem.get(), szFileName, SIZEOF_ARRAY(szFileName));
+
+			AddItemInternal(pidlDirectory, pidlItem.get(), szFileName, -1, FALSE);
+		}
+	}
+
+	return hr;
+}
+
+HRESULT CShellBrowser::AddItemInternal(PCIDLIST_ABSOLUTE pidlDirectory,
+	PCITEMID_CHILD pidlChild, const TCHAR *szFileName, int iItemIndex, BOOL bPosition)
+{
+	int uItemId = SetItemInformation(pidlDirectory, pidlChild, szFileName);
+	return AddItemInternal(iItemIndex, uItemId, bPosition);
+}
+
+HRESULT CShellBrowser::AddItemInternal(int iItemIndex, int iItemId, BOOL bPosition)
+{
+	AwaitingAdd_t AwaitingAdd;
+
+	if (iItemIndex == -1)
+	{
+		AwaitingAdd.iItem = m_nTotalItems + static_cast<int>(m_AwaitingAddList.size());
+	}
+	else
+	{
+		AwaitingAdd.iItem = iItemIndex;
+	}
+
+	AwaitingAdd.iItemInternal = iItemId;
+	AwaitingAdd.bPosition = bPosition;
+	AwaitingAdd.iAfter = iItemIndex - 1;
+
+	m_AwaitingAddList.push_back(AwaitingAdd);
+
+	return S_OK;
+}
+
+int CShellBrowser::SetItemInformation(PCIDLIST_ABSOLUTE pidlDirectory,
+	PCITEMID_CHILD pidlChild, const TCHAR *szFileName)
+{
+	HANDLE			hFirstFile;
+	TCHAR			szPath[MAX_PATH];
+	int				uItemId;
+
+	uItemId = GenerateUniqueItemId();
+
+	unique_pidl_absolute pidlItem(ILCombine(pidlDirectory, pidlChild));
+
+	m_itemInfoMap[uItemId].pidlComplete.reset(ILCloneFull(pidlItem.get()));
+	m_itemInfoMap[uItemId].pridl.reset(ILCloneChild(pidlChild));
+	StringCchCopy(m_itemInfoMap[uItemId].szDisplayName,
+		SIZEOF_ARRAY(m_itemInfoMap[uItemId].szDisplayName), szFileName);
+
+	SHGetPathFromIDList(pidlItem.get(), szPath);
+
+	/* DO NOT call FindFirstFile() on root drives (especially
+	floppy drives). Doing so may cause a delay of up to a
+	few seconds. */
+	if (!PathIsRoot(szPath))
+	{
+		m_itemInfoMap[uItemId].bDrive = FALSE;
+
+		WIN32_FIND_DATA wfd;
+		hFirstFile = FindFirstFile(szPath, &wfd);
+
+		m_itemInfoMap[uItemId].wfd = wfd;
+	}
+	else
+	{
+		m_itemInfoMap[uItemId].bDrive = TRUE;
+		StringCchCopy(m_itemInfoMap[uItemId].szDrive,
+			SIZEOF_ARRAY(m_itemInfoMap[uItemId].szDrive),
+			szPath);
+
+		hFirstFile = INVALID_HANDLE_VALUE;
+	}
+
+	/* Need to use this, since may be in a virtual folder
+	(such as the recycle bin), but items still exist. */
+	if (hFirstFile != INVALID_HANDLE_VALUE)
+	{
+		FindClose(hFirstFile);
+	}
+	else
+	{
+		WIN32_FIND_DATA wfd;
+
+		StringCchCopy(wfd.cFileName, SIZEOF_ARRAY(wfd.cFileName), szFileName);
+		wfd.nFileSizeLow = 0;
+		wfd.nFileSizeHigh = 0;
+		wfd.dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+
+		m_itemInfoMap[uItemId].wfd = wfd;
+	}
+
+	return uItemId;
+}
+
 void CShellBrowser::InsertAwaitingItems(BOOL bInsertIntoGroup)
 {
-	LVITEM lv;
-	ULARGE_INTEGER ulFileSize;
-	unsigned int nPrevItems;
-	int nAdded = 0;
-	int iItemIndex;
+	int nPrevItems = ListView_GetItemCount(m_hListView);
 
-	nPrevItems = ListView_GetItemCount(m_hListView);
-
-	m_nAwaitingAdd = (int)m_AwaitingAddList.size();
-
-	if((nPrevItems + m_nAwaitingAdd) == 0)
+	if(nPrevItems == 0 && m_AwaitingAddList.empty())
 	{
 		if(m_folderSettings.applyFilter)
 			ApplyFilteringBackgroundImage(true);
@@ -169,104 +320,105 @@ void CShellBrowser::InsertAwaitingItems(BOOL bInsertIntoGroup)
 	/* Make the listview allocate space (for internal data structures)
 	for all the items at once, rather than individually.
 	Acts as a speed optimization. */
-	ListView_SetItemCount(m_hListView,m_nAwaitingAdd + nPrevItems);
+	ListView_SetItemCount(m_hListView,m_AwaitingAddList.size() + nPrevItems);
 
-	lv.mask			= LVIF_TEXT|LVIF_IMAGE|LVIF_PARAM;
-
-	if(bInsertIntoGroup)
-		lv.mask		|= LVIF_GROUPID;
-
-	/* Constant for each item. */
-	lv.iSubItem		= 0;
-
-	if(m_folderSettings.autoArrange)
-		NListView::ListView_SetAutoArrange(m_hListView,FALSE);
-
-	for(auto itr = m_AwaitingAddList.begin();itr != m_AwaitingAddList.end();itr++)
+	if (m_folderSettings.autoArrange)
 	{
-		if(!IsFileFiltered(itr->iItemInternal))
-		{
-			BasicItemInfo_t basicItemInfo = getBasicItemInfo(itr->iItemInternal);
-			std::wstring filename = ProcessItemFileName(basicItemInfo, m_config->globalFolderSettings);
-
-			TCHAR filenameCopy[MAX_PATH];
-			StringCchCopy(filenameCopy, SIZEOF_ARRAY(filenameCopy), filename.c_str());
-
-			lv.iItem	= itr->iItem;
-			lv.pszText	= filenameCopy;
-			lv.iImage	= I_IMAGECALLBACK;
-			lv.lParam	= itr->iItemInternal;
-
-			if(bInsertIntoGroup)
-			{
-				lv.iGroupId	= DetermineItemGroup(itr->iItemInternal);
-			}
-
-			/* Insert the item into the list view control. */
-			iItemIndex = ListView_InsertItem(m_hListView,&lv);
-
-			if(itr->bPosition && m_folderSettings.viewMode != +ViewMode::Details)
-			{
-				POINT ptItem;
-
-				if(itr->iAfter != -1)
-				{
-					ListView_GetItemPosition(m_hListView,itr->iAfter,&ptItem);
-				}
-				else
-				{
-					ptItem.x = 0;
-					ptItem.y = 0;
-				}
-
-				/* The item will end up in the position AFTER iAfter. */
-				ListView_SetItemPosition32(m_hListView,iItemIndex,ptItem.x,ptItem.y);
-			}
-
-			if(m_folderSettings.viewMode == +ViewMode::Tiles)
-			{
-				SetTileViewItemInfo(iItemIndex,itr->iItemInternal);
-			}
-
-			if(m_bNewItemCreated)
-			{
-				if(CompareIdls(m_itemInfoMap.at((int)itr->iItemInternal).pidlComplete.get(),m_pidlNewItem))
-					m_bNewItemCreated = FALSE;
-
-				m_iIndexNewItem = iItemIndex;
-			}
-
-			/* If the file is marked as hidden, ghost it out. */
-			if(m_itemInfoMap.at(itr->iItemInternal).wfd.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN)
-			{
-				ListView_SetItemState(m_hListView,iItemIndex,LVIS_CUT,LVIS_CUT);
-			}
-			
-			/* Add the current file's size to the running size of the current directory. */
-			/* A folder may or may not have 0 in its high file size member.
-			It should either be zeroed, or never counted. */
-			ulFileSize.LowPart = m_itemInfoMap.at(itr->iItemInternal).wfd.nFileSizeLow;
-			ulFileSize.HighPart = m_itemInfoMap.at(itr->iItemInternal).wfd.nFileSizeHigh;
-
-			m_ulTotalDirSize.QuadPart += ulFileSize.QuadPart;
-
-			nAdded++;
-		}
-		else
-		{
-			m_FilteredItemsList.push_back(itr->iItemInternal);
-		}
+		NListView::ListView_SetAutoArrange(m_hListView, FALSE);
 	}
 
-	if(m_folderSettings.autoArrange)
-		NListView::ListView_SetAutoArrange(m_hListView,TRUE);
+	int nAdded = 0;
+
+	for (const auto &awaitingItem : m_AwaitingAddList)
+	{
+		const auto &itemInfo = m_itemInfoMap.at(awaitingItem.iItemInternal);
+
+		if (IsFileFiltered(itemInfo))
+		{
+			m_FilteredItemsList.push_back(awaitingItem.iItemInternal);
+			continue;
+		}
+
+		BasicItemInfo_t basicItemInfo = getBasicItemInfo(awaitingItem.iItemInternal);
+		std::wstring filename = ProcessItemFileName(basicItemInfo, m_config->globalFolderSettings);
+
+		LVITEM lv;
+		lv.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM;
+
+		if (bInsertIntoGroup)
+		{
+			lv.mask |= LVIF_GROUPID;
+			lv.iGroupId = DetermineItemGroup(awaitingItem.iItemInternal);
+		}
+
+		lv.iItem = awaitingItem.iItem;
+		lv.iSubItem = 0;
+		lv.pszText = filename.data();
+		lv.iImage = I_IMAGECALLBACK;
+		lv.lParam = awaitingItem.iItemInternal;
+
+		/* Insert the item into the list view control. */
+		int iItemIndex = ListView_InsertItem(m_hListView,&lv);
+
+		if(awaitingItem.bPosition && m_folderSettings.viewMode != +ViewMode::Details)
+		{
+			POINT ptItem;
+
+			if(awaitingItem.iAfter != -1)
+			{
+				ListView_GetItemPosition(m_hListView, awaitingItem.iAfter,&ptItem);
+			}
+			else
+			{
+				ptItem.x = 0;
+				ptItem.y = 0;
+			}
+
+			/* The item will end up in the position AFTER iAfter. */
+			ListView_SetItemPosition32(m_hListView,iItemIndex,ptItem.x,ptItem.y);
+		}
+
+		if(m_folderSettings.viewMode == +ViewMode::Tiles)
+		{
+			SetTileViewItemInfo(iItemIndex, awaitingItem.iItemInternal);
+		}
+
+		if(m_bNewItemCreated)
+		{
+			if(CompareIdls(itemInfo.pidlComplete.get(),m_pidlNewItem))
+				m_bNewItemCreated = FALSE;
+
+			m_iIndexNewItem = iItemIndex;
+		}
+
+		/* If the file is marked as hidden, ghost it out. */
+		if(itemInfo.wfd.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN)
+		{
+			ListView_SetItemState(m_hListView,iItemIndex,LVIS_CUT,LVIS_CUT);
+		}
+			
+		/* Add the current file's size to the running size of the current directory. */
+		/* A folder may or may not have 0 in its high file size member.
+		It should either be zeroed, or never counted. */
+		ULARGE_INTEGER ulFileSize;
+		ulFileSize.LowPart = itemInfo.wfd.nFileSizeLow;
+		ulFileSize.HighPart = itemInfo.wfd.nFileSizeHigh;
+
+		m_ulTotalDirSize.QuadPart += ulFileSize.QuadPart;
+
+		nAdded++;
+	}
+
+	if (m_folderSettings.autoArrange)
+	{
+		NListView::ListView_SetAutoArrange(m_hListView, TRUE);
+	}
 
 	m_nTotalItems = nPrevItems + nAdded;
 
 	PositionDroppedItems();
 
 	m_AwaitingAddList.clear();
-	m_nAwaitingAdd = 0;
 }
 
 void CShellBrowser::ApplyFolderEmptyBackgroundImage(bool apply)
@@ -293,20 +445,20 @@ void CShellBrowser::ApplyFilteringBackgroundImage(bool apply)
 	}
 }
 
-BOOL CShellBrowser::IsFileFiltered(int iItemInternal) const
+BOOL CShellBrowser::IsFileFiltered(const ItemInfo_t &itemInfo) const
 {
 	BOOL bHideSystemFile	= FALSE;
 	BOOL bFilenameFiltered	= FALSE;
 
 	if(m_folderSettings.applyFilter &&
-		((m_itemInfoMap.at(iItemInternal).wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != FILE_ATTRIBUTE_DIRECTORY))
+		((itemInfo.wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != FILE_ATTRIBUTE_DIRECTORY))
 	{
-		bFilenameFiltered = IsFilenameFiltered(m_itemInfoMap.at(iItemInternal).szDisplayName);
+		bFilenameFiltered = IsFilenameFiltered(itemInfo.szDisplayName);
 	}
 
 	if(m_config->globalFolderSettings.hideSystemFiles)
 	{
-		bHideSystemFile = (m_itemInfoMap.at(iItemInternal).wfd.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM)
+		bHideSystemFile = (itemInfo.wfd.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM)
 			== FILE_ATTRIBUTE_SYSTEM;
 	}
 
@@ -361,233 +513,11 @@ void CShellBrowser::RemoveItem(int iItemInternal)
 	}
 }
 
-HRESULT CShellBrowser::ParsePath(LPITEMIDLIST *pidlDirectory,UINT uFlags,
-BOOL *bStoreHistory)
+void CShellBrowser::PlayNavigationSound() const
 {
-	if((uFlags & SBSP_RELATIVE) == SBSP_RELATIVE)
+	if (m_config->playNavigationSound)
 	{
-		LPITEMIDLIST	pidlComplete;
-
-		if(pidlDirectory == NULL)
-			return E_INVALIDARG;
-
-		/* This is a relative path. Add it on to the end of the current directory
-		name to get a fully qualified path. */
-		pidlComplete = ILCombine(m_pidlDirectory,*pidlDirectory);
-
-		*pidlDirectory = ILClone(pidlComplete);
-
-		CoTaskMemFree(pidlComplete);
+		PlaySound(MAKEINTRESOURCE(IDR_WAVE_NAVIGATIONSTART), NULL,
+			SND_RESOURCE | SND_ASYNC);
 	}
-	else if((uFlags & SBSP_PARENT) == SBSP_PARENT)
-	{
-		HRESULT hr;
-
-		hr = GetVirtualParentPath(m_pidlDirectory,pidlDirectory);
-	}
-	else if((uFlags & SBSP_NAVIGATEBACK) == SBSP_NAVIGATEBACK)
-	{
-		if(m_pathManager.GetNumBackPathsStored() == 0)
-		{
-			SetFocus(m_hListView);
-			return E_FAIL;
-		}
-
-		/*Gets the path of the folder that was last visited.
-		Ignores the supplied Path argument.*/
-		*bStoreHistory		= FALSE;
-
-		*pidlDirectory = m_pathManager.RetrieveAndValidateIdl(-1);
-	}
-	else if((uFlags & SBSP_NAVIGATEFORWARD) == SBSP_NAVIGATEFORWARD)
-	{
-		if(m_pathManager.GetNumForwardPathsStored() == 0)
-		{
-			SetFocus(m_hListView);
-			return E_FAIL;
-		}
-
-		/*Gets the path of the folder that is 'forward' of
-		this one. Ignores the supplied Path argument.*/
-		*bStoreHistory		= FALSE;
-
-		*pidlDirectory = m_pathManager.RetrieveAndValidateIdl(1);
-	}
-	else
-	{
-		/* Assume that SBSP_ABSOLUTE was passed. */
-		if(pidlDirectory == NULL)
-			return E_INVALIDARG;
-	}
-	
-	if((uFlags & SBSP_WRITENOHISTORY) == SBSP_WRITENOHISTORY)
-	{
-		/* Client has requested that the folder to be browsed to will have
-		no history item associated with it. */
-		*bStoreHistory		= FALSE;
-	}
-
-	if(!CheckIdl(*pidlDirectory))
-		return E_FAIL;
-
-	return S_OK;
-}
-
-void CShellBrowser::BrowseVirtualFolder(LPITEMIDLIST pidlDirectory)
-{
-	IShellFolder	*pShellFolder = NULL;
-	IEnumIDList		*pEnumIDList = NULL;
-	LPITEMIDLIST	rgelt = NULL;
-	STRRET			str;
-	SHCONTF			EnumFlags;
-	TCHAR			szFileName[MAX_PATH];
-	ULONG			uFetched;
-	HRESULT			hr;
-
-	DetermineFolderVirtual(pidlDirectory);
-
-	hr = BindToIdl(pidlDirectory, IID_PPV_ARGS(&pShellFolder));
-
-	if(SUCCEEDED(hr))
-	{
-		m_pidlDirectory = ILClone(pidlDirectory);
-
-		EnumFlags = SHCONTF_FOLDERS|SHCONTF_NONFOLDERS;
-
-		if(m_folderSettings.showHidden)
-			EnumFlags |= SHCONTF_INCLUDEHIDDEN;
-
-		hr = pShellFolder->EnumObjects(m_hOwner,EnumFlags,&pEnumIDList);
-
-		if(SUCCEEDED(hr) && pEnumIDList != NULL)
-		{
-			uFetched = 1;
-			while(pEnumIDList->Next(1,&rgelt,&uFetched) == S_OK && (uFetched == 1))
-			{
-				ULONG uAttributes = SFGAO_FOLDER;
-
-				pShellFolder->GetAttributesOf(1,(LPCITEMIDLIST *)&rgelt,&uAttributes);
-
-				/* If this is a virtual folder, only use SHGDN_INFOLDER. If this is
-				a real folder, combine SHGDN_INFOLDER with SHGDN_FORPARSING. This is
-				so that items in real folders can still be shown with extensions, even
-				if the global, Explorer option is disabled.
-				Also use only SHGDN_INFOLDER if this item is a folder. This is to ensure
-				that specific folders in Windows 7 (those under C:\Users\Username) appear
-				correctly. */
-				if(m_bVirtualFolder || (uAttributes & SFGAO_FOLDER))
-					hr = pShellFolder->GetDisplayNameOf(rgelt,SHGDN_INFOLDER,&str);
-				else
-					hr = pShellFolder->GetDisplayNameOf(rgelt,SHGDN_INFOLDER|SHGDN_FORPARSING,&str);
-
-				if(SUCCEEDED(hr))
-				{
-					StrRetToBuf(&str, rgelt, szFileName, SIZEOF_ARRAY(szFileName));
-
-					AddItemInternal(pidlDirectory,rgelt,szFileName,-1,FALSE);
-				}
-
-				CoTaskMemFree((LPVOID)rgelt);
-			}
-
-			pEnumIDList->Release();
-		}
-
-		pShellFolder->Release();
-	}
-}
-
-HRESULT CShellBrowser::AddItemInternal(LPITEMIDLIST pidlDirectory,
-LPITEMIDLIST pidlRelative,const TCHAR *szFileName,int iItemIndex,BOOL bPosition)
-{
-	int uItemId;
-
-	uItemId = SetItemInformation(pidlDirectory,pidlRelative,szFileName);
-
-	return AddItemInternal(iItemIndex,uItemId,bPosition);
-}
-
-HRESULT CShellBrowser::AddItemInternal(int iItemIndex,int iItemId,BOOL bPosition)
-{
-	AwaitingAdd_t	AwaitingAdd;
-
-	if(iItemIndex == -1)
-		AwaitingAdd.iItem = m_nTotalItems + m_nAwaitingAdd - 1;
-	else
-		AwaitingAdd.iItem = iItemIndex;
-
-	AwaitingAdd.iItemInternal = iItemId;
-	AwaitingAdd.bPosition = bPosition;
-	AwaitingAdd.iAfter = iItemIndex - 1;
-
-	m_AwaitingAddList.push_back(AwaitingAdd);
-
-	return S_OK;
-}
-
-int CShellBrowser::SetItemInformation(LPITEMIDLIST pidlDirectory,
-LPITEMIDLIST pidlRelative,const TCHAR *szFileName)
-{
-	LPITEMIDLIST	pidlItem = NULL;
-	HANDLE			hFirstFile;
-	TCHAR			szPath[MAX_PATH];
-	int				uItemId;
-
-	m_nAwaitingAdd++;
-
-	uItemId = GenerateUniqueItemId();
-
-	pidlItem = ILCombine(pidlDirectory, pidlRelative);
-
-	m_itemInfoMap[uItemId].pidlComplete.reset(ILClone(pidlItem));
-	m_itemInfoMap[uItemId].pridl.reset(ILClone(pidlRelative));
-	m_itemInfoMap[uItemId].bIconRetrieved = FALSE;
-	StringCchCopy(m_itemInfoMap[uItemId].szDisplayName,
-		SIZEOF_ARRAY(m_itemInfoMap[uItemId].szDisplayName), szFileName);
-
-	SHGetPathFromIDList(pidlItem,szPath);
-
-	CoTaskMemFree(pidlItem);
-
-	/* DO NOT call FindFirstFile() on root drives (especially
-	floppy drives). Doing so may cause a delay of up to a
-	few seconds. */
-	if(!PathIsRoot(szPath))
-	{
-		m_itemInfoMap[uItemId].bDrive = FALSE;
-
-		WIN32_FIND_DATA wfd;
-		hFirstFile = FindFirstFile(szPath,&wfd);
-
-		m_itemInfoMap[uItemId].wfd = wfd;
-	}
-	else
-	{
-		m_itemInfoMap[uItemId].bDrive = TRUE;
-		StringCchCopy(m_itemInfoMap[uItemId].szDrive,
-			SIZEOF_ARRAY(m_itemInfoMap[uItemId].szDrive),
-			szPath);
-
-		hFirstFile = INVALID_HANDLE_VALUE;
-	}
-
-	/* Need to use this, since may be in a virtual folder
-	(such as the recycle bin), but items still exist. */
-	if(hFirstFile != INVALID_HANDLE_VALUE)
-	{
-		FindClose(hFirstFile);
-	}
-	else
-	{
-		WIN32_FIND_DATA wfd;
-
-		StringCchCopy(wfd.cFileName, SIZEOF_ARRAY(wfd.cFileName), szFileName);
-		wfd.nFileSizeLow			= 0;
-		wfd.nFileSizeHigh			= 0;
-		wfd.dwFileAttributes		= FILE_ATTRIBUTE_DIRECTORY;
-
-		m_itemInfoMap[uItemId].wfd = wfd;
-	}
-
-	return uItemId;
 }

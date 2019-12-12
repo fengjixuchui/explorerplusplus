@@ -19,13 +19,13 @@
 #include "ApplicationToolbarDropHandler.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
+#include "ResourceHelper.h"
 #include "../Helper/Controls.h"
 #include "../Helper/Macros.h"
 #include "../Helper/RegistrySettings.h"
 #include "../Helper/ShellHelper.h"
 #include "../Helper/XMLSettings.h"
 #include <boost\algorithm\string.hpp>
-
 
 const TCHAR CApplicationToolbarPersistentSettings::SETTING_NAME[] = _T("Name");
 const TCHAR CApplicationToolbarPersistentSettings::SETTING_COMMAND[] = _T("Command");
@@ -74,8 +74,8 @@ void CApplicationToolbar::Initialize(HWND hParent)
 	m_patd = new CApplicationToolbarDropHandler(m_hwnd, this);
 	RegisterDragDrop(m_hwnd,m_patd);
 
-	SetWindowSubclass(hParent,ParentWndProcStub,PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(WindowSubclassWrapper(hParent, ParentWndProcStub,
+		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	AddButtonsToToolbar();
 
@@ -84,8 +84,6 @@ void CApplicationToolbar::Initialize(HWND hParent)
 
 CApplicationToolbar::~CApplicationToolbar()
 {
-	RemoveWindowSubclass(GetParent(m_hwnd), ParentWndProcStub, PARENT_SUBCLASS_ID);
-
 	RevokeDragDrop(m_hwnd);
 	m_patd->Release();
 }
@@ -310,8 +308,8 @@ void CApplicationToolbar::OpenItem(int iItem, std::wstring *parameters)
 	{
 		ApplicationInfo_t ai = ProcessCommand(Button->Command);
 
-		LPITEMIDLIST pidl = NULL;
-		HRESULT hr = GetIdlFromParsingName(ai.Application.c_str(),&pidl);
+		unique_pidl_absolute pidl;
+		HRESULT hr = SHParseDisplayName(ai.Application.c_str(), nullptr, wil::out_param(pidl), 0, nullptr);
 
 		if(SUCCEEDED(hr))
 		{
@@ -323,8 +321,7 @@ void CApplicationToolbar::OpenItem(int iItem, std::wstring *parameters)
 				combinedParameters.append(*parameters);
 			}
 
-			m_pexpp->OpenFileItem(pidl, combinedParameters.c_str());
-			CoTaskMemFree(pidl);
+			m_pexpp->OpenFileItem(pidl.get(), combinedParameters.c_str());
 		}
 	}
 }
@@ -422,11 +419,9 @@ void CApplicationToolbar::DeleteItem(int iItem)
 {
 	assert(iItem >= 0 && static_cast<size_t>(iItem) < m_atps->m_Buttons.size());
 
-	TCHAR szInfoMsg[128];
-	LoadString(m_hInstance,IDS_APPLICATIONBUTTON_DELETE,
-		szInfoMsg,SIZEOF_ARRAY(szInfoMsg));
+	std::wstring message = ResourceHelper::LoadString(m_hInstance, IDS_APPLICATIONBUTTON_DELETE);
 
-	int iMessageBoxReturn = MessageBox(m_hwnd,szInfoMsg,
+	int iMessageBoxReturn = MessageBox(m_hwnd,message.c_str(),
 		NExplorerplusplus::APP_NAME,MB_YESNO|MB_ICONINFORMATION|MB_DEFBUTTON2);
 
 	if(iMessageBoxReturn == IDYES)
@@ -457,13 +452,12 @@ void CApplicationToolbar::OnToolbarContextMenuPreShow(HMENU menu, HWND sourceWin
 		return;
 	}
 
-	TCHAR szTemp[64];
-	LoadString(m_hInstance, IDS_APPLICATIONBUTTON_NEW, szTemp, SIZEOF_ARRAY(szTemp));
+	std::wstring newText = ResourceHelper::LoadString(m_hInstance, IDS_APPLICATIONBUTTON_NEW);
 
 	MENUITEMINFO mii;
 	mii.cbSize = sizeof(mii);
 	mii.fMask = MIIM_ID | MIIM_STRING;
-	mii.dwTypeData = szTemp;
+	mii.dwTypeData = newText.data();
 	mii.wID = IDM_APP_NEW;
 
 	InsertMenuItem(menu, IDM_TOOLBARS_CUSTOMIZE, FALSE, &mii);
@@ -498,11 +492,6 @@ CApplicationToolbarPersistentSettings::CApplicationToolbarPersistentSettings() :
 m_IDCounter(0)
 {
 
-}
-
-CApplicationToolbarPersistentSettings::~CApplicationToolbarPersistentSettings()
-{
-	
 }
 
 CApplicationToolbarPersistentSettings& CApplicationToolbarPersistentSettings::GetInstance()

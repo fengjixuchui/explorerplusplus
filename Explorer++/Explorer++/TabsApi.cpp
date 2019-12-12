@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "TabsAPI.h"
+#include "Config.h"
 #include "ShellBrowser/FolderSettings.h"
 #include "ShellBrowser/SortModes.h"
 #include "TabProperties.h"
@@ -12,15 +13,11 @@
 
 #pragma warning(disable:4459) // declaration of 'boost_scope_exit_aux_args' hides global declaration
 
-Plugins::TabsApi::TabsApi(TabContainer *tabContainer, TabInterface *tabInterface, Navigation *navigation) :
+Plugins::TabsApi::TabsApi(IExplorerplusplus *expp, TabContainer *tabContainer,
+	Navigation *navigation) :
+	m_expp(expp),
 	m_tabContainer(tabContainer),
-	m_tabInterface(tabInterface),
 	m_navigation(navigation)
-{
-
-}
-
-Plugins::TabsApi::~TabsApi()
 {
 
 }
@@ -31,7 +28,7 @@ std::vector<Plugins::TabsApi::Tab> Plugins::TabsApi::getAll()
 
 	for (auto &item : m_tabContainer->GetAllTabs())
 	{
-		Tab tab(item.second);
+		Tab tab(*item.second);
 		tabs.push_back(tab);
 	}
 
@@ -64,19 +61,15 @@ int Plugins::TabsApi::create(sol::table createProperties)
 	TabSettings tabSettings;
 	extractTabPropertiesForCreation(createProperties, tabSettings);
 
-	LPITEMIDLIST pidlDirectory;
-	HRESULT hr = GetIdlFromParsingName(location->c_str(), &pidlDirectory);
+	unique_pidl_absolute pidlDirectory;
+	HRESULT hr = SHParseDisplayName(location->c_str(), nullptr, wil::out_param(pidlDirectory), 0, nullptr);
 
 	if (FAILED(hr))
 	{
 		return -1;
 	}
 
-	BOOST_SCOPE_EXIT(pidlDirectory) {
-		CoTaskMemFree(pidlDirectory);
-	} BOOST_SCOPE_EXIT_END
-
-	::FolderSettings folderSettings = m_tabContainer->GetDefaultFolderSettings(pidlDirectory);
+	::FolderSettings folderSettings = m_expp->GetConfig()->defaultFolderSettings;
 
 	boost::optional<sol::table> folderSettingsTable = createProperties[TabConstants::FOLDER_SETTINGS];
 
@@ -86,7 +79,7 @@ int Plugins::TabsApi::create(sol::table createProperties)
 	}
 
 	int tabId;
-	hr = m_tabContainer->CreateNewTab(pidlDirectory, tabSettings, &folderSettings, boost::none, &tabId);
+	hr = m_tabContainer->CreateNewTab(pidlDirectory.get(), tabSettings, &folderSettings, boost::none, &tabId);
 
 	if (FAILED(hr))
 	{
@@ -133,18 +126,12 @@ void Plugins::TabsApi::extractTabPropertiesForCreation(sol::table createProperti
 		tabSettings.selected = *active;
 	}
 
-	boost::optional<bool> locked = createProperties[TabConstants::LOCKED];
+	boost::optional<int> lockState = createProperties[TabConstants::LOCK_STATE];
 
-	if (locked)
+	// TODO: Verify that lockState has a valid value.
+	if (lockState)
 	{
-		tabSettings.locked = *locked;
-	}
-
-	boost::optional<bool> addressLocked = createProperties[TabConstants::ADDRESS_LOCKED];
-
-	if (addressLocked)
-	{
-		tabSettings.addressLocked = *addressLocked;
+		tabSettings.lockState = static_cast<::Tab::LockState>(*lockState);
 	}
 }
 
@@ -206,7 +193,7 @@ void Plugins::TabsApi::update(int tabId, sol::table properties)
 
 	if (location && !location->empty())
 	{
-		m_navigation->BrowseFolder(*tabInternal, location->c_str(), SBSP_ABSOLUTE);
+		tabInternal->GetNavigationController()->BrowseFolder(*location);
 	}
 
 	boost::optional<std::wstring> name = properties[TabConstants::NAME];
@@ -223,18 +210,12 @@ void Plugins::TabsApi::update(int tabId, sol::table properties)
 		}
 	}
 
-	boost::optional<bool> locked = properties[TabConstants::LOCKED];
+	boost::optional<int> lockState = properties[TabConstants::LOCK_STATE];
 
-	if (locked)
+	// TODO: Verify that lockState has a valid value.
+	if (lockState)
 	{
-		tabInternal->SetLocked(*locked);
-	}
-
-	boost::optional<bool> addressLocked = properties[TabConstants::ADDRESS_LOCKED];
-
-	if (addressLocked)
-	{
-		tabInternal->SetAddressLocked(*addressLocked);
+		tabInternal->SetLockState(static_cast<::Tab::LockState> (*lockState));
 	}
 
 	boost::optional<bool> active = properties[TabConstants::ACTIVE];
@@ -254,7 +235,7 @@ void Plugins::TabsApi::refresh(int tabId)
 		return;
 	}
 
-	m_tabInterface->RefreshTab(*tabInternal);
+	tabInternal->GetNavigationController()->Refresh();
 }
 
 int Plugins::TabsApi::move(int tabId, int newIndex)
