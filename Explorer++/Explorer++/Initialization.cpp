@@ -11,6 +11,7 @@
 #include "LoadSaveInterface.h"
 #include "MainResource.h"
 #include "MainWindow.h"
+#include "MenuRanges.h"
 #include "ResourceHelper.h"
 #include "ShellBrowser/ViewModes.h"
 #include "TaskbarThumbnails.h"
@@ -34,7 +35,6 @@
 void Explorerplusplus::OnCreate()
 {
 	InitializeMainToolbars();
-	InitializeBookmarks();
 
 	ILoadSave *pLoadSave = NULL;
 	LoadAllSettings(&pLoadSave);
@@ -43,6 +43,8 @@ void Explorerplusplus::OnCreate()
 	m_iconResourceLoader = std::make_unique<IconResourceLoader>(m_config->iconTheme);
 
 	SetLanguageModule();
+
+	m_bookmarksMainMenu = std::make_unique<BookmarksMainMenu>(this, &m_bookmarkTree, MenuIdRange{ MENU_BOOKMARK_STARTID, MENU_BOOKMARK_ENDID });
 
 	m_navigation = std::make_unique<Navigation>(this);
 
@@ -95,34 +97,6 @@ void Explorerplusplus::OnCreate()
 	SetTimer(m_hContainer, AUTOSAVE_TIMER_ID, AUTOSAVE_TIMEOUT, nullptr);
 
 	m_InitializationFinished.set(true);
-}
-
-void Explorerplusplus::InitializeBookmarks(void)
-{
-	TCHAR szTemp[64];
-
-	GUID RootGuid;
-
-	/* The cast to RPC_WSTR is required for the reason
-	discussed here: http://social.msdn.microsoft.com/Forums/vstudio/en-US/d1b4550a-407b-4c09-8560-0ab9ef6ff754/error-while-compiling-c2664. */
-	UuidFromString(reinterpret_cast<RPC_WSTR>(NBookmarkHelper::ROOT_GUID),&RootGuid);
-
-	LoadString(m_hLanguageModule,IDS_BOOKMARKS_ALLBOOKMARKS,szTemp,SIZEOF_ARRAY(szTemp));
-	m_bfAllBookmarks = CBookmarkFolder::CreateNew(szTemp, RootGuid);
-
-	GUID ToolbarGuid;
-	UuidFromString(reinterpret_cast<RPC_WSTR>(NBookmarkHelper::TOOLBAR_GUID),&ToolbarGuid);
-	LoadString(m_hLanguageModule,IDS_BOOKMARKS_BOOKMARKSTOOLBAR,szTemp,SIZEOF_ARRAY(szTemp));
-	CBookmarkFolder bfBookmarksToolbar = CBookmarkFolder::Create(szTemp,ToolbarGuid);
-	m_bfAllBookmarks->InsertBookmarkFolder(bfBookmarksToolbar);
-	m_guidBookmarksToolbar = bfBookmarksToolbar.GetGUID();
-
-	GUID MenuGuid;
-	UuidFromString(reinterpret_cast<RPC_WSTR>(NBookmarkHelper::MENU_GUID),&MenuGuid);
-	LoadString(m_hLanguageModule,IDS_BOOKMARKS_BOOKMARKSMENU,szTemp,SIZEOF_ARRAY(szTemp));
-	CBookmarkFolder bfBookmarksMenu = CBookmarkFolder::Create(szTemp,MenuGuid);
-	m_bfAllBookmarks->InsertBookmarkFolder(bfBookmarksMenu);
-	m_guidBookmarksMenu = bfBookmarksMenu.GetGUID();
 }
 
 void Explorerplusplus::InitializeDisplayWindow()

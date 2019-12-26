@@ -33,33 +33,6 @@
 #include "../Helper/ShellHelper.h"
 #include <wil/com.h>
 
-const std::vector<unsigned int> COMMON_REAL_FOLDER_COLUMNS =
-{CM_NAME, CM_TYPE, CM_SIZE, CM_DATEMODIFIED,
-CM_AUTHORS, CM_TITLE};
-
-const std::vector<unsigned int> COMMON_CONTROL_PANEL_COLUMNS =
-{CM_NAME, CM_VIRTUALCOMMENTS};
-
-const std::vector<unsigned int> COMMON_MY_COMPUTER_COLUMNS =
-{CM_NAME, CM_TYPE, CM_TOTALSIZE,
-CM_FREESPACE, CM_VIRTUALCOMMENTS,
-CM_FILESYSTEM};
-
-const std::vector<unsigned int> COMMON_NETWORK_CONNECTIONS_COLUMNS =
-{CM_NAME, CM_TYPE, CM_NETWORKADAPTER_STATUS,
-CM_OWNER};
-
-const std::vector<unsigned int> COMMON_NETWORK_COLUMNS =
-{CM_NAME, CM_VIRTUALCOMMENTS};
-
-const std::vector<unsigned int> COMMON_PRINTERS_COLUMNS =
-{CM_NAME, CM_NUMPRINTERDOCUMENTS, CM_PRINTERSTATUS,
-CM_PRINTERCOMMENTS, CM_PRINTERLOCATION};
-
-const std::vector<unsigned int> COMMON_RECYCLE_BIN_COLUMNS =
-{CM_NAME, CM_ORIGINALLOCATION, CM_DATEDELETED,
-CM_SIZE, CM_TYPE, CM_DATEMODIFIED};
-
 LRESULT CALLBACK Explorerplusplus::ListViewProcStub(HWND hwnd, UINT uMsg, WPARAM wParam,
 	LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
@@ -82,10 +55,6 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 		case WM_SETFOCUS:
 			m_hLastActiveWindow = ListView;
 			m_mainToolbar->UpdateToolbarButtonStates();
-			break;
-
-		case WM_LBUTTONDOWN:
-			OnListViewLButtonDown(wParam,lParam);
 			break;
 
 		case WM_LBUTTONDBLCLK:
@@ -152,7 +121,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 
 						if(!PtInRect(&rc,lvhti.pt))
 						{
-							m_bBlockNext = TRUE;
+							m_blockNextListViewSelection = TRUE;
 						}
 					}
 				}
@@ -168,7 +137,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 			m_bDragCancelled = FALSE;
 			m_bDragAllowed = FALSE;
 
-			m_bBlockNext = FALSE;
+			m_blockNextListViewSelection = FALSE;
 			break;
 
 		/* If no item is currently been dragged, and the last drag
@@ -177,7 +146,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 		mouse button was clicked, it was over an item, start dragging. */
 		case WM_MOUSEMOVE:
 			{
-				m_bBlockNext = FALSE;
+				m_blockNextListViewSelection = FALSE;
 				if(!m_bDragging && !m_bDragCancelled && m_bDragAllowed)
 				{
 					if((wParam & MK_RBUTTON) && !(wParam & MK_LBUTTON)
@@ -285,7 +254,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 					m_pActiveShellBrowser->ImportColumns(currentColumns);
 
 					Tab &tab = m_tabContainer->GetSelectedTab();
-					tab.GetNavigationController()->Refresh();
+					tab.GetShellBrowser()->GetNavigationController()->Refresh();
 
 					return TRUE;
 				}
@@ -295,33 +264,6 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 	}
 
 	return DefSubclassProc(ListView,msg,wParam,lParam);
-}
-
-void Explorerplusplus::OnListViewLButtonDown(WPARAM wParam,LPARAM lParam)
-{
-	LV_HITTESTINFO HitTestInfo;
-
-	HitTestInfo.pt.x	= LOWORD(lParam);
-	HitTestInfo.pt.y	= HIWORD(lParam);
-
-	/* Test to see if the mouse click was
-	on an item or not. */
-	ListView_HitTest(m_hActiveListView,&HitTestInfo);
-
-	/* If the mouse click was not on an item,
-	then assume we are counting down the number
-	of items selected. */
-	if(HitTestInfo.flags == LVHT_NOWHERE)
-	{
-		m_bSelectionFromNowhere = TRUE;
-
-		if(!(wParam & MK_CONTROL) && m_nSelected > 1)
-			m_bCountingDown = TRUE;
-	}
-	else
-	{
-		m_bSelectionFromNowhere = FALSE;
-	}
 }
 
 LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
@@ -358,62 +300,12 @@ LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
 			}
 			break;
 
-		case VK_BACK:
-			if(IsKeyDown(VK_CONTROL) &&
-				!IsKeyDown(VK_SHIFT) &&
-				!IsKeyDown(VK_MENU))
-			{
-				auto pidl = m_pActiveShellBrowser->GetDirectoryIdl();
-
-				TCHAR szRoot[MAX_PATH];
-				HRESULT hr = GetDisplayName(pidl.get(),szRoot,SIZEOF_ARRAY(szRoot),SHGDN_FORPARSING);
-
-				if(SUCCEEDED(hr))
-				{
-					BOOL bRes = PathStripToRoot(szRoot);
-
-					if(bRes)
-					{
-						/* Go to the root of this directory. */
-						m_navigation->BrowseFolderInCurrentTab(szRoot);
-					}
-				}
-			}
-			else
-			{
-				m_navigation->OnNavigateUp();
-			}
-			break;
-
-		case 'A':
-			if(IsKeyDown(VK_CONTROL) &&
-				!IsKeyDown(VK_SHIFT) &&
-				!IsKeyDown(VK_MENU))
-			{
-				m_bCountingUp = TRUE;
-				NListView::ListView_SelectAllItems(m_hActiveListView,TRUE);
-				SetFocus(m_hActiveListView);
-			}
-			break;
-
 		case 'C':
 			if(IsKeyDown(VK_CONTROL) &&
 				!IsKeyDown(VK_SHIFT) &&
 				!IsKeyDown(VK_MENU))
 			{
 				OnListViewCopy(TRUE);
-			}
-			break;
-
-		case 'I':
-			if(IsKeyDown(VK_CONTROL) &&
-				!IsKeyDown(VK_SHIFT) &&
-				!IsKeyDown(VK_MENU))
-			{
-				m_bInverted = TRUE;
-				m_nSelectedOnInvert = m_nSelected;
-				NListView::ListView_InvertSelection(m_hActiveListView);
-				SetFocus(m_hActiveListView);
 			}
 			break;
 
@@ -439,112 +331,36 @@ LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
 	return 0;
 }
 
-void Explorerplusplus::OnListViewItemChanged(LPARAM lParam)
+BOOL Explorerplusplus::OnListViewItemChanging(const NMLISTVIEW *changeData)
 {
-	NMLISTVIEW	*ItemChanged = NULL;
-	int			iObjectIndex;
-	BOOL		Selected;
-
-	ItemChanged = (NM_LISTVIEW FAR *)lParam;
-
-	iObjectIndex = DetermineListViewObjectIndex(ItemChanged->hdr.hwndFrom);
-
-	if(iObjectIndex == -1)
-		return;
-
-	Tab &tab = m_tabContainer->GetTab(iObjectIndex);
-
-	if(tab.GetShellBrowser()->IsDragging())
-		return;
-
-	HWND listView = tab.GetShellBrowser()->GetListView();
-
-	if(ItemChanged->uChanged == LVIF_STATE &&
-		((LVIS_STATEIMAGEMASK & ItemChanged->uNewState) >> 12) != 0 &&
-		((LVIS_STATEIMAGEMASK & ItemChanged->uOldState) >> 12) != 0)
+	if (changeData->uChanged != LVIF_STATE)
 	{
-		if(ListView_GetCheckState(listView,ItemChanged->iItem))
-		{
-			NListView::ListView_SelectItem(listView,ItemChanged->iItem,TRUE);
-		}
-		else
-		{
-			NListView::ListView_SelectItem(listView,ItemChanged->iItem,FALSE);
-		}
-
-		return;
+		return FALSE;
 	}
 
-	if((ItemChanged->uNewState & LVIS_SELECTED) &&
-	(ItemChanged->uOldState & LVIS_SELECTED))
-		return;
+	int tabId = DetermineListViewObjectIndex(changeData->hdr.hwndFrom);
 
-	/* Only proceed if an item was selected or deselected. */
-	if(ItemChanged->uNewState & LVIS_SELECTED)
-		Selected = TRUE;
-	else if(ItemChanged->uOldState & LVIS_SELECTED)
-		Selected  = FALSE;
-	else
-		return;
-
-	if(Selected)
+	if (tabId == -1)
 	{
-		if(ListView_GetCheckState(listView,ItemChanged->iItem) == 0)
-			ListView_SetCheckState(listView,ItemChanged->iItem,TRUE);
-	}
-	else
-	{
-		if(ListView_GetCheckState(listView,ItemChanged->iItem) != 0)
-			ListView_SetCheckState(listView,ItemChanged->iItem,FALSE);
+		return FALSE;
 	}
 
-	/* The selection for this tab has changed, so invalidate any
-	folder size calculations that are occurring for this tab
-	(applies only to folder sizes that will be shown in the display
-	window). */
-	std::list<DWFolderSize_t>::iterator itr;
+	Tab &tab = m_tabContainer->GetTab(tabId);
+	ViewMode viewMode = tab.GetShellBrowser()->GetViewMode();
 
-	for(itr = m_DWFolderSizes.begin();itr != m_DWFolderSizes.end();itr++)
+	bool previouslySelected = WI_IsFlagSet(changeData->uOldState, LVIS_SELECTED);
+	bool currentlySelected = WI_IsFlagSet(changeData->uNewState, LVIS_SELECTED);
+
+	if (viewMode == +ViewMode::List && !previouslySelected && currentlySelected)
 	{
-		if(itr->iTabId == iObjectIndex)
+		if (m_blockNextListViewSelection)
 		{
-			itr->bValid = FALSE;
+			m_blockNextListViewSelection = FALSE;
+			return TRUE;
 		}
 	}
 
-	/* Only update internal selection info
-	if the listview that sent the change
-	notification is active. */
-	if(m_tabContainer->IsTabSelected(tab))
-	{
-		if(Selected)
-		{
-			m_nSelected++;
-
-			if(m_nSelected == ListView_GetItemCount(m_hActiveListView))
-				m_bCountingUp = FALSE;
-		}
-		else
-		{
-			m_nSelected--;
-
-			if(m_nSelected <= 1)
-				m_bCountingDown = FALSE;
-		}
-	}
-
-	tab.GetShellBrowser()->UpdateFileSelectionInfo(
-	(int)ItemChanged->lParam,Selected);
-
-	if((ListView_GetItemCount(m_hActiveListView) - m_nSelected) == m_nSelectedOnInvert)
-		m_bInverted = FALSE;
-
-	if(m_bCountingUp || m_bCountingDown || m_bInverted)
-		return;
-
-	UpdateDisplayWindow(tab);
-	UpdateStatusBarText(tab);
-	m_mainToolbar->UpdateToolbarButtonStates();
+	return FALSE;
 }
 
 int Explorerplusplus::DetermineListViewObjectIndex(HWND hListView)
@@ -882,139 +698,6 @@ void Explorerplusplus::OnListViewItemRClick(POINT *pCursorPos)
 	}
 }
 
-void Explorerplusplus::OnListViewHeaderRClick(const POINT *pCursorPos)
-{
-	wil::unique_hmenu headerPopupMenu(LoadMenu(m_hLanguageModule, MAKEINTRESOURCE(IDR_HEADER_MENU)));
-	HMENU headerMenu = GetSubMenu(headerPopupMenu.get(), 0);
-
-	auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
-	auto commonColumns = GetColumnHeaderMenuList();
-
-	std::unordered_map<int, UINT> menuItemMappings;
-	int totalInserted = 0;
-	int commonColumnPosition = 0;
-
-	for (const auto &column : currentColumns)
-	{
-		auto itr = std::find(commonColumns.begin(), commonColumns.end(), column.id);
-		bool inCommonColumns = (itr != commonColumns.end());
-
-		if (!column.bChecked && !inCommonColumns)
-		{
-			continue;
-		}
-
-		MENUITEMINFO mii;
-		mii.cbSize = sizeof(mii);
-		mii.fMask = MIIM_STRING | MIIM_STATE | MIIM_ID;
-
-		std::wstring columnText = ResourceHelper::LoadString(m_hLanguageModule,
-			CShellBrowser::LookupColumnNameStringIndex(column.id));
-
-		if (column.bChecked)
-		{
-			mii.fState = MFS_CHECKED;
-		}
-		else
-		{
-			mii.fState = MFS_ENABLED;
-		}
-
-		int currentPosition;
-
-		if (inCommonColumns)
-		{
-			// The common columns always appear first, whether they're checked
-			// or not.
-			currentPosition = commonColumnPosition;
-			commonColumnPosition++;
-		}
-		else
-		{
-			currentPosition = totalInserted;
-		}
-
-		int id = totalInserted + 1;
-
-		mii.dwTypeData = columnText.data();
-		mii.wID = id;
-		InsertMenuItem(headerMenu, currentPosition, TRUE, &mii);
-
-		menuItemMappings.insert({id, column.id});
-
-		totalInserted++;
-	}
-
-	int cmd = TrackPopupMenu(headerMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERTICAL | TPM_RETURNCMD,
-		pCursorPos->x, pCursorPos->y, 0, m_hContainer, NULL);
-
-	if (cmd == 0)
-	{
-		return;
-	}
-
-	OnListViewHeaderMenuItemSelected(cmd, menuItemMappings);
-}
-
-std::vector<unsigned int> Explorerplusplus::GetColumnHeaderMenuList()
-{
-	if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_DRIVES))
-	{
-		return COMMON_MY_COMPUTER_COLUMNS;
-	}
-	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_CONTROLS))
-	{
-		return COMMON_CONTROL_PANEL_COLUMNS;
-	}
-	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_BITBUCKET))
-	{
-		return COMMON_RECYCLE_BIN_COLUMNS;
-	}
-	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_CONNECTIONS))
-	{
-		return COMMON_NETWORK_CONNECTIONS_COLUMNS;
-	}
-	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_NETWORK))
-	{
-		return COMMON_NETWORK_COLUMNS;
-	}
-	else if(CompareVirtualFolders(m_CurrentDirectory.c_str(), CSIDL_PRINTERS))
-	{
-		return COMMON_PRINTERS_COLUMNS;
-	}
-	else
-	{
-		return COMMON_REAL_FOLDER_COLUMNS;
-	}
-}
-
-void Explorerplusplus::OnListViewHeaderMenuItemSelected(int menuItemId,
-	const std::unordered_map<int, UINT> &menuItemMappings)
-{
-	auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
-
-	UINT columnId = menuItemMappings.at(menuItemId);
-	auto itr = std::find_if(currentColumns.begin(), currentColumns.end(), [columnId] (const Column_t &column) {
-		return column.id == columnId;
-	});
-
-	if (itr == currentColumns.end())
-	{
-		return;
-	}
-
-	itr->bChecked = !itr->bChecked;
-
-	m_pActiveShellBrowser->ImportColumns(currentColumns);
-
-	// If it was the first column that was changed, need to refresh all columns.
-	if (menuItemId == 1)
-	{
-		Tab &tab = m_tabContainer->GetSelectedTab();
-		tab.GetNavigationController()->Refresh();
-	}
-}
-
 HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType)
 {
 	IDropSource			*pDropSource = NULL;
@@ -1269,8 +952,8 @@ void Explorerplusplus::OnListViewFileRenameMultiple()
 		return;
 	}
 
-	CMassRenameDialog CMassRenameDialog(m_hLanguageModule, IDD_MASSRENAME,
-		m_hContainer, this, FullFilenameList, &m_FileActionHandler);
+	CMassRenameDialog CMassRenameDialog(m_hLanguageModule, m_hContainer, this,
+		FullFilenameList, &m_FileActionHandler);
 	CMassRenameDialog.ShowModalDialog();
 }
 
@@ -1387,32 +1070,10 @@ HRESULT Explorerplusplus::OnListViewCopy(BOOL bCopy)
 	return hr;
 }
 
-void Explorerplusplus::OnListViewSetFileAttributes(void) const
+void Explorerplusplus::OnListViewSetFileAttributes() const
 {
-	if(ListView_GetSelectedCount(m_hActiveListView) > 0)
-	{
-		int iSel = -1;
-
-		std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> sfaiList;
-
-		while((iSel = ListView_GetNextItem(m_hActiveListView,
-			iSel,LVNI_SELECTED)) != -1)
-		{
-			NSetFileAttributesDialogExternal::SetFileAttributesInfo_t sfai;
-
-			m_pActiveShellBrowser->GetItemFullName(iSel,sfai.szFullFileName,SIZEOF_ARRAY(sfai.szFullFileName));
-
-			WIN32_FIND_DATA wfd = m_pActiveShellBrowser->GetItemFileFindData(iSel);
-			sfai.wfd = wfd;
-
-			sfaiList.push_back(sfai);
-		}
-
-		CSetFileAttributesDialog SetFileAttributesDialog(m_hLanguageModule,
-			IDD_SETFILEATTRIBUTES,m_hContainer,sfaiList);
-
-		SetFileAttributesDialog.ShowModalDialog();
-	}
+	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	selectedTab.GetShellBrowser()->SetFileAttributesForSelection();
 }
 
 void Explorerplusplus::OnListViewPaste(void)
@@ -1519,7 +1180,7 @@ int Explorerplusplus::HighlightSimilarFiles(HWND ListView) const
 
 void Explorerplusplus::OpenAllSelectedItems(BOOL bOpenInNewTab)
 {
-	BOOL	m_bSeenDirectory = FALSE;
+	BOOL	bSeenDirectory = FALSE;
 	DWORD	dwAttributes;
 	int		iItem = -1;
 	int		iFolderItem = -1;
@@ -1530,7 +1191,7 @@ void Explorerplusplus::OpenAllSelectedItems(BOOL bOpenInNewTab)
 
 		if((dwAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
 		{
-			m_bSeenDirectory = TRUE;
+			bSeenDirectory = TRUE;
 			iFolderItem = iItem;
 		}
 		else
@@ -1539,7 +1200,7 @@ void Explorerplusplus::OpenAllSelectedItems(BOOL bOpenInNewTab)
 		}
 	}
 
-	if(m_bSeenDirectory)
+	if(bSeenDirectory)
 		OpenListViewItem(iFolderItem,bOpenInNewTab,FALSE);
 }
 

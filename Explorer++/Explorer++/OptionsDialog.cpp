@@ -640,7 +640,7 @@ INT_PTR CALLBACK OptionsDialog::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM wPar
 
 						for (auto &tab : m_tabContainer->GetAllTabs() | boost::adaptors::map_values)
 						{
-							tab->GetNavigationController()->Refresh();
+							tab->GetShellBrowser()->GetNavigationController()->Refresh();
 
 							NListView::ListView_ActivateOneClickSelect(tab->GetShellBrowser()->GetListView(),
 								m_config->globalFolderSettings.oneClickActivate,
@@ -1029,7 +1029,7 @@ INT_PTR CALLBACK OptionsDialog::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARAM w
 				case IDC_BUTTON_DEFAULTCOLUMNS:
 					{
 						CSetDefaultColumnsDialog SetDefaultColumnsDialog(m_instance,
-							IDD_SETDEFAULTCOLUMNS, hDlg, m_config->globalFolderSettings.folderColumns);
+							hDlg, m_config->globalFolderSettings.folderColumns);
 						SetDefaultColumnsDialog.ShowModalDialog();
 					}
 					break;

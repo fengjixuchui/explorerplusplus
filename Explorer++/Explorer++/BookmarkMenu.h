@@ -4,29 +4,50 @@
 
 #pragma once
 
-#include "../Helper/Bookmark.h"
+#include "BookmarkContextMenu.h"
+#include "BookmarkItem.h"
+#include "BookmarkMenuBuilder.h"
+#include "BookmarkTree.h"
+#include "CoreInterface.h"
+#include "../Helper/WindowSubclassWrapper.h"
+#include <wil/resource.h>
 #include <functional>
-#include <unordered_map>
 
+// Although it's not necessary, this class is effectively designed to be held
+// for the lifetime of its parent class. Doing so is more efficient, as the
+// parent window will only be subclassed once (on construction). It's then safe
+// to call ShowMenu() as many times as needed.
 class BookmarkMenu
 {
 public:
 
-	BookmarkMenu(HINSTANCE instance);
+	using MenuCallback = std::function<void(const BookmarkItem *bookmarkItem)>;
 
-	BOOL ShowMenu(HWND parentWindow, const CBookmarkFolder &parentBookmark, const POINT &pt,
-		const std::function<void(const CBookmark &)> &callback = nullptr);
+	BookmarkMenu(BookmarkTree *bookmarkTree, HMODULE resourceModule, IExplorerplusplus *expp, HWND parentWindow);
+
+	BOOL ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCallback callback = nullptr);
 
 private:
 
-	BOOL BuildBookmarksMenu(HMENU menu, const CBookmarkFolder &parent, int startPosition);
-	BOOL AddEmptyBookmarkFolderToMenu(HMENU menu, int position);
-	BOOL AddBookmarkFolderToMenu(HMENU menu, const CBookmarkFolder &bookmarkFolder, int position);
-	BOOL AddBookmarkToMenu(HMENU menu, const CBookmark &bookmark, int position);
-	void OnMenuItemSelected(int menuItemId, const std::function<void(const CBookmark &)> &callback = nullptr);
+	static const int MIN_ID = 1;
+	static const int MAX_ID = 1000;
 
+	static const UINT_PTR SUBCLASS_ID = 0;
+
+	static LRESULT CALLBACK ParentWindowSubclassStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+	LRESULT CALLBACK ParentWindowSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	void OnMenuRightButtonUp(HMENU menu, int index, const POINT &pt);
+	void OnMenuItemSelected(int menuItemId, BookmarkMenuBuilder::ItemMap &menuItemMappings,
+		MenuCallback callback);
+
+	HWND m_parentWindow;
 	HINSTANCE m_instance;
+	BookmarkMenuBuilder m_menuBuilder;
+	BookmarkContextMenu m_bookmarkContextMenu;
 
-	int m_idCounter;
-	std::unordered_map<int, const CBookmark *> m_menuItemMap;
+	bool m_showingMenu;
+	BookmarkMenuBuilder::ItemMap *m_menuItemMappings;
+
+	std::vector<WindowSubclassWrapper> m_windowSubclasses;
 };

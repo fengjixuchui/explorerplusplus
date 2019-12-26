@@ -381,7 +381,7 @@ void Explorerplusplus::OnTreeViewHolderWindowTimer(void)
 		!CompareIdls(pidlDirectory.get(),pidlCurrentDirectory.get()))
 	{
 		Tab &selectedTab = m_tabContainer->GetSelectedTab();
-		selectedTab.GetNavigationController()->BrowseFolder(pidlDirectory.get());
+		selectedTab.GetShellBrowser()->GetNavigationController()->BrowseFolder(pidlDirectory.get());
 
 		if(m_config->treeViewAutoExpandSelected)
 		{
@@ -663,8 +663,7 @@ void Explorerplusplus::OnTreeViewSetFileAttributes(void) const
 
 			sfaiList.push_back(sfai);
 
-			CSetFileAttributesDialog SetFileAttributesDialog(m_hLanguageModule,
-				IDD_SETFILEATTRIBUTES,m_hContainer,sfaiList);
+			CSetFileAttributesDialog SetFileAttributesDialog(m_hLanguageModule, m_hContainer, sfaiList);
 
 			SetFileAttributesDialog.ShowModalDialog();
 		}

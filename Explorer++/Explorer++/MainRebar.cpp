@@ -314,7 +314,7 @@ void Explorerplusplus::CreateBookmarksToolbar(void)
 		TBSTYLE_EX_DOUBLEBUFFER | TBSTYLE_EX_HIDECLIPPEDBUTTONS);
 
 	m_pBookmarksToolbar = new CBookmarksToolbar(m_hBookmarksToolbar, m_hLanguageModule, this,
-		m_navigation.get(), *m_bfAllBookmarks, m_guidBookmarksToolbar, TOOLBAR_BOOKMARK_START, TOOLBAR_BOOKMARK_END);
+		m_navigation.get(), &m_bookmarkTree, TOOLBAR_BOOKMARK_START, TOOLBAR_BOOKMARK_END);
 }
 
 void Explorerplusplus::CreateDrivesToolbar(void)
@@ -356,12 +356,12 @@ HMENU Explorerplusplus::CreateRebarHistoryMenu(BOOL bBack)
 	if (bBack)
 	{
 		iBase = ID_REBAR_MENU_BACK_START;
-		history = tab.GetNavigationController()->GetBackHistory();
+		history = tab.GetShellBrowser()->GetNavigationController()->GetBackHistory();
 	}
 	else
 	{
 		iBase = ID_REBAR_MENU_FORWARD_START;
-		history = tab.GetNavigationController()->GetForwardHistory();
+		history = tab.GetShellBrowser()->GetNavigationController()->GetForwardHistory();
 	}
 
 	if (history.size() > 0)

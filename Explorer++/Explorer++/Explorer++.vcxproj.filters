@@ -25,9 +25,6 @@
     <ClCompile Include="ManageBookmarksDialog.cpp">
       <Filter>Bookmarks</Filter>
     </ClCompile>
-    <ClCompile Include="NewBookmarkFolderDialog.cpp">
-      <Filter>Bookmarks</Filter>
-    </ClCompile>
     <ClCompile Include="CustomizeColorsDialog.cpp">
       <Filter>Color Rules</Filter>
     </ClCompile>
@@ -361,11 +358,26 @@
     <ClCompile Include="TabRestorerUI.cpp">
       <Filter>Tabs</Filter>
     </ClCompile>
-    <ClCompile Include="NavigationController.cpp">
-      <Filter>Tabs</Filter>
+    <ClCompile Include="ShellBrowser\HistoryEntry.cpp">
+      <Filter>ShellBrowser</Filter>
     </ClCompile>
-    <ClCompile Include="HistoryEntry.cpp">
-      <Filter>Tabs</Filter>
+    <ClCompile Include="ShellBrowser\NavigationController.cpp">
+      <Filter>ShellBrowser</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkTree.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkItem.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkMenuBuilder.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarksMainMenu.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkContextMenu.cpp">
+      <Filter>Bookmarks</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -458,9 +470,6 @@
     </ClInclude>
     <ClInclude Include="MergeFilesDialog.h">
       <Filter>General Dialogs</Filter>
-    </ClInclude>
-    <ClInclude Include="NewBookmarkFolderDialog.h">
-      <Filter>Bookmarks</Filter>
     </ClInclude>
     <ClInclude Include="DefaultColumns.h">
       <Filter>Core</Filter>
@@ -726,20 +735,38 @@
     <ClInclude Include="TabRestorerUI.h">
       <Filter>Tabs</Filter>
     </ClInclude>
-    <ClInclude Include="NavigationController.h">
-      <Filter>Tabs</Filter>
-    </ClInclude>
     <ClInclude Include="ShellBrowser\PreservedFolderState.h">
       <Filter>ShellBrowser</Filter>
     </ClInclude>
-    <ClInclude Include="HistoryEntry.h">
-      <Filter>Tabs</Filter>
-    </ClInclude>
-    <ClInclude Include="PreservedHistoryEntry.h">
-      <Filter>Tabs</Filter>
-    </ClInclude>
     <ClInclude Include="TabNavigationInterface.h">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellBrowser\NavigatorInterface.h">
+      <Filter>ShellBrowser</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellBrowser\HistoryEntry.h">
+      <Filter>ShellBrowser</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellBrowser\NavigationController.h">
+      <Filter>ShellBrowser</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellBrowser\PreservedHistoryEntry.h">
+      <Filter>ShellBrowser</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkTree.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkItem.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkMenuBuilder.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarksMainMenu.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkContextMenu.h">
+      <Filter>Bookmarks</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

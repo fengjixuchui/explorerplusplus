@@ -6,15 +6,17 @@
 
 #include "BookmarkHelper.h"
 #include "BookmarkListView.h"
+#include "BookmarkTree.h"
 #include "BookmarkTreeView.h"
 #include "CoreInterface.h"
 #include "Navigation.h"
 #include "ResourceHelper.h"
 #include "../Helper/BaseDialog.h"
-#include "../Helper/Bookmark.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
+#include <boost/signals2.hpp>
 #include <stack>
+#include <unordered_set>
 
 class CManageBookmarksDialog;
 
@@ -28,23 +30,6 @@ private:
 
 	friend CManageBookmarksDialog;
 
-	enum ColumnType_t
-	{
-		COLUMN_TYPE_NAME = 1,
-		COLUMN_TYPE_LOCATION = 2,
-		COLUMN_TYPE_VISIT_DATE = 3,
-		COLUMN_TYPE_VISIT_COUNT = 4,
-		COLUMN_TYPE_ADDED = 5,
-		COLUMN_TYPE_LAST_MODIFIED = 6
-	};
-
-	struct ColumnInfo_t
-	{
-		ColumnType_t	ColumnType;
-		int				iWidth;
-		bool			bActive;
-	};
-
 	static const TCHAR SETTINGS_KEY[];
 	static const int DEFAULT_MANAGE_BOOKMARKS_COLUMN_WIDTH = 180;
 
@@ -55,32 +40,22 @@ private:
 
 	void SetupDefaultColumns();
 
-	std::vector<ColumnInfo_t>		m_vectorColumnInfo;
+	std::vector<CBookmarkListView::Column> m_listViewColumns;
 
-	bool							m_bInitialized;
-	GUID							m_guidSelected;
-	NBookmarkHelper::setExpansion_t	m_setExpansion;
-
-	NBookmarkHelper::SortMode_t		m_SortMode;
-	bool							m_bSortAscending;
+	bool m_bInitialized;
+	std::unordered_set<std::wstring> m_setExpansion;
 };
 
-class CManageBookmarksDialog : public CBaseDialog, public NBookmark::IBookmarkItemNotification
+class CManageBookmarksDialog : public CBaseDialog
 {
 public:
 
-	CManageBookmarksDialog(HINSTANCE hInstance, int iResource, HWND hParent,
-		IExplorerplusplus *pexpp, Navigation *navigation, CBookmarkFolder &AllBookmarks);
+	CManageBookmarksDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *pexpp,
+		Navigation *navigation, BookmarkTree *bookmarkTree);
 	~CManageBookmarksDialog();
 
-	int CALLBACK		SortBookmarks(LPARAM lParam1,LPARAM lParam2);
-
-	void	OnBookmarkAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmark &Bookmark,std::size_t Position);
-	void	OnBookmarkFolderAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmarkFolder &BookmarkFolder,std::size_t Position);
-	void	OnBookmarkModified(const GUID &guid);
-	void	OnBookmarkFolderModified(const GUID &guid);
-	void	OnBookmarkRemoved(const GUID &guid);
-	void	OnBookmarkFolderRemoved(const GUID &guid);
+	// TODO: Update.
+	//void	OnBookmarkFolderAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmarkFolder &BookmarkFolder,std::size_t Position);
 
 protected:
 
@@ -109,36 +84,22 @@ private:
 	void		SetupTreeView();
 	void		SetupListView();
 
-	void		SortListViewItems(NBookmarkHelper::SortMode_t SortMode);
-
-	void		GetColumnString(CManageBookmarksDialogPersistentSettings::ColumnType_t ColumnType,TCHAR *szColumn,UINT cchBuf);
-	void		GetBookmarkItemColumnInfo(const VariantBookmark &variantBookmark, CManageBookmarksDialogPersistentSettings::ColumnType_t ColumnType, TCHAR *szColumn, size_t cchBuf);
-	void		GetBookmarkColumnInfo(const CBookmark &Bookmark,CManageBookmarksDialogPersistentSettings::ColumnType_t ColumnType,TCHAR *szColumn,size_t cchBuf);
-	void		GetBookmarkFolderColumnInfo(const CBookmarkFolder &BookmarkFolder,CManageBookmarksDialogPersistentSettings::ColumnType_t ColumnType,TCHAR *szColumn,size_t cchBuf);
-
 	void		BrowseBack();
 	void		BrowseForward();
-	void		BrowseBookmarkFolder(const CBookmarkFolder &BookmarkFolder);
+
+	void		OnTreeViewSelectionChanged(BookmarkItem *bookmarkFolder);
+	void		OnListViewNavigation(BookmarkItem *bookmarkFolder);
 
 	void		UpdateToolbarState();
 
-	void		OnNewFolder();
-	void		OnDeleteBookmark(const GUID &guid);
+	LRESULT		HandleMenuOrAccelerator(WPARAM wParam);
 
-	void		OnDblClk(NMHDR *pnmhdr);
-	void		OnRClick(NMHDR *pnmhdr);
+	void		OnNewFolder();
+	void		OnDeleteBookmark(const std::wstring &guid);
 
 	void		OnTbnDropDown(NMTOOLBAR *nmtb);
 	void		ShowViewMenu();
 	void		ShowOrganizeMenu();
-
-	void		OnTvnSelChanged(NMTREEVIEW *pnmtv);
-
-	void		OnListViewRClick();
-	void		OnListViewHeaderRClick();
-	BOOL		OnLvnEndLabelEdit(NMLVDISPINFO *pnmlvdi);
-	void		OnLvnKeyDown(NMLVKEYDOWN *pnmlvkd);
-	void		OnListViewRename();
 
 	void		OnOk();
 	void		OnCancel();
@@ -150,21 +111,21 @@ private:
 	IExplorerplusplus *m_pexpp;
 	Navigation *m_navigation;
 
-	CBookmarkFolder &m_AllBookmarks;
+	BookmarkTree *m_bookmarkTree;
 
-	GUID m_guidCurrentFolder;
+	std::wstring m_guidCurrentFolder;
 
 	bool m_bNewFolderAdded;
-	GUID m_guidNewFolder;
+	std::wstring m_guidNewFolder;
 
-	std::stack<GUID> m_stackBack;
-	std::stack<GUID> m_stackForward;
+	std::stack<std::wstring> m_stackBack;
+	std::stack<std::wstring> m_stackForward;
 	bool m_bSaveHistory;
 
-	CBookmarkTreeView *m_pBookmarkTreeView;
+	CBookmarkTreeView *m_bookmarkTreeView;
+	CBookmarkListView *m_bookmarkListView;
 
-	bool m_bListViewInitialized;
-	CBookmarkListView *m_pBookmarkListView;
+	std::vector<boost::signals2::scoped_connection> m_connections;
 
 	CManageBookmarksDialogPersistentSettings *m_pmbdps;
 };

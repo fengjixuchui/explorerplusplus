@@ -11,14 +11,14 @@
 #include "Explorer++_internal.h"
 #include "MainToolbar.h"
 #include "../DisplayWindow/DisplayWindow.h"
-#include "../Helper/Bookmark.h"
 #include "../Helper/RegistrySettings.h"
 #include "../Helper/Macros.h"
 #include <boost/range/adaptor/map.hpp>
 
 namespace
 {
-	const TCHAR REG_BOOKMARKS_KEY[] = _T("Software\\Explorer++\\Bookmarks");
+	const TCHAR REG_BOOKMARKS_KEY_V1[] = _T("Software\\Explorer++\\Bookmarks");
+	const TCHAR REG_BOOKMARKS_KEY_V2[] = _T("Software\\Explorer++\\Bookmarksv2");
 	const TCHAR REG_TABS_KEY[] = _T("Software\\Explorer++\\Tabs");
 	const TCHAR REG_TOOLBARS_KEY[] = _T("Software\\Explorer++\\Toolbars");
 	const TCHAR REG_COLUMNS_KEY[] = _T("Software\\Explorer++\\DefaultColumns");
@@ -427,25 +427,28 @@ void DeleteKey(HKEY hKey)
 	}
 }
 
-void Explorerplusplus::SaveBookmarksToRegistry(void)
+void Explorerplusplus::SaveBookmarksToRegistry()
 {
-	SHDeleteKey(HKEY_CURRENT_USER,REG_BOOKMARKS_KEY);
-	m_bfAllBookmarks->SerializeToRegistry(REG_BOOKMARKS_KEY);
+	SHDeleteKey(HKEY_CURRENT_USER, REG_BOOKMARKS_KEY_V2);
+
+	wil::unique_hkey bookmarksKey;
+	LONG res = RegCreateKeyEx(HKEY_CURRENT_USER, REG_BOOKMARKS_KEY_V2, 0, nullptr,
+		REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &bookmarksKey, nullptr);
+
+	if (res == ERROR_SUCCESS)
+	{
+		m_bookmarkTree.SaveRegistrySettings(bookmarksKey.get());
+	}
 }
 
-void Explorerplusplus::LoadBookmarksFromRegistry(void)
+void Explorerplusplus::LoadBookmarksFromRegistry()
 {
-	HKEY		hBookmarksKey;
-	LONG		ReturnValue;
+	wil::unique_hkey bookmarksKey;
+	LONG res = RegOpenKeyEx(HKEY_CURRENT_USER, REG_BOOKMARKS_KEY_V2, 0, KEY_READ, &bookmarksKey);
 
-	ReturnValue = RegOpenKeyEx(HKEY_CURRENT_USER,REG_BOOKMARKS_KEY,
-		0,KEY_READ,&hBookmarksKey);
-
-	if(ReturnValue == ERROR_SUCCESS)
+	if (res == ERROR_SUCCESS)
 	{
-		/* TODO: Load bookmarks. */
-
-		RegCloseKey(hBookmarksKey);
+		m_bookmarkTree.LoadRegistrySettings(bookmarksKey.get());
 	}
 }
 

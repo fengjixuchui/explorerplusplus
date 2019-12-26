@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "BookmarksMainMenu.h"
+#include "BookmarkTree.h"
 #include "CoreInterface.h"
 #include "IconResourceLoader.h"
 #include "PluginCommandManager.h"
@@ -63,8 +65,6 @@ class CShellBrowser;
 class TabContainer;
 class TaskbarThumbnails;
 
-class CBookmarkFolder;
-
 __interface IDirectoryMonitor;
 
 class CMyTreeView;
@@ -112,6 +112,9 @@ private:
 
 	static const UINT_PTR AUTOSAVE_TIMER_ID = 100000;
 	static const UINT AUTOSAVE_TIMEOUT = 30000;
+
+	static const UINT_PTR LISTVIEW_ITEM_CHANGED_TIMER_ID = 100001;
+	static const UINT LISTVIEW_ITEM_CHANGED_TIMEOUT = 50;
 
 	// Represents the maximum number of icons that can be cached. This cache is
 	// shared between various components in the application.
@@ -240,13 +243,12 @@ private:
 	void					OnToolbarViews();
 
 	/* ListView private message handlers. */
-	void					OnListViewLButtonDown(WPARAM wParam,LPARAM lParam);
 	void					OnListViewDoubleClick(NMHDR *nmhdr);
 	void					OnListViewFileRename();
 	void					OnListViewFileRenameSingle();
 	void					OnListViewFileRenameMultiple();
 	LRESULT					OnListViewKeyDown(LPARAM lParam);
-	void					OnListViewItemChanged(LPARAM lParam);
+	BOOL					OnListViewItemChanging(const NMLISTVIEW *changeData);
 	HRESULT					OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType);
 	BOOL					OnListViewBeginLabelEdit(LPARAM lParam);
 	BOOL					OnListViewEndLabelEdit(LPARAM lParam);
@@ -254,12 +256,9 @@ private:
 	void					OnListViewRClick(POINT *pCursorPos);
 	void					OnListViewBackgroundRClick(POINT *pCursorPos);
 	void					OnListViewItemRClick(POINT *pCursorPos);
-	void					OnListViewHeaderRClick(const POINT *pCursorPos);
-	std::vector<unsigned int>	GetColumnHeaderMenuList();
-	void					OnListViewHeaderMenuItemSelected(int menuItemId, const std::unordered_map<int, UINT> &menuItemMappings);
 	void					OnListViewCopyItemPath(void) const;
 	void					OnListViewCopyUniversalPaths(void) const;
-	void					OnListViewSetFileAttributes(void) const;
+	void					OnListViewSetFileAttributes() const;
 	void					OnListViewPaste(void);
 
 	/* TreeView private message handlers. */
@@ -296,6 +295,7 @@ private:
 	void					ShowTabBar();
 	void					HideTabBar();
 	HRESULT					RestoreTabs(ILoadSave *pLoadSave);
+	void					OnTabListViewSelectionChanged(const Tab &tab);
 
 	/* TabNavigationInterface methods. */
 	HRESULT					CreateNewTab(PCIDLIST_ABSOLUTE pidlDirectory, bool selected);
@@ -345,7 +345,6 @@ private:
 	void					ValidateSingleColumnSet(int iColumnSet, std::vector<Column_t> &columns);
 	void					ApplyToolbarSettings(void);
 	void					TestConfigFile(void);
-	void					InitializeBookmarks(void);
 
 	/* Registry settings. */
 	LONG					LoadGenericSettingsFromRegistry();
@@ -358,8 +357,8 @@ private:
 	void					SaveColumnWidthsToRegistry(HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns);
 	void					LoadDefaultColumnsFromRegistry();
 	void					SaveDefaultColumnsToRegistry();
-	void					SaveBookmarksToRegistry(void);
-	void					LoadBookmarksFromRegistry(void);
+	void					SaveBookmarksToRegistry();
+	void					LoadBookmarksFromRegistry();
 	void					LoadApplicationToolbarFromRegistry();
 	void					SaveApplicationToolbarToRegistry();
 	void					SaveToolbarInformationToRegistry(void);
@@ -576,9 +575,8 @@ private:
 	std::vector<boost::signals2::scoped_connection>	m_connections;
 
 	/* Bookmarks. */
-	CBookmarkFolder *		m_bfAllBookmarks;
-	GUID					m_guidBookmarksToolbar;
-	GUID					m_guidBookmarksMenu;
+	BookmarkTree			m_bookmarkTree;
+	std::unique_ptr<BookmarksMainMenu> m_bookmarksMainMenu;
 	CBookmarksToolbar		*m_pBookmarksToolbar;
 
 	/* Customize colors. */
@@ -596,14 +594,6 @@ private:
 	/* Display window folder sizes. */
 	std::list<DWFolderSize_t>	m_DWFolderSizes;
 	int						m_iDWFolderSizeUniqueId;
-
-	/* ListView selection. */
-	BOOL					m_bCountingUp;
-	BOOL					m_bCountingDown;
-	BOOL					m_bInverted;
-	BOOL					m_bSelectionFromNowhere;
-	int						m_nSelected;
-	int						m_nSelectedOnInvert;
 
 	/* Copy/cut. */
 	IDataObject				*m_pClipboardDataObject;
@@ -635,5 +625,5 @@ private:
 	/* TreeView middle click. */
 	HTREEITEM				m_hTVMButtonItem;
 
-	BOOL					m_bBlockNext;
+	BOOL					m_blockNextListViewSelection;
 };

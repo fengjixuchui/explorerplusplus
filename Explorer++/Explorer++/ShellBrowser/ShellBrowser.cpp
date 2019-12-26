@@ -7,6 +7,7 @@
 #include "Config.h"
 #include "ItemData.h"
 #include "MainResource.h"
+#include "PreservedFolderState.h"
 #include "SortModes.h"
 #include "ViewModes.h"
 #include "../Helper/Controls.h"
@@ -72,9 +73,29 @@ CShellBrowser *CShellBrowser::CreateNew(int id, HINSTANCE resourceInstance, HWND
 		folderSettings, initialColumns);
 }
 
+CShellBrowser *CShellBrowser::CreateFromPreserved(int id, HINSTANCE resourceInstance, HWND hOwner,
+	CachedIcons *cachedIcons, const Config *config, TabNavigationInterface *tabNavigation,
+	const std::vector<std::unique_ptr<PreservedHistoryEntry>> &history, int currentEntry,
+	const PreservedFolderState &preservedFolderState)
+{
+	return new CShellBrowser(id, resourceInstance, hOwner, cachedIcons, config, tabNavigation,
+		history, currentEntry, preservedFolderState);
+}
+
 CShellBrowser::CShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner,
 	CachedIcons *cachedIcons, const Config *config, TabNavigationInterface *tabNavigation,
-	const FolderSettings &folderSettings, boost::optional<FolderColumns> initialColumns) :
+	const std::vector<std::unique_ptr<PreservedHistoryEntry>> &history, int currentEntry,
+	const PreservedFolderState &preservedFolderState) :
+	CShellBrowser(id, resourceInstance, hOwner, cachedIcons, config, tabNavigation,
+		preservedFolderState.folderSettings, boost::none)
+{
+	m_navigationController = std::make_unique<NavigationController>(this, tabNavigation, m_iconFetcher.get(),
+		history, currentEntry);
+}
+
+CShellBrowser::CShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner, CachedIcons *cachedIcons,
+	const Config *config, TabNavigationInterface *tabNavigation, const FolderSettings &folderSettings,
+	boost::optional<FolderColumns> initialColumns) :
 	m_ID(id),
 	m_hResourceModule(resourceInstance),
 	m_hOwner(hOwner),
@@ -94,6 +115,7 @@ CShellBrowser::CShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner,
 
 	m_hListView = SetUpListView(hOwner);
 	m_iconFetcher = std::make_unique<IconFetcher>(m_hListView, cachedIcons);
+	m_navigationController = std::make_unique<NavigationController>(this, tabNavigation, m_iconFetcher.get());
 
 	InitializeDragDropHelpers();
 
@@ -391,37 +413,6 @@ int CShellBrowser::GetId() const
 void CShellBrowser::OnGridlinesSettingChanged()
 {
 	NListView::ListView_SetGridlines(m_hListView, m_config->globalFolderSettings.showGridlines);
-}
-
-void CShellBrowser::UpdateFileSelectionInfo(int iCacheIndex,BOOL Selected)
-{
-	ULARGE_INTEGER	ulFileSize;
-	BOOL			IsFolder;
-
-	IsFolder = (m_itemInfoMap.at(iCacheIndex).wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-	== FILE_ATTRIBUTE_DIRECTORY;
-
-	ulFileSize.LowPart = m_itemInfoMap.at(iCacheIndex).wfd.nFileSizeLow;
-	ulFileSize.HighPart = m_itemInfoMap.at(iCacheIndex).wfd.nFileSizeHigh;
-
-	if(Selected)
-	{
-		if(IsFolder)
-			m_NumFoldersSelected++;
-		else
-			m_NumFilesSelected++;
-
-		m_ulFileSelectionSize.QuadPart += ulFileSize.QuadPart;
-	}
-	else
-	{
-		if(IsFolder)
-			m_NumFoldersSelected--;
-		else
-			m_NumFilesSelected--;
-
-		m_ulFileSelectionSize.QuadPart -= ulFileSize.QuadPart;
-	}
 }
 
 BOOL CShellBrowser::IsFilenameFiltered(const TCHAR *FileName) const
@@ -1149,11 +1140,6 @@ BOOL CShellBrowser::SetShowHidden(BOOL bShowHidden)
 	return m_folderSettings.showHidden;
 }
 
-BOOL CShellBrowser::IsDragging() const
-{
-	return m_bPerformingDrag;
-}
-
 std::vector<SortMode> CShellBrowser::GetAvailableSortModes() const
 {
 	std::vector<SortMode> sortModes;
@@ -1443,11 +1429,6 @@ BasicItemInfo_t CShellBrowser::getBasicItemInfo(int internalIndex) const
 HWND CShellBrowser::GetListView() const
 {
 	return m_hListView;
-}
-
-IconFetcher *CShellBrowser::GetIconFetcher()
-{
-	return m_iconFetcher.get();
 }
 
 FolderSettings CShellBrowser::GetFolderSettings() const

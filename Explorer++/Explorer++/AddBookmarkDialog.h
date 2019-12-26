@@ -5,10 +5,11 @@
 #pragma once
 
 #include "BookmarkHelper.h"
+#include "BookmarkItem.h"
+#include "BookmarkTree.h"
 #include "BookmarkTreeView.h"
 #include "CoreInterface.h"
 #include "../Helper/BaseDialog.h"
-#include "../Helper/Bookmark.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
 #include <wil/resource.h>
@@ -33,24 +34,18 @@ private:
 	CAddBookmarkDialogPersistentSettings(const CAddBookmarkDialogPersistentSettings &);
 	CAddBookmarkDialogPersistentSettings & operator=(const CAddBookmarkDialogPersistentSettings &);
 
-	bool							m_bInitialized;
-	GUID							m_guidSelected;
-	NBookmarkHelper::setExpansion_t	m_setExpansion;
+	bool m_bInitialized;
+	std::wstring m_guidSelected;
+	std::unordered_set<std::wstring> m_setExpansion;
 };
 
-class CAddBookmarkDialog : public CBaseDialog, public NBookmark::IBookmarkItemNotification
+class CAddBookmarkDialog : public CBaseDialog
 {
 public:
 
-	CAddBookmarkDialog(HINSTANCE hInstance, int iResource, HWND hParent,
-		IExplorerplusplus *expp, CBookmarkFolder &AllBookmarks, CBookmark &Bookmark);
-
-	void	OnBookmarkAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmark &Bookmark,std::size_t Position);
-	void	OnBookmarkFolderAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmarkFolder &BookmarkFolder,std::size_t Position);
-	void	OnBookmarkModified(const GUID &guid);
-	void	OnBookmarkFolderModified(const GUID &guid);
-	void	OnBookmarkRemoved(const GUID &guid);
-	void	OnBookmarkFolderRemoved(const GUID &guid);
+	CAddBookmarkDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
+		BookmarkTree *bookmarkTree, BookmarkItem *bookmarkItem,
+		BookmarkItem **selectedParentFolder);
 
 protected:
 
@@ -58,7 +53,6 @@ protected:
 	INT_PTR	OnCtlColorEdit(HWND hwnd,HDC hdc);
 	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam);
 	INT_PTR	OnClose();
-	INT_PTR	OnDestroy();
 	INT_PTR	OnNcDestroy();
 
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const override;
@@ -69,19 +63,22 @@ private:
 
 	CAddBookmarkDialog & operator = (const CAddBookmarkDialog &abd);
 
-	void		GetResizableControlInformation(CBaseDialog::DialogSizeConstraint &dsc, std::list<CResizableDialog::Control_t> &ControlList);
-	void		SaveState();
+	void UpdateDialogForBookmarkFolder();
 
-	void		OnOk();
-	void		OnCancel();
+	void GetResizableControlInformation(CBaseDialog::DialogSizeConstraint &dsc, std::list<CResizableDialog::Control_t> &ControlList);
+	void SaveState();
 
-	void		SaveTreeViewState();
-	void		SaveTreeViewExpansionState(HWND hTreeView,HTREEITEM hItem);
+	void OnOk();
+	void OnCancel();
+
+	void SaveTreeViewState();
+	void SaveTreeViewExpansionState(HWND hTreeView,HTREEITEM hItem);
 
 	IExplorerplusplus *m_expp;
 
-	CBookmarkFolder &m_AllBookmarks;
-	CBookmark &m_Bookmark;
+	BookmarkTree *m_bookmarkTree;
+	BookmarkItem *m_bookmarkItem;
+	BookmarkItem **m_selectedParentFolder;
 
 	CBookmarkTreeView *m_pBookmarkTreeView;
 

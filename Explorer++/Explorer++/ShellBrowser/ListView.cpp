@@ -6,9 +6,42 @@
 #include "ShellBrowser.h"
 #include "Config.h"
 #include "MainResource.h"
+#include "ResourceHelper.h"
+#include "SetFileAttributesDialog.h"
 #include "../Helper/CachedIcons.h"
+#include "../Helper/Helper.h"
+#include "../Helper/ListViewHelper.h"
 #include "../Helper/ShellHelper.h"
 #include <boost/format.hpp>
+
+const std::vector<unsigned int> COMMON_REAL_FOLDER_COLUMNS =
+{ CM_NAME, CM_TYPE, CM_SIZE, CM_DATEMODIFIED,
+CM_AUTHORS, CM_TITLE };
+
+const std::vector<unsigned int> COMMON_CONTROL_PANEL_COLUMNS =
+{ CM_NAME, CM_VIRTUALCOMMENTS };
+
+const std::vector<unsigned int> COMMON_MY_COMPUTER_COLUMNS =
+{ CM_NAME, CM_TYPE, CM_TOTALSIZE,
+CM_FREESPACE, CM_VIRTUALCOMMENTS,
+CM_FILESYSTEM };
+
+const std::vector<unsigned int> COMMON_NETWORK_CONNECTIONS_COLUMNS =
+{ CM_NAME, CM_TYPE, CM_NETWORKADAPTER_STATUS,
+CM_OWNER };
+
+const std::vector<unsigned int> COMMON_NETWORK_COLUMNS =
+{ CM_NAME, CM_VIRTUALCOMMENTS };
+
+const std::vector<unsigned int> COMMON_PRINTERS_COLUMNS =
+{ CM_NAME, CM_NUMPRINTERDOCUMENTS, CM_PRINTERSTATUS,
+CM_PRINTERCOMMENTS, CM_PRINTERLOCATION };
+
+const std::vector<unsigned int> COMMON_RECYCLE_BIN_COLUMNS =
+{ CM_NAME, CM_ORIGINALLOCATION, CM_DATEDELETED,
+CM_SIZE, CM_TYPE, CM_DATEMODIFIED };
+
+std::vector<unsigned int> GetColumnHeaderMenuList(const std::wstring &directory);
 
 LRESULT CALLBACK CShellBrowser::ListViewProcStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
@@ -79,9 +112,29 @@ LRESULT CALLBACK CShellBrowser::ListViewParentProc(HWND hwnd, UINT uMsg, WPARAM 
 				return OnListViewGetInfoTip(reinterpret_cast<NMLVGETINFOTIP *>(lParam));
 				break;
 
+			case LVN_ITEMCHANGED:
+				OnListViewItemChanged(reinterpret_cast<NMLISTVIEW *>(lParam));
+				break;
+
+			case LVN_KEYDOWN:
+				OnListViewKeyDown(reinterpret_cast<NMLVKEYDOWN *>(lParam));
+				break;
+
 			case LVN_COLUMNCLICK:
 				ColumnClicked(reinterpret_cast<NMLISTVIEW *>(lParam)->iSubItem);
 				break;
+			}
+		}
+		else if (reinterpret_cast<LPNMHDR>(lParam)->hwndFrom == ListView_GetHeader(m_hListView))
+		{
+			switch (reinterpret_cast<LPNMHDR>(lParam)->code)
+			{
+			case NM_RCLICK:
+			{
+				DWORD messagePos = GetMessagePos();
+				OnListViewHeaderRightClick(MAKEPOINTS(messagePos));
+			}
+			break;
 			}
 		}
 		break;
@@ -382,6 +435,130 @@ void CShellBrowser::ProcessInfoTipResult(int infoTipResultId)
 	ListView_SetInfoTip(m_hListView, &infoTip);
 }
 
+void CShellBrowser::OnListViewItemChanged(const NMLISTVIEW *changeData)
+{
+	if (changeData->uChanged != LVIF_STATE)
+	{
+		return;
+	}
+
+	if (m_config->checkBoxSelection && (LVIS_STATEIMAGEMASK & changeData->uNewState) != 0)
+	{
+		bool checked = ((changeData->uNewState & LVIS_STATEIMAGEMASK) >> 12) == 2;
+		NListView::ListView_SelectItem(m_hListView, changeData->iItem, checked);
+	}
+
+	bool previouslySelected = WI_IsFlagSet(changeData->uOldState, LVIS_SELECTED);
+	bool currentlySelected = WI_IsFlagSet(changeData->uNewState, LVIS_SELECTED);
+
+	if (previouslySelected == currentlySelected)
+	{
+		return;
+	}
+
+	if (m_bPerformingDrag)
+	{
+		return;
+	}
+
+	if (m_config->checkBoxSelection)
+	{
+		if (!previouslySelected && currentlySelected)
+		{
+			ListView_SetCheckState(m_hListView, changeData->iItem, TRUE);
+		}
+		else if (previouslySelected && !currentlySelected)
+		{
+			ListView_SetCheckState(m_hListView, changeData->iItem, FALSE);
+		}
+	}
+
+	UpdateFileSelectionInfo(static_cast<int>(changeData->lParam), currentlySelected);
+
+	listViewSelectionChanged.m_signal();
+}
+
+void CShellBrowser::UpdateFileSelectionInfo(int internalIndex, BOOL Selected)
+{
+	ULARGE_INTEGER	ulFileSize;
+	BOOL			IsFolder;
+
+	IsFolder = (m_itemInfoMap.at(internalIndex).wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		== FILE_ATTRIBUTE_DIRECTORY;
+
+	ulFileSize.LowPart = m_itemInfoMap.at(internalIndex).wfd.nFileSizeLow;
+	ulFileSize.HighPart = m_itemInfoMap.at(internalIndex).wfd.nFileSizeHigh;
+
+	if (Selected)
+	{
+		if (IsFolder)
+			m_NumFoldersSelected++;
+		else
+			m_NumFilesSelected++;
+
+		m_ulFileSelectionSize.QuadPart += ulFileSize.QuadPart;
+	}
+	else
+	{
+		if (IsFolder)
+			m_NumFoldersSelected--;
+		else
+			m_NumFilesSelected--;
+
+		m_ulFileSelectionSize.QuadPart -= ulFileSize.QuadPart;
+	}
+}
+
+void CShellBrowser::OnListViewKeyDown(const NMLVKEYDOWN *lvKeyDown)
+{
+	switch (lvKeyDown->wVKey)
+	{
+	case 'A':
+		if (IsKeyDown(VK_CONTROL) &&
+			!IsKeyDown(VK_SHIFT) &&
+			!IsKeyDown(VK_MENU))
+		{
+			NListView::ListView_SelectAllItems(m_hListView, TRUE);
+			SetFocus(m_hListView);
+		}
+		break;
+
+	case 'I':
+		if (IsKeyDown(VK_CONTROL) &&
+			!IsKeyDown(VK_SHIFT) &&
+			!IsKeyDown(VK_MENU))
+		{
+			NListView::ListView_InvertSelection(m_hListView);
+			SetFocus(m_hListView);
+		}
+		break;
+
+	case VK_BACK:
+		if (IsKeyDown(VK_CONTROL) &&
+			!IsKeyDown(VK_SHIFT) &&
+			!IsKeyDown(VK_MENU))
+		{
+			TCHAR szRoot[MAX_PATH];
+			HRESULT hr = GetDisplayName(m_directoryState.pidlDirectory.get(), szRoot, SIZEOF_ARRAY(szRoot), SHGDN_FORPARSING);
+
+			if (SUCCEEDED(hr))
+			{
+				BOOL bRes = PathStripToRoot(szRoot);
+
+				if (bRes)
+				{
+					m_navigationController->BrowseFolder(szRoot);
+				}
+			}
+		}
+		else
+		{
+			m_navigationController->GoUp();
+		}
+		break;
+	}
+}
+
 CShellBrowser::ItemInfo_t &CShellBrowser::GetItemByIndex(int index)
 {
 	int internalIndex = GetItemInternalIndex(index);
@@ -466,4 +643,158 @@ void CShellBrowser::ShowPropertiesForSelectedFiles() const
 
 	auto pidlDirectory = GetDirectoryIdl();
 	ShowMultipleFileProperties(pidlDirectory.get(), rawPidls.data(), m_hOwner, static_cast<int>(rawPidls.size()));
+}
+
+void CShellBrowser::OnListViewHeaderRightClick(const POINTS &cursorPos)
+{
+	wil::unique_hmenu headerPopupMenu(LoadMenu(m_hResourceModule, MAKEINTRESOURCE(IDR_HEADER_MENU)));
+	HMENU headerMenu = GetSubMenu(headerPopupMenu.get(), 0);
+
+	auto commonColumns = GetColumnHeaderMenuList(m_CurDir);
+
+	std::unordered_map<int, UINT> menuItemMappings;
+	int totalInserted = 0;
+	int commonColumnPosition = 0;
+
+	for (const auto &column : *m_pActiveColumns)
+	{
+		auto itr = std::find(commonColumns.begin(), commonColumns.end(), column.id);
+		bool inCommonColumns = (itr != commonColumns.end());
+
+		if (!column.bChecked && !inCommonColumns)
+		{
+			continue;
+		}
+
+		MENUITEMINFO mii;
+		mii.cbSize = sizeof(mii);
+		mii.fMask = MIIM_STRING | MIIM_STATE | MIIM_ID;
+
+		std::wstring columnText = ResourceHelper::LoadString(m_hResourceModule,
+			LookupColumnNameStringIndex(column.id));
+
+		if (column.bChecked)
+		{
+			mii.fState = MFS_CHECKED;
+		}
+		else
+		{
+			mii.fState = MFS_ENABLED;
+		}
+
+		int currentPosition;
+
+		if (inCommonColumns)
+		{
+			// The common columns always appear first, whether they're checked
+			// or not.
+			currentPosition = commonColumnPosition;
+			commonColumnPosition++;
+		}
+		else
+		{
+			currentPosition = totalInserted;
+		}
+
+		int id = totalInserted + 1;
+
+		mii.dwTypeData = columnText.data();
+		mii.wID = id;
+		InsertMenuItem(headerMenu, currentPosition, TRUE, &mii);
+
+		menuItemMappings.insert({ id, column.id });
+
+		totalInserted++;
+	}
+
+	int cmd = TrackPopupMenu(headerMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERTICAL | TPM_RETURNCMD,
+		cursorPos.x, cursorPos.y, 0, m_hListView, NULL);
+
+	if (cmd == 0)
+	{
+		return;
+	}
+
+	OnListViewHeaderMenuItemSelected(cmd, menuItemMappings);
+}
+
+std::vector<unsigned int> GetColumnHeaderMenuList(const std::wstring &directory)
+{
+	if (CompareVirtualFolders(directory.c_str(), CSIDL_DRIVES))
+	{
+		return COMMON_MY_COMPUTER_COLUMNS;
+	}
+	else if (CompareVirtualFolders(directory.c_str(), CSIDL_CONTROLS))
+	{
+		return COMMON_CONTROL_PANEL_COLUMNS;
+	}
+	else if (CompareVirtualFolders(directory.c_str(), CSIDL_BITBUCKET))
+	{
+		return COMMON_RECYCLE_BIN_COLUMNS;
+	}
+	else if (CompareVirtualFolders(directory.c_str(), CSIDL_CONNECTIONS))
+	{
+		return COMMON_NETWORK_CONNECTIONS_COLUMNS;
+	}
+	else if (CompareVirtualFolders(directory.c_str(), CSIDL_NETWORK))
+	{
+		return COMMON_NETWORK_COLUMNS;
+	}
+	else if (CompareVirtualFolders(directory.c_str(), CSIDL_PRINTERS))
+	{
+		return COMMON_PRINTERS_COLUMNS;
+	}
+	else
+	{
+		return COMMON_REAL_FOLDER_COLUMNS;
+	}
+}
+
+void CShellBrowser::OnListViewHeaderMenuItemSelected(int menuItemId,
+	const std::unordered_map<int, UINT> &menuItemMappings)
+{
+	auto currentColumns = ExportCurrentColumns();
+
+	UINT columnId = menuItemMappings.at(menuItemId);
+	auto itr = std::find_if(currentColumns.begin(), currentColumns.end(), [columnId] (const Column_t &column) {
+		return column.id == columnId;
+	});
+
+	if (itr == currentColumns.end())
+	{
+		return;
+	}
+
+	itr->bChecked = !itr->bChecked;
+
+	ImportColumns(currentColumns);
+
+	// If it was the first column that was changed, need to refresh all columns.
+	if (menuItemId == 1)
+	{
+		m_navigationController->Refresh();
+	}
+}
+
+void CShellBrowser::SetFileAttributesForSelection()
+{
+	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> sfaiList;
+	int index = -1;
+
+	while ((index = ListView_GetNextItem(m_hListView, index, LVNI_SELECTED)) != -1)
+	{
+		NSetFileAttributesDialogExternal::SetFileAttributesInfo_t sfai;
+
+		const ItemInfo_t &item = GetItemByIndex(index);
+		sfai.wfd = item.wfd;
+
+		GetDisplayName(item.pidlComplete.get(), sfai.szFullFileName,
+			static_cast<UINT>(std::size(sfai.szFullFileName)), SHGDN_FORPARSING);
+
+		sfaiList.push_back(sfai);
+	}
+
+	CSetFileAttributesDialog SetFileAttributesDialog(m_hResourceModule, m_hListView, sfaiList);
+
+	SetFileAttributesDialog.ShowModalDialog();
 }

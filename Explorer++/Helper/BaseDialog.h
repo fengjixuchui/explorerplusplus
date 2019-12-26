@@ -33,6 +33,9 @@ public:
 		DIALOG_SIZE_CONSTRAINT_Y
 	};
 
+	static const int RETURN_CANCEL = 0;
+	static const int RETURN_OK = 1;
+
 	CBaseDialog(HINSTANCE hInstance,int iResource,HWND hParent,bool bResizable);
 	virtual ~CBaseDialog() = default;
 
@@ -48,6 +51,8 @@ protected:
 
 	HWND m_hDlg;
 	DpiCompatibility m_dpiCompat;
+	int m_iMinWidth;
+	int m_iMinHeight;
 
 private:
 
@@ -70,7 +75,5 @@ private:
 	/* Used only with resizable dialogs. */
 	const bool m_bResizable;
 	DialogSizeConstraint m_dsc;
-	int m_iMinWidth;
-	int m_iMinHeight;
 	std::unique_ptr<CResizableDialog> m_prd;
 };

@@ -107,6 +107,16 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 		{
 			SaveAllSettings();
 		}
+		else if (wParam == LISTVIEW_ITEM_CHANGED_TIMER_ID)
+		{
+			Tab &selectedTab = m_tabContainer->GetSelectedTab();
+
+			UpdateDisplayWindow(selectedTab);
+			UpdateStatusBarText(selectedTab);
+			m_mainToolbar->UpdateToolbarButtonStates();
+
+			KillTimer(m_hContainer, LISTVIEW_ITEM_CHANGED_TIMER_ID);
+		}
 		break;
 
 	case WM_USER_UPDATEWINDOWS:
@@ -304,7 +314,8 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 	if (HIWORD(wParam) == 0 && LOWORD(wParam) >= MENU_BOOKMARK_STARTID &&
 		LOWORD(wParam) <= MENU_BOOKMARK_ENDID)
 	{
-		/* TODO: [Bookmarks] Open bookmark. */
+		m_bookmarksMainMenu->OnMenuItemClicked(LOWORD(wParam));
+		return 0;
 	}
 	else if (HIWORD(wParam) == 0 && LOWORD(wParam) >= MENU_RECENT_TABS_STARTID &&
 		LOWORD(wParam) < MENU_RECENT_TABS_ENDID)
@@ -437,14 +448,11 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		break;
 
 	case IDM_EDIT_SELECTALL:
-		m_bCountingUp = TRUE;
 		NListView::ListView_SelectAllItems(m_hActiveListView, TRUE);
 		SetFocus(m_hActiveListView);
 		break;
 
 	case IDM_EDIT_INVERTSELECTION:
-		m_bInverted = TRUE;
-		m_nSelectedOnInvert = m_nSelected;
 		NListView::ListView_InvertSelection(m_hActiveListView);
 		SetFocus(m_hActiveListView);
 		break;
@@ -455,7 +463,6 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		break;
 
 	case IDM_EDIT_SELECTNONE:
-		m_bCountingDown = TRUE;
 		NListView::ListView_SelectAllItems(m_hActiveListView, FALSE);
 		SetFocus(m_hActiveListView);
 		break;
@@ -1244,23 +1251,16 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 
 	case ToolbarButton::AddBookmark:
 	case IDM_BOOKMARKS_BOOKMARKTHISTAB:
-	{
-		TCHAR szDisplayName[MAX_PATH];
-		std::wstring currentDirectory = m_pActiveShellBrowser->GetDirectory();
-		GetDisplayName(currentDirectory.c_str(), szDisplayName, SIZEOF_ARRAY(szDisplayName), SHGDN_INFOLDER);
-		CBookmark Bookmark = CBookmark::Create(szDisplayName, currentDirectory, EMPTY_STRING);
-
-		CAddBookmarkDialog AddBookmarkDialog(m_hLanguageModule, IDD_ADD_BOOKMARK, hwnd, this, *m_bfAllBookmarks, Bookmark);
-		AddBookmarkDialog.ShowModalDialog();
-	}
-	break;
+		BookmarkHelper::AddBookmarkItem(&m_bookmarkTree, BookmarkItem::Type::Bookmark,
+			m_hLanguageModule, hwnd, m_tabContainer, this);
+		break;
 
 	case ToolbarButton::Bookmarks:
 	case IDM_BOOKMARKS_MANAGEBOOKMARKS:
 		if (g_hwndManageBookmarks == NULL)
 		{
-			CManageBookmarksDialog *pManageBookmarksDialog = new CManageBookmarksDialog(m_hLanguageModule, IDD_MANAGE_BOOKMARKS,
-				hwnd, this, m_navigation.get(), *m_bfAllBookmarks);
+			CManageBookmarksDialog *pManageBookmarksDialog = new CManageBookmarksDialog(m_hLanguageModule,
+				hwnd, this, m_navigation.get(), &m_bookmarkTree);
 			g_hwndManageBookmarks = pManageBookmarksDialog->ShowModelessDialog(new CModelessDialogNotification());
 		}
 		else
@@ -1441,7 +1441,7 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 	switch(nmhdr->code)
 	{
 		case NM_CLICK:
-			if(m_config->globalFolderSettings.oneClickActivate && !m_bSelectionFromNowhere)
+			if(m_config->globalFolderSettings.oneClickActivate)
 			{
 				OnListViewDoubleClick(&((NMITEMACTIVATE *)lParam)->hdr);
 			}
@@ -1464,33 +1464,7 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 			break;
 
 		case LVN_ITEMCHANGING:
-			{
-				int tabId = DetermineListViewObjectIndex(hwnd);
-
-				if (tabId == -1)
-				{
-					return FALSE;
-				}
-
-				Tab &tab = m_tabContainer->GetTab(tabId);
-
-				UINT uViewMode = tab.GetShellBrowser()->GetViewMode();
-
-				if(uViewMode == ViewMode::List)
-				{
-					if(m_bBlockNext)
-					{
-						m_bBlockNext = FALSE;
-						return TRUE;
-					}
-				}
-
-				return FALSE;
-			}
-			break;
-
-		case LVN_ITEMCHANGED:
-			OnListViewItemChanged(lParam);
+			return OnListViewItemChanging(reinterpret_cast<NMLISTVIEW *>(lParam));
 			break;
 
 		case LVN_BEGINDRAG:
