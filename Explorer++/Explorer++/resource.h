@@ -70,6 +70,7 @@
 #define IDS_BOOKMARKS_COLUMN_NAME       255
 #define IDS_BOOKMARKS_COLUMN_LOCATION   256
 #define IDS_MANAGE_BOOKMARKS_DEFAULT_SEARCH_TEXT 257
+#define IDS_BOOKMARKS_TOOLBAR_PASTE     258
 #define IDS_BOOKMARKS_COLUMN_DATE_CREATED 260
 #define IDS_BOOKMARKS_COLUMN_DATE_MODIFIED 261
 #define IDS_MANAGE_BOOKMARKS_TOOLBAR_VIEWS 262
@@ -761,6 +762,8 @@
 #define IDM_BOOKMARKS                   40521
 #define IDM_MB_VIEW_SORT_BY_DEFAULT     40522
 #define IDM_BT_COPY                     40523
+#define IDM_BT_PASTE                    40524
+#define IDM_BT_CUT                      40525
 #define IDM_SORTBY_NAME                 50000
 #define IDM_SORTBY_SIZE                 50001
 #define IDM_SORTBY_TYPE                 50002
@@ -899,7 +902,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        322
-#define _APS_NEXT_COMMAND_VALUE         40524
+#define _APS_NEXT_COMMAND_VALUE         40526
 #define _APS_NEXT_CONTROL_VALUE         1328
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

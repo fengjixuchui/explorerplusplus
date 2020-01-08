@@ -19,6 +19,7 @@
 #include "ShellBrowser/Columns.h"
 #include "ShellBrowser/ViewModes.h"
 #include "ViewModeHelper.h"
+#include "../Helper/BulkClipboardWriter.h"
 #include "../Helper/ContextMenuManager.h"
 #include "../Helper/Controls.h"
 #include "../Helper/DropHandler.h"
@@ -175,7 +176,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 							nmlv.iItem = 0;
 							nmlv.ptAction = pt;
 
-							hr = OnListViewBeginDrag((LPARAM)&nmlv,DRAG_TYPE_RIGHTCLICK);
+							hr = OnListViewBeginDrag((LPARAM)&nmlv,DragType::RightClick);
 
 							if(hr == DRAGDROP_S_CANCEL)
 							{
@@ -698,7 +699,7 @@ void Explorerplusplus::OnListViewItemRClick(POINT *pCursorPos)
 	}
 }
 
-HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType)
+HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragType dragType)
 {
 	IDropSource			*pDropSource = NULL;
 	IDragSourceHelper	*pDragSourceHelper = NULL;
@@ -745,7 +746,7 @@ HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam,DragTypes_t DragType
 
 	if(SUCCEEDED(hr))
 	{
-		hr = CreateDropSource(&pDropSource,DragType);
+		hr = CreateDropSource(&pDropSource, dragType);
 
 		if(SUCCEEDED(hr))
 		{
@@ -977,7 +978,8 @@ void Explorerplusplus::OnListViewCopyItemPath(void) const
 
 	strItemPaths = strItemPaths.substr(0,strItemPaths.size() - 2);
 
-	CopyTextToClipboard(strItemPaths);
+	BulkClipboardWriter clipboardWriter;
+	clipboardWriter.WriteText(strItemPaths);
 }
 
 void Explorerplusplus::OnListViewCopyUniversalPaths(void) const
@@ -1014,7 +1016,8 @@ void Explorerplusplus::OnListViewCopyUniversalPaths(void) const
 
 	strUniversalPaths = strUniversalPaths.substr(0,strUniversalPaths.size() - 2);
 
-	CopyTextToClipboard(strUniversalPaths);
+	BulkClipboardWriter clipboardWriter;
+	clipboardWriter.WriteText(strUniversalPaths);
 }
 
 HRESULT Explorerplusplus::OnListViewCopy(BOOL bCopy)
