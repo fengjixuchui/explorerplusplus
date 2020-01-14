@@ -7,8 +7,8 @@
 #include "SignalWrapper.h"
 #include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
-#include "cereal/types/string.hpp"
-#include "cereal/types/vector.hpp"
+#include "../ThirdParty/cereal/types/string.hpp"
+#include "../ThirdParty/cereal/types/vector.hpp"
 #include <optional>
 #include <vector>
 
@@ -41,26 +41,27 @@ public:
 	template <class Archive>
 	void serialize(Archive &archive)
 	{
-		archive(m_type, m_name, m_location, m_children);
+		archive(m_guid, m_type, m_name, m_location, m_children);
 	}
 
 	template <class Archive>
 	static void load_and_construct(Archive &archive, cereal::construct<BookmarkItem> &construct)
 	{
+		std::wstring originalGuid;
 		Type type;
 		std::wstring name;
 		std::wstring location;
 		BookmarkItems children;
 
-		archive(type, name, location, children);
+		archive(originalGuid, type, name, location, children);
 
 		if (type == Type::Bookmark)
 		{
-			construct(name, location);
+			construct(originalGuid, name, location);
 		}
 		else
 		{
-			construct(name, std::move(children));
+			construct(originalGuid, name, std::move(children));
 		}
 	}
 
@@ -75,6 +76,8 @@ public:
 	const BookmarkItem *GetParent() const;
 
 	std::wstring GetGUID() const;
+	std::optional<std::wstring> GetOriginalGUID() const;
+	void ClearOriginalGUID();
 
 	std::wstring GetName() const;
 	void SetName(std::wstring_view name);
@@ -93,9 +96,12 @@ public:
 	std::unique_ptr<BookmarkItem> RemoveChild(size_t index);
 	bool HasChildFolder() const;
 
-	std::optional<size_t> GetChildIndex(const BookmarkItem *bookmarkItem) const;
+	size_t GetChildIndex(const BookmarkItem *bookmarkItem) const;
+	const std::unique_ptr<BookmarkItem> &GetChildOwnedPtr(const BookmarkItem *bookmarkItem) const;
 
 	const BookmarkItems &GetChildren() const;
+
+	void VisitRecursively(std::function<void(BookmarkItem * currentItem)> callback);
 
 	// Signals
 	SignalWrapper<BookmarkItem, void(BookmarkItem &bookmarkItem, PropertyType propertyType)> updatedSignal;
@@ -109,8 +115,8 @@ private:
 	// directly imported. Without that method, you would have to call AddChild()
 	// for each child item and there's no need to do that when you already have
 	// a list of the children in the correct format.
-	BookmarkItem(std::wstring_view name, std::wstring location);
-	BookmarkItem(std::wstring_view name, BookmarkItems &&children);
+	BookmarkItem(std::wstring_view originalGuid, std::wstring_view name, std::wstring location);
+	BookmarkItem(std::wstring_view originalGuid, std::wstring_view name, BookmarkItems &&children);
 
 	static FILETIME GetCurrentDate();
 
@@ -118,6 +124,11 @@ private:
 
 	const Type m_type;
 	std::wstring m_guid = CreateGUID();
+
+	// If this item was deserialized from a dragged bookmark item or one on the
+	// clipboard, this will contain the guid associated with the original item
+	// (the one that was dragged or copied).
+	std::optional<std::wstring> m_originalGuid;
 
 	BookmarkItem *m_parent = nullptr;
 

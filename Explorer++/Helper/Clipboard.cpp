@@ -4,7 +4,7 @@
 
 #include "stdafx.h"
 #include "Clipboard.h"
-#include <type_traits>
+#include "DataExchangeHelper.h"
 
 Clipboard::Clipboard() :
 	m_clipboardOpened(false)
@@ -25,19 +25,18 @@ Clipboard::~Clipboard()
 
 std::optional<std::wstring> Clipboard::ReadText()
 {
-	return ReadData<std::wstring>(CF_UNICODETEXT);
+	HANDLE clipboardData = GetClipboardData(CF_UNICODETEXT);
+
+	if (!clipboardData)
+	{
+		return std::nullopt;
+	}
+
+	return ReadStringFromGlobal(clipboardData);
 }
 
 std::optional<std::string> Clipboard::ReadCustomData(UINT format)
 {
-	return ReadData<std::string>(format);
-}
-
-template <class T>
-std::optional<T> Clipboard::ReadData(UINT format)
-{
-	static_assert(std::is_same_v<T, std::string> || std::is_same_v<T, std::wstring>);
-
 	HANDLE clipboardData = GetClipboardData(format);
 
 	if (!clipboardData)
@@ -45,75 +44,34 @@ std::optional<T> Clipboard::ReadData(UINT format)
 		return std::nullopt;
 	}
 
-	wil::unique_hglobal_locked mem(clipboardData);
-
-	if (!mem)
-	{
-		return std::nullopt;
-	}
-
-	auto size = GlobalSize(mem.get());
-
-	if (size == 0)
-	{
-		return std::nullopt;
-	}
-
-	using charType = T::traits_type::char_type;
-
-	return T(static_cast<const charType *>(mem.get()), size / sizeof(charType));
+	return ReadBinaryDataFromGlobal(clipboardData);
 }
 
 bool Clipboard::WriteText(const std::wstring &str)
 {
-	auto global = CreateGlobalFromString(str);
+	auto global = WriteStringToGlobal(str);
 
 	if (!global)
 	{
 		return false;
 	}
 
-	return WriteData(CF_UNICODETEXT, std::move(global));
+	return WriteDataToClipboard(CF_UNICODETEXT, std::move(global));
 }
 
 bool Clipboard::WriteCustomData(UINT format, const std::string &data)
 {
-	auto global = CreateGlobalFromString(data);
+	auto global = WriteBinaryDataToGlobal(data);
 
 	if (!global)
 	{
 		return false;
 	}
 
-	return WriteData(format, std::move(global));
+	return WriteDataToClipboard(format, std::move(global));
 }
 
-template <class T>
-wil::unique_hglobal Clipboard::CreateGlobalFromString(const T &str)
-{
-	static_assert(std::is_same_v<T, std::string> || std::is_same_v<T, std::wstring>);
-
-	size_t stringSize = (str.size() + 1) * sizeof(T::traits_type::char_type);
-	wil::unique_hglobal global(GlobalAlloc(GMEM_MOVEABLE, stringSize));
-
-	if (!global)
-	{
-		return nullptr;
-	}
-
-	wil::unique_hglobal_locked mem(global.get());
-
-	if (!mem)
-	{
-		return nullptr;
-	}
-
-	memcpy(mem.get(), str.c_str(), stringSize);
-
-	return global;
-}
-
-bool Clipboard::WriteData(UINT format, wil::unique_hglobal global)
+bool Clipboard::WriteDataToClipboard(UINT format, wil::unique_hglobal global)
 {
 	HANDLE clipboardData = SetClipboardData(format, global.get());
 

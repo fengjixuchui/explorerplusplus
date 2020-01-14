@@ -24,12 +24,7 @@ public:
 
 private:
 
-	template <class T>
-	wil::unique_hglobal CreateGlobalFromString(const T &str);
-
-	template <class T>
-	std::optional<T> ReadData(UINT format);
-	bool WriteData(UINT format, wil::unique_hglobal global);
+	bool WriteDataToClipboard(UINT format, wil::unique_hglobal global);
 
 	bool m_clipboardOpened;
 };

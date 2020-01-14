@@ -295,8 +295,10 @@
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CompileAsCpp</CompileAs>
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsCpp</CompileAs>
     </ClCompile>
+    <ClCompile Include="DataExchangeHelper.cpp" />
     <ClCompile Include="DialogSettings.cpp" />
     <ClCompile Include="DpiCompatibility.cpp" />
+    <ClCompile Include="DragDropHelper.cpp" />
     <ClCompile Include="DriveInfo.cpp" />
     <ClCompile Include="DropHandler.cpp" />
     <ClCompile Include="FileActionHandler.cpp" />
@@ -308,6 +310,7 @@
     <ClCompile Include="iDataObject.cpp" />
     <ClCompile Include="iDirectoryMonitor.cpp" />
     <ClCompile Include="iDropSource.cpp" />
+    <ClCompile Include="DropTarget.cpp" />
     <ClCompile Include="iEnumFormatEtc.cpp" />
     <ClCompile Include="ImageHelper.cpp" />
     <ClCompile Include="ListViewHelper.cpp" />
@@ -354,8 +357,10 @@
     <ClInclude Include="ComboBoxHelper.h" />
     <ClInclude Include="ContextMenuManager.h" />
     <ClInclude Include="Controls.h" />
+    <ClInclude Include="DataExchangeHelper.h" />
     <ClInclude Include="DialogSettings.h" />
     <ClInclude Include="DpiCompatibility.h" />
+    <ClInclude Include="DragDropHelper.h" />
     <ClInclude Include="DriveInfo.h" />
     <ClInclude Include="DropHandler.h" />
     <ClInclude Include="FileActionHandler.h" />
@@ -367,6 +372,7 @@
     <ClInclude Include="iDataObject.h" />
     <ClInclude Include="iDirectoryMonitor.h" />
     <ClInclude Include="iDropSource.h" />
+    <ClInclude Include="DropTarget.h" />
     <ClInclude Include="iEnumFormatEtc.h" />
     <ClInclude Include="ImageHelper.h" />
     <ClInclude Include="ListViewHelper.h" />

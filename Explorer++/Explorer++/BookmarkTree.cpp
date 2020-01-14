@@ -76,28 +76,19 @@ void BookmarkTree::AddBookmarkItem(BookmarkItem *parent, std::unique_ptr<Bookmar
 		return;
 	}
 
-	AddBookmarkItemUpdatedObservers(bookmarkItem.get());
+	bookmarkItem->VisitRecursively([this] (BookmarkItem *currentItem) {
+		currentItem->ClearOriginalGUID();
+
+		// Adds an observer to each bookmark item that's being added. This is
+		// needed so that this class can broadcast an event whenever an
+		// individual bookmark item is updated.
+		currentItem->updatedSignal.AddObserver(std::bind(&BookmarkTree::OnBookmarkItemUpdated, this,
+			std::placeholders::_1, std::placeholders::_2), boost::signals2::at_front);
+	});
 
 	BookmarkItem *rawBookmarkItem = bookmarkItem.get();
 	parent->AddChild(std::move(bookmarkItem), index);
 	bookmarkItemAddedSignal.m_signal(*rawBookmarkItem, index);
-}
-
-// Adds an observer to each bookmark item that's being added. This is needed so
-// that this class can broadcast an event whenever an individual bookmark item
-// is updated.
-void BookmarkTree::AddBookmarkItemUpdatedObservers(BookmarkItem *bookmarkItem)
-{
-	bookmarkItem->updatedSignal.AddObserver(std::bind(&BookmarkTree::OnBookmarkItemUpdated, this,
-		std::placeholders::_1, std::placeholders::_2), boost::signals2::at_front);
-
-	if (bookmarkItem->IsFolder())
-	{
-		for (auto &child : bookmarkItem->GetChildren())
-		{
-			AddBookmarkItemUpdatedObservers(child.get());
-		}
-	}
 }
 
 void BookmarkTree::MoveBookmarkItem(BookmarkItem *bookmarkItem, BookmarkItem *newParent, size_t index)
@@ -109,17 +100,22 @@ void BookmarkTree::MoveBookmarkItem(BookmarkItem *bookmarkItem, BookmarkItem *ne
 	}
 
 	BookmarkItem *oldParent = bookmarkItem->GetParent();
-	auto oldIndex = oldParent->GetChildIndex(bookmarkItem);
+	size_t oldIndex = oldParent->GetChildIndex(bookmarkItem);
 
-	if (oldParent == newParent && index == *oldIndex)
+	if (oldParent == newParent && index == oldIndex)
 	{
 		return;
 	}
 
-	auto item = oldParent->RemoveChild(*oldIndex);
+	if (oldParent == newParent && index > oldIndex)
+	{
+		index--;
+	}
+
+	auto item = oldParent->RemoveChild(oldIndex);
 	newParent->AddChild(std::move(item), index);
 
-	bookmarkItemMovedSignal.m_signal(bookmarkItem, oldParent, *oldIndex,
+	bookmarkItemMovedSignal.m_signal(bookmarkItem, oldParent, oldIndex,
 		newParent, index);
 }
 
@@ -138,9 +134,8 @@ void BookmarkTree::RemoveBookmarkItem(BookmarkItem *bookmarkItem)
 
 	std::wstring guid = bookmarkItem->GetGUID();
 
-	auto childIndex = parent->GetChildIndex(bookmarkItem);
-	assert(childIndex);
-	parent->RemoveChild(*childIndex);
+	size_t childIndex = parent->GetChildIndex(bookmarkItem);
+	parent->RemoveChild(childIndex);
 	bookmarkItemRemovedSignal.m_signal(guid);
 }
 

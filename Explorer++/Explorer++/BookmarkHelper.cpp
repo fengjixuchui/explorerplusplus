@@ -16,6 +16,8 @@ int CALLBACK SortByLocation(const BookmarkItem *firstItem, const BookmarkItem *s
 int CALLBACK SortByDateAdded(const BookmarkItem *firstItem, const BookmarkItem *secondItem);
 int CALLBACK SortByDateModified(const BookmarkItem *firstItem, const BookmarkItem *secondItem);
 
+BookmarkItem *GetBookmarkItemByIdResursive(BookmarkItem *bookmarkItem, std::wstring_view guid);
+
 bool BookmarkHelper::IsFolder(const std::unique_ptr<BookmarkItem> &bookmarkItem)
 {
 	return bookmarkItem->IsFolder();
@@ -75,9 +77,9 @@ int CALLBACK BookmarkHelper::Sort(SortMode sortMode, const BookmarkItem *firstIt
 int CALLBACK SortByDefault(const BookmarkItem *firstItem,
 	const BookmarkItem *secondItem)
 {
-	auto firstIndex = firstItem->GetParent()->GetChildIndex(firstItem);
-	auto secondIndex = secondItem->GetParent()->GetChildIndex(secondItem);
-	return static_cast<int>(*firstIndex) - static_cast<int>(*secondIndex);
+	size_t firstIndex = firstItem->GetParent()->GetChildIndex(firstItem);
+	size_t secondIndex = secondItem->GetParent()->GetChildIndex(secondItem);
+	return static_cast<int>(firstIndex) - static_cast<int>(secondIndex);
 }
 
 int CALLBACK SortByName(const BookmarkItem *firstItem,
@@ -168,7 +170,7 @@ void BookmarkHelper::EditBookmarkItem(BookmarkItem *bookmarkItem, BookmarkTree *
 		// folder.
 		if (selectedParentFolder == bookmarkItem->GetParent())
 		{
-			newIndex = *bookmarkItem->GetParent()->GetChildIndex(bookmarkItem);
+			newIndex = bookmarkItem->GetParent()->GetChildIndex(bookmarkItem);
 		}
 		else
 		{
@@ -195,4 +197,34 @@ void BookmarkHelper::OpenBookmarkItemInNewTab(const BookmarkItem *bookmarkItem, 
 	{
 		expp->GetTabContainer()->CreateNewTab(bookmarkItem->GetLocation().c_str());
 	}
+}
+
+BookmarkItem *BookmarkHelper::GetBookmarkItemById(BookmarkTree *bookmarkTree, std::wstring_view guid)
+{
+	return GetBookmarkItemByIdResursive(bookmarkTree->GetRoot(), guid);
+}
+
+BookmarkItem *GetBookmarkItemByIdResursive(BookmarkItem *bookmarkItem, std::wstring_view guid)
+{
+	if (bookmarkItem->GetGUID() == guid)
+	{
+		return bookmarkItem;
+	}
+
+	if (!bookmarkItem->IsFolder())
+	{
+		return nullptr;
+	}
+
+	for (auto &child : bookmarkItem->GetChildren())
+	{
+		BookmarkItem *result = GetBookmarkItemByIdResursive(child.get(), guid);
+
+		if (result)
+		{
+			return result;
+		}
+	}
+
+	return nullptr;
 }
