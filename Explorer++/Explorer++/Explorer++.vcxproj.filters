@@ -385,6 +385,12 @@
     <ClCompile Include="ManageBookmarksDialog.cpp">
       <Filter>Bookmarks\UI</Filter>
     </ClCompile>
+    <ClCompile Include="BookmarkDropInfo.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkDropTargetWindow.cpp">
+      <Filter>Bookmarks\UI</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationToolbar.h">
@@ -778,6 +784,12 @@
       <Filter>Bookmarks\UI</Filter>
     </ClInclude>
     <ClInclude Include="ManageBookmarksDialog.h">
+      <Filter>Bookmarks\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkDropInfo.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkDropTargetWindow.h">
       <Filter>Bookmarks\UI</Filter>
     </ClInclude>
   </ItemGroup>

@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "BookmarkDropInfo.h"
+#include "BookmarkDropTargetWindow.h"
 #include "BookmarkHelper.h"
 #include "BookmarkItem.h"
 #include "BookmarkTree.h"
@@ -12,10 +14,12 @@
 #include "SignalWrapper.h"
 #include "../Helper/DpiCompatibility.h"
 #include "../Helper/WindowSubclassWrapper.h"
+#include <boost/signals2.hpp>
+#include <wil/com.h>
 #include <wil/resource.h>
 #include <optional>
 
-class CBookmarkListView
+class BookmarkListView : private BookmarkDropTargetWindow
 {
 public:
 
@@ -34,7 +38,7 @@ public:
 		bool active;
 	};
 
-	CBookmarkListView(HWND hListView, HMODULE resourceModule, BookmarkTree *bookmarkTree,
+	BookmarkListView(HWND hListView, HMODULE resourceModule, BookmarkTree *bookmarkTree,
 		IExplorerplusplus *expp, const std::vector<Column> &initialColumns);
 
 	void NavigateToBookmarkFolder(BookmarkItem *bookmarkFolder);
@@ -46,11 +50,13 @@ public:
 	void SetSortAscending(bool sortAscending);
 
 	// Signals
-	SignalWrapper<CBookmarkListView, void(BookmarkItem *bookmarkFolder)> navigationSignal;
+	SignalWrapper<BookmarkListView, void(BookmarkItem *bookmarkFolder)> navigationSignal;
 
 private:
 
-	static const UINT_PTR PARENT_SUBCLASS_ID = 0;
+	static inline const UINT_PTR PARENT_SUBCLASS_ID = 0;
+
+	static inline const double FOLDER_CENTRAL_RECT_INDENT_PERCENTAGE = 0.2;
 
 	static LRESULT CALLBACK ParentWndProcStub(HWND hwnd, UINT uMsg, WPARAM wParam,
 		LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
@@ -79,11 +85,34 @@ private:
 	BOOL OnBeginLabelEdit(const NMLVDISPINFO *dispInfo);
 	BOOL OnEndLabelEdit(const NMLVDISPINFO *dispInfo);
 	void OnKeyDown(const NMLVKEYDOWN *keyDown);
+	void OnBeginDrag(const NMLISTVIEW *listView);
 	void OnRename();
+	void OnDelete();
+
+	std::vector<BookmarkItem *> GetSelectedBookmarkItems();
 
 	void OnHeaderRClick(const POINT &pt);
 	wil::unique_hmenu BuildHeaderContextMenu();
 	void OnHeaderContextMenuItemSelected(int menuItemId);
+
+	void OnBookmarkItemAdded(BookmarkItem &bookmarkItem, size_t index);
+	void OnBookmarkItemUpdated(BookmarkItem &bookmarkItem, BookmarkItem::PropertyType propertyType);
+	void OnBookmarkItemMoved(BookmarkItem *bookmarkItem, const BookmarkItem *oldParent,
+		size_t oldIndex, const BookmarkItem *newParent, size_t newIndex);
+	void OnBookmarkItemPreRemoval(BookmarkItem &bookmarkItem);
+
+	void RemoveBookmarkItem(const BookmarkItem *bookmarkItem);
+	std::optional<int> GetBookmarkItemIndex(const BookmarkItem *bookmarkItem) const;
+	ColumnType MapPropertyTypeToColumnType(BookmarkItem::PropertyType propertyType) const;
+	Column &GetColumnByType(ColumnType columnType);
+	int GetColumnIndexByType(ColumnType columnType) const;
+
+	DropLocation GetDropLocation(const POINT &pt) override;
+	int FindNextItemIndex(const POINT &ptClient);
+	void UpdateUiForDropLocation(const DropLocation &dropLocation) override;
+	void ResetDropUiState() override;
+	void RemoveInsertionMark();
+	void RemoveDropHighlight();
 
 	HWND m_hListView;
 	HMODULE m_resourceModule;
@@ -98,5 +127,8 @@ private:
 	BookmarkHelper::SortMode m_sortMode;
 	bool m_sortAscending;
 
+	std::optional<int> m_previousDropItem;
+
 	std::vector<WindowSubclassWrapper> m_windowSubclasses;
+	std::vector<boost::signals2::scoped_connection> m_connections;
 };

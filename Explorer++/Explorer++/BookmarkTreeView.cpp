@@ -4,16 +4,20 @@
 
 #include "stdafx.h"
 #include "BookmarkTreeView.h"
+#include "BookmarkDataExchange.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
+#include "../Helper/iDropSource.h"
 #include "../Helper/Macros.h"
 #include "../Helper/MenuHelper.h"
+#include "../Helper/WindowHelper.h"
 #include <boost/range/adaptor/filtered.hpp>
 #include <stack>
 
-CBookmarkTreeView::CBookmarkTreeView(HWND hTreeView, HINSTANCE hInstance, IExplorerplusplus *expp,
+BookmarkTreeView::BookmarkTreeView(HWND hTreeView, HINSTANCE hInstance, IExplorerplusplus *expp,
 	BookmarkTree *bookmarkTree, const std::unordered_set<std::wstring> &setExpansion,
 	std::optional<std::wstring> guidSelected) :
+	BookmarkDropTargetWindow(hTreeView, bookmarkTree),
 	m_hTreeView(hTreeView),
 	m_instance(hInstance),
 	m_bookmarkTree(bookmarkTree),
@@ -36,24 +40,27 @@ CBookmarkTreeView::CBookmarkTreeView(HWND hTreeView, HINSTANCE hInstance, IExplo
 	SetupTreeView(setExpansion, guidSelected);
 
 	m_connections.push_back(m_bookmarkTree->bookmarkItemAddedSignal.AddObserver(
-		std::bind(&CBookmarkTreeView::OnBookmarkItemAdded, this, std::placeholders::_1, std::placeholders::_2)));
+		std::bind(&BookmarkTreeView::OnBookmarkItemAdded, this, std::placeholders::_1, std::placeholders::_2)));
 	m_connections.push_back(m_bookmarkTree->bookmarkItemUpdatedSignal.AddObserver(
-		std::bind(&CBookmarkTreeView::OnBookmarkItemUpdated, this, std::placeholders::_1, std::placeholders::_2)));
-	m_connections.push_back(m_bookmarkTree->bookmarkItemRemovedSignal.AddObserver(
-		std::bind(&CBookmarkTreeView::OnBookmarkItemRemoved, this, std::placeholders::_1)));
+		std::bind(&BookmarkTreeView::OnBookmarkItemUpdated, this, std::placeholders::_1, std::placeholders::_2)));
+	m_connections.push_back(m_bookmarkTree->bookmarkItemMovedSignal.AddObserver(
+		std::bind(&BookmarkTreeView::OnBookmarkItemMoved, this, std::placeholders::_1, std::placeholders::_2,
+			std::placeholders::_3, std::placeholders::_4, std::placeholders::_5)));
+	m_connections.push_back(m_bookmarkTree->bookmarkItemPreRemovalSignal.AddObserver(
+		std::bind(&BookmarkTreeView::OnBookmarkItemPreRemoval, this, std::placeholders::_1)));
 }
 
-LRESULT CALLBACK CBookmarkTreeView::BookmarkTreeViewProcStub(HWND hwnd, UINT uMsg,
+LRESULT CALLBACK BookmarkTreeView::BookmarkTreeViewProcStub(HWND hwnd, UINT uMsg,
 	WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	CBookmarkTreeView *pbtv = reinterpret_cast<CBookmarkTreeView *>(dwRefData);
+	BookmarkTreeView *pbtv = reinterpret_cast<BookmarkTreeView *>(dwRefData);
 
 	return pbtv->TreeViewProc(hwnd, uMsg, wParam, lParam);
 }
 
-LRESULT CALLBACK CBookmarkTreeView::TreeViewProc(HWND hwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK BookmarkTreeView::TreeViewProc(HWND hwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (Msg)
 	{
@@ -81,17 +88,17 @@ LRESULT CALLBACK CBookmarkTreeView::TreeViewProc(HWND hwnd, UINT Msg, WPARAM wPa
 	return DefSubclassProc(hwnd, Msg, wParam, lParam);
 }
 
-LRESULT CALLBACK CBookmarkTreeView::BookmarkTreeViewParentProcStub(HWND hwnd, UINT uMsg,
+LRESULT CALLBACK BookmarkTreeView::BookmarkTreeViewParentProcStub(HWND hwnd, UINT uMsg,
 	WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	CBookmarkTreeView *pbtv = reinterpret_cast<CBookmarkTreeView *>(dwRefData);
+	BookmarkTreeView *pbtv = reinterpret_cast<BookmarkTreeView *>(dwRefData);
 
 	return pbtv->TreeViewParentProc(hwnd, uMsg, wParam, lParam);
 }
 
-LRESULT CALLBACK CBookmarkTreeView::TreeViewParentProc(HWND hwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK BookmarkTreeView::TreeViewParentProc(HWND hwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (Msg)
 	{
@@ -114,6 +121,10 @@ LRESULT CALLBACK CBookmarkTreeView::TreeViewParentProc(HWND hwnd, UINT Msg, WPAR
 			OnSelChanged(reinterpret_cast<NMTREEVIEW *>(lParam));
 			break;
 
+		case TVN_BEGINDRAG:
+			OnBeginDrag(reinterpret_cast<NMTREEVIEW *>(lParam));
+			break;
+
 		case NM_RCLICK:
 			OnRClick(reinterpret_cast<NMHDR *>(lParam));
 			break;
@@ -124,17 +135,17 @@ LRESULT CALLBACK CBookmarkTreeView::TreeViewParentProc(HWND hwnd, UINT Msg, WPAR
 	return DefSubclassProc(hwnd, Msg, wParam, lParam);
 }
 
-LRESULT CALLBACK CBookmarkTreeView::TreeViewEditProcStub(HWND hwnd, UINT uMsg,
+LRESULT CALLBACK BookmarkTreeView::TreeViewEditProcStub(HWND hwnd, UINT uMsg,
 	WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	CBookmarkTreeView *pbtv = reinterpret_cast<CBookmarkTreeView *>(dwRefData);
+	BookmarkTreeView *pbtv = reinterpret_cast<BookmarkTreeView *>(dwRefData);
 
 	return pbtv->TreeViewEditProc(hwnd, uMsg, wParam, lParam);
 }
 
-LRESULT CALLBACK CBookmarkTreeView::TreeViewEditProc(HWND hwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK BookmarkTreeView::TreeViewEditProc(HWND hwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (Msg)
 	{
@@ -152,7 +163,7 @@ LRESULT CALLBACK CBookmarkTreeView::TreeViewEditProc(HWND hwnd, UINT Msg, WPARAM
 	return DefSubclassProc(hwnd, Msg, wParam, lParam);
 }
 
-void CBookmarkTreeView::SetupTreeView(const std::unordered_set<std::wstring> &setExpansion,
+void BookmarkTreeView::SetupTreeView(const std::unordered_set<std::wstring> &setExpansion,
 	std::optional<std::wstring> guidSelected)
 {
 	TreeView_DeleteAllItems(m_hTreeView);
@@ -185,7 +196,7 @@ void CBookmarkTreeView::SetupTreeView(const std::unordered_set<std::wstring> &se
 	}
 }
 
-void CBookmarkTreeView::InsertFoldersIntoTreeViewRecursive(HTREEITEM hParent, BookmarkItem *bookmarkItem)
+void BookmarkTreeView::InsertFoldersIntoTreeViewRecursive(HTREEITEM hParent, BookmarkItem *bookmarkItem)
 {
 	int position = 0;
 
@@ -198,7 +209,7 @@ void CBookmarkTreeView::InsertFoldersIntoTreeViewRecursive(HTREEITEM hParent, Bo
 	}
 }
 
-HTREEITEM CBookmarkTreeView::InsertFolderIntoTreeView(HTREEITEM hParent, BookmarkItem *bookmarkFolder, int position)
+HTREEITEM BookmarkTreeView::InsertFolderIntoTreeView(HTREEITEM hParent, BookmarkItem *bookmarkFolder, int position)
 {
 	TCHAR szText[256];
 	StringCchCopy(szText, SIZEOF_ARRAY(szText), bookmarkFolder->GetName().c_str());
@@ -260,42 +271,31 @@ HTREEITEM CBookmarkTreeView::InsertFolderIntoTreeView(HTREEITEM hParent, Bookmar
 	return hItem;
 }
 
-void CBookmarkTreeView::OnBookmarkItemAdded(BookmarkItem &bookmarkItem, size_t index)
+void BookmarkTreeView::OnBookmarkItemAdded(BookmarkItem &bookmarkItem, size_t index)
 {
+	UNREFERENCED_PARAMETER(index);
+
 	if (!bookmarkItem.IsFolder())
 	{
 		return;
 	}
 
-	/* Due to the fact that *all* bookmark folders will be inserted into the
-	 * treeview (regardless of whether or not they are actually shown), any new
-	 * folders will always need to be inserted. */
-	auto itr = m_mapItem.find(bookmarkItem.GetParent()->GetGUID());
-	assert(itr != m_mapItem.end());
-	HTREEITEM hItem = InsertFolderIntoTreeView(itr->second, &bookmarkItem, static_cast<int>(index));
-
-	UINT uParentState = TreeView_GetItemState(m_hTreeView, itr->second, TVIS_EXPANDED);
-
-	if ((uParentState & TVIS_EXPANDED) != TVIS_EXPANDED)
-	{
-		TVITEM tvi;
-		tvi.mask = TVIF_CHILDREN;
-		tvi.hItem = itr->second;
-		tvi.cChildren = 1;
-		TreeView_SetItem(m_hTreeView, &tvi);
-	}
+	// Due to the fact that *all* bookmark folders will be inserted into the
+	// treeview (regardless of whether or not they are actually shown), any new
+	// folders will always need to be inserted.
+	HTREEITEM newItem = AddNewFolderToTreeView(&bookmarkItem);
 
 	if (m_bNewFolderCreated && bookmarkItem.GetGUID() == m_NewFolderGUID)
 	{
 		SetFocus(m_hTreeView);
-		TreeView_SelectItem(m_hTreeView, hItem);
-		TreeView_EditLabel(m_hTreeView, hItem);
+		TreeView_SelectItem(m_hTreeView, newItem);
+		TreeView_EditLabel(m_hTreeView, newItem);
 
 		m_bNewFolderCreated = false;
 	}
 }
 
-void CBookmarkTreeView::OnBookmarkItemUpdated(BookmarkItem &bookmarkItem, BookmarkItem::PropertyType propertyType)
+void BookmarkTreeView::OnBookmarkItemUpdated(BookmarkItem &bookmarkItem, BookmarkItem::PropertyType propertyType)
 {
 	if (!bookmarkItem.IsFolder() || propertyType != BookmarkItem::PropertyType::Name)
 	{
@@ -315,20 +315,104 @@ void CBookmarkTreeView::OnBookmarkItemUpdated(BookmarkItem &bookmarkItem, Bookma
 	TreeView_SetItem(m_hTreeView, &tvi);
 }
 
-void CBookmarkTreeView::OnBookmarkItemRemoved(const std::wstring &guid)
+void BookmarkTreeView::OnBookmarkItemMoved(BookmarkItem *bookmarkItem, const BookmarkItem *oldParent,
+	size_t oldIndex, const BookmarkItem *newParent, size_t newIndex)
 {
-	auto itr = m_mapItem.find(guid);
+	UNREFERENCED_PARAMETER(oldParent);
+	UNREFERENCED_PARAMETER(oldIndex);
+	UNREFERENCED_PARAMETER(newParent);
+	UNREFERENCED_PARAMETER(newIndex);
+
+	if (!bookmarkItem->IsFolder())
+	{
+		return;
+	}
+
+	RemoveBookmarkItem(bookmarkItem);
+	AddNewFolderToTreeView(bookmarkItem);
+}
+
+HTREEITEM BookmarkTreeView::AddNewFolderToTreeView(BookmarkItem *bookmarkFolder)
+{
+	auto parentItr = m_mapItem.find(bookmarkFolder->GetParent()->GetGUID());
+	assert(parentItr != m_mapItem.end());
+
+	size_t relativeIndex = GetFolderRelativeIndex(bookmarkFolder);
+
+	HTREEITEM newItem = InsertFolderIntoTreeView(parentItr->second, bookmarkFolder, static_cast<int>(relativeIndex));
+
+	if (newItem)
+	{
+		TVITEM item;
+		item.mask = TVIF_CHILDREN;
+		item.hItem = parentItr->second;
+		item.cChildren = 1;
+		TreeView_SetItem(m_hTreeView, &item);
+	}
+
+	return newItem;
+}
+
+// As a bookmark folder can contain both bookmark folders as well as bookmarks
+// (as children), the index of a bookmark folder won't necessarily match the
+// index of the folder in the treeview. This is because the treeview only
+// contains bookmark folders.
+// Therefore, this function returns the index of a folder, as it should appear
+// in the treeview (i.e. it only takes into account other bookmark folders).
+size_t BookmarkTreeView::GetFolderRelativeIndex(BookmarkItem *bookmarkFolder) const
+{
+	assert(bookmarkFolder->IsFolder());
+
+	size_t index = bookmarkFolder->GetParent()->GetChildIndex(bookmarkFolder);
+	auto &children = bookmarkFolder->GetParent()->GetChildren();
+	auto itr = children.begin() + index;
+
+	auto numPreviousFolders = std::count_if(children.begin(), itr, [] (auto &child) {
+		return child->IsFolder();
+	});
+
+	return numPreviousFolders;
+}
+
+void BookmarkTreeView::OnBookmarkItemPreRemoval(BookmarkItem &bookmarkItem)
+{
+	if (!bookmarkItem.IsFolder())
+	{
+		return;
+	}
+
+	RemoveBookmarkItem(&bookmarkItem);
+}
+
+void BookmarkTreeView::RemoveBookmarkItem(const BookmarkItem *bookmarkItem)
+{
+	auto itr = m_mapItem.find(bookmarkItem->GetGUID());
 	assert(itr != m_mapItem.end());
 
-	/* TODO: Should collapse parent if it no longer
-	has any children. Should also change selection if
-	required (i.e. if the deleted bookmark was selected). */
+	/* TODO: Should change selection if required (i.e. if the deleted bookmark
+	 * was selected). */
 	TreeView_DeleteItem(m_hTreeView, itr->second);
+
+	auto parentItr = m_mapItem.find(bookmarkItem->GetParent()->GetGUID());
+	assert(parentItr != m_mapItem.end());
+
+	HTREEITEM firstChild = TreeView_GetChild(m_hTreeView, parentItr->second);
+
+	if (!firstChild)
+	{
+		TreeView_Expand(m_hTreeView, parentItr->second, TVE_COLLAPSE);
+
+		TVITEM item;
+		item.mask = TVIF_CHILDREN;
+		item.hItem = parentItr->second;
+		item.cChildren = 0;
+		TreeView_SetItem(m_hTreeView, &item);
+	}
 
 	m_mapItem.erase(itr);
 }
 
-void CBookmarkTreeView::OnKeyDown(const NMTVKEYDOWN *pnmtvkd)
+void BookmarkTreeView::OnKeyDown(const NMTVKEYDOWN *pnmtvkd)
 {
 	switch (pnmtvkd->wVKey)
 	{
@@ -338,13 +422,13 @@ void CBookmarkTreeView::OnKeyDown(const NMTVKEYDOWN *pnmtvkd)
 	}
 }
 
-void CBookmarkTreeView::OnTreeViewRename()
+void BookmarkTreeView::OnTreeViewRename()
 {
 	HTREEITEM hSelectedItem = TreeView_GetSelection(m_hTreeView);
 	TreeView_EditLabel(m_hTreeView, hSelectedItem);
 }
 
-BOOL CBookmarkTreeView::OnBeginLabelEdit(const NMTVDISPINFO *dispInfo)
+BOOL BookmarkTreeView::OnBeginLabelEdit(const NMTVDISPINFO *dispInfo)
 {
 	auto bookmarkFolder = GetBookmarkFolderFromTreeView(dispInfo->item.hItem);
 
@@ -359,7 +443,7 @@ BOOL CBookmarkTreeView::OnBeginLabelEdit(const NMTVDISPINFO *dispInfo)
 	return FALSE;
 }
 
-BOOL CBookmarkTreeView::OnEndLabelEdit(const NMTVDISPINFO *dispInfo)
+BOOL BookmarkTreeView::OnEndLabelEdit(const NMTVDISPINFO *dispInfo)
 {
 	HWND hEdit = TreeView_GetEditControl(m_hTreeView);
 	RemoveWindowSubclass(hEdit, TreeViewEditProcStub, 0);
@@ -376,13 +460,46 @@ BOOL CBookmarkTreeView::OnEndLabelEdit(const NMTVDISPINFO *dispInfo)
 	return FALSE;
 }
 
-void CBookmarkTreeView::OnSelChanged(const NMTREEVIEW *treeView)
+void BookmarkTreeView::OnSelChanged(const NMTREEVIEW *treeView)
 {
 	auto bookmarkFolder = GetBookmarkFolderFromTreeView(treeView->itemNew.hItem);
 	selectionChangedSignal.m_signal(bookmarkFolder);
 }
 
-void CBookmarkTreeView::OnDelete()
+void BookmarkTreeView::OnBeginDrag(const NMTREEVIEW *treeView)
+{
+	auto bookmarkFolder = GetBookmarkFolderFromTreeView(treeView->itemNew.hItem);
+
+	if (m_bookmarkTree->IsPermanentNode(bookmarkFolder))
+	{
+		return;
+	}
+
+	wil::com_ptr<IDropSource> dropSource;
+	HRESULT hr = CreateDropSource(&dropSource, DragType::LeftClick);
+
+	if (FAILED(hr))
+	{
+		return;
+	}
+
+	auto &ownedPtr = bookmarkFolder->GetParent()->GetChildOwnedPtr(bookmarkFolder);
+	auto dataObject = BookmarkDataExchange::CreateDataObject(ownedPtr);
+
+	wil::com_ptr<IDragSourceHelper> dragSourceHelper;
+	hr = CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_ALL,
+		IID_PPV_ARGS(&dragSourceHelper));
+
+	if (SUCCEEDED(hr))
+	{
+		dragSourceHelper->InitializeFromWindow(m_hTreeView, nullptr, dataObject.get());
+	}
+
+	DWORD effect;
+	DoDragDrop(dataObject.get(), dropSource.get(), DROPEFFECT_MOVE, &effect);
+}
+
+void BookmarkTreeView::OnDelete()
 {
 	HTREEITEM hSelectedItem = TreeView_GetSelection(m_hTreeView);
 	auto bookmarkFolder = GetBookmarkFolderFromTreeView(hSelectedItem);
@@ -390,7 +507,7 @@ void CBookmarkTreeView::OnDelete()
 	m_bookmarkTree->RemoveBookmarkItem(bookmarkFolder);
 }
 
-void CBookmarkTreeView::OnRClick(const NMHDR *pnmhdr)
+void BookmarkTreeView::OnRClick(const NMHDR *pnmhdr)
 {
 	if (pnmhdr->hwndFrom != m_hTreeView)
 	{
@@ -425,7 +542,7 @@ void CBookmarkTreeView::OnRClick(const NMHDR *pnmhdr)
 	TrackPopupMenu(GetSubMenu(menu.get(), 0), TPM_LEFTALIGN, ptCursor.x, ptCursor.y, 0, m_hTreeView, NULL);
 }
 
-void CBookmarkTreeView::CreateNewFolder()
+void BookmarkTreeView::CreateNewFolder()
 {
 	std::wstring newBookmarkFolderName = ResourceHelper::LoadString(m_instance, IDS_BOOKMARKS_NEWBOOKMARKFOLDER);
 	auto newBookmarkFolder = std::make_unique<BookmarkItem>(std::nullopt, newBookmarkFolderName, std::nullopt);
@@ -441,7 +558,7 @@ void CBookmarkTreeView::CreateNewFolder()
 	m_bookmarkTree->AddBookmarkItem(bookmarkFolder, std::move(newBookmarkFolder), bookmarkFolder->GetChildren().size());
 }
 
-void CBookmarkTreeView::SelectFolder(const std::wstring &guid)
+void BookmarkTreeView::SelectFolder(const std::wstring &guid)
 {
 	auto itr = m_mapItem.find(guid);
 
@@ -450,7 +567,7 @@ void CBookmarkTreeView::SelectFolder(const std::wstring &guid)
 	TreeView_SelectItem(m_hTreeView, itr->second);
 }
 
-BookmarkItem *CBookmarkTreeView::GetBookmarkFolderFromTreeView(HTREEITEM hItem)
+BookmarkItem *BookmarkTreeView::GetBookmarkFolderFromTreeView(HTREEITEM hItem)
 {
 	TVITEM tvi;
 	tvi.mask = TVIF_HANDLE | TVIF_PARAM;
@@ -458,4 +575,157 @@ BookmarkItem *CBookmarkTreeView::GetBookmarkFolderFromTreeView(HTREEITEM hItem)
 	TreeView_GetItem(m_hTreeView, &tvi);
 
 	return reinterpret_cast<BookmarkItem *>(tvi.lParam);
+}
+
+BookmarkTreeView::DropLocation BookmarkTreeView::GetDropLocation(const POINT &pt)
+{
+	POINT ptClient = pt;
+	ScreenToClient(m_hTreeView, &ptClient);
+
+	TVHITTESTINFO hitTestInfo;
+	hitTestInfo.pt = ptClient;
+	HTREEITEM treeItem = TreeView_HitTest(m_hTreeView, &hitTestInfo);
+
+	BookmarkItem *parentFolder = nullptr;
+	size_t position;
+	bool parentFolderSelected = false;
+
+	if (treeItem)
+	{
+		auto bookmarkFolder = GetBookmarkFolderFromTreeView(treeItem);
+
+		RECT itemRect;
+		TreeView_GetItemRect(m_hTreeView, treeItem, &itemRect, FALSE);
+
+		RECT folderCentralRect = itemRect;
+		int indent = static_cast<int>(FOLDER_CENTRAL_RECT_INDENT_PERCENTAGE * GetRectHeight(&itemRect));
+		InflateRect(&folderCentralRect, 0, -indent);
+
+		if (ptClient.y < folderCentralRect.top)
+		{
+			parentFolder = bookmarkFolder->GetParent();
+			position = bookmarkFolder->GetParent()->GetChildIndex(bookmarkFolder);
+		}
+		else if (ptClient.y > folderCentralRect.bottom)
+		{
+			parentFolder = bookmarkFolder->GetParent();
+			position = bookmarkFolder->GetParent()->GetChildIndex(bookmarkFolder) + 1;
+		}
+		else
+		{
+			parentFolder = bookmarkFolder;
+			position = bookmarkFolder->GetChildren().size();
+			parentFolderSelected = true;
+		}
+	}
+	else
+	{
+		HTREEITEM nextItem = FindNextItem(ptClient);
+
+		if (nextItem)
+		{
+			auto nextBookmarkFolder = GetBookmarkFolderFromTreeView(nextItem);
+			parentFolder = nextBookmarkFolder->GetParent();
+			position = nextBookmarkFolder->GetParent()->GetChildIndex(nextBookmarkFolder);
+		}
+		else
+		{
+			parentFolder = m_bookmarkTree->GetRoot();
+			position = m_bookmarkTree->GetRoot()->GetChildren().size();
+		}
+	}
+
+	return { parentFolder, position, parentFolderSelected };
+}
+
+HTREEITEM BookmarkTreeView::FindNextItem(const POINT &ptClient) const
+{
+	HTREEITEM treeItem = TreeView_GetFirstVisible(m_hTreeView);
+
+	do 
+	{
+		RECT rc;
+		TreeView_GetItemRect(m_hTreeView, treeItem, &rc, FALSE);
+
+		if (ptClient.y < rc.top)
+		{
+			break;
+		}
+
+		treeItem = TreeView_GetNextVisible(m_hTreeView, treeItem);
+	} while (treeItem != nullptr);
+
+	return treeItem;
+}
+
+void BookmarkTreeView::UpdateUiForDropLocation(const DropLocation &dropLocation)
+{
+	RemoveDropHighlight();
+
+	if (dropLocation.parentFolderSelected)
+	{
+		RemoveInsertionMark();
+
+		HTREEITEM selectedItem = m_mapItem.at(dropLocation.parentFolder->GetGUID());
+
+		TreeView_SetItemState(m_hTreeView, selectedItem, TVIS_DROPHILITED, TVIS_DROPHILITED);
+		m_previousDropItem = selectedItem;
+	}
+	else
+	{
+		HTREEITEM treeItem;
+		BOOL after;
+
+		auto &children = dropLocation.parentFolder->GetChildren();
+		auto insertItr = children.begin() + dropLocation.position;
+
+		auto nextFolderItr = std::find_if(insertItr, children.end(), [] (auto &child) {
+			return child->IsFolder();
+		});
+
+		// If the cursor is not over a folder, it means that it's within a
+		// particular parent folder. That parent must have at least one child
+		// folder, since if it didn't, that would mean that the folder wouldn't
+		// be expanded and the only possible positions would be within the
+		// grandparent folder, either before or after the parent (but not within
+		// it).
+		if (nextFolderItr == children.end())
+		{
+			auto reverseInsertItr = children.rbegin() + (children.size() - dropLocation.position);
+
+			auto previousFolderItr = std::find_if(reverseInsertItr, children.rend(), [] (auto &child) {
+				return child->IsFolder();
+			});
+
+			treeItem = m_mapItem.at((*previousFolderItr)->GetGUID());
+			after = TRUE;
+		}
+		else
+		{
+			treeItem = m_mapItem.at((*nextFolderItr)->GetGUID());
+			after = FALSE;
+		}
+
+		TreeView_SetInsertMark(m_hTreeView, treeItem, after);
+	}
+}
+
+void BookmarkTreeView::ResetDropUiState()
+{
+	RemoveInsertionMark();
+	RemoveDropHighlight();
+}
+
+void BookmarkTreeView::RemoveInsertionMark()
+{
+	TreeView_SetInsertMark(m_hTreeView, nullptr, FALSE);
+}
+
+void BookmarkTreeView::RemoveDropHighlight()
+{
+	if (m_previousDropItem)
+	{
+		TreeView_SetItemState(m_hTreeView, *m_previousDropItem, 0, TVIS_DROPHILITED);
+		m_previousDropItem.reset();
+	}
 }
