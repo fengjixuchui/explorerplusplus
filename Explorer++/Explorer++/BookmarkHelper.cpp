@@ -143,7 +143,7 @@ void BookmarkHelper::AddBookmarkItem(BookmarkTree *bookmarkTree, BookmarkItem::T
 		bookmarkTree, bookmarkItem.get(), &selectedParentFolder);
 	auto res = AddBookmarkDialog.ShowModalDialog();
 
-	if (res == CBaseDialog::RETURN_OK)
+	if (res == BaseDialog::RETURN_OK)
 	{
 		assert(selectedParentFolder != nullptr);
 		bookmarkTree->AddBookmarkItem(selectedParentFolder, std::move(bookmarkItem),
@@ -159,7 +159,7 @@ void BookmarkHelper::EditBookmarkItem(BookmarkItem *bookmarkItem, BookmarkTree *
 		bookmarkTree, bookmarkItem, &selectedParentFolder);
 	auto res = AddBookmarkDialog.ShowModalDialog();
 
-	if (res == CBaseDialog::RETURN_OK)
+	if (res == BaseDialog::RETURN_OK)
 	{
 		assert(selectedParentFolder != nullptr);
 
@@ -227,4 +227,21 @@ BookmarkItem *GetBookmarkItemByIdResursive(BookmarkItem *bookmarkItem, std::wstr
 	}
 
 	return nullptr;
+}
+
+bool BookmarkHelper::IsAncestor(BookmarkItem *bookmarkItem, BookmarkItem *possibleAncestor)
+{
+	if (bookmarkItem == possibleAncestor)
+	{
+		return true;
+	}
+
+	BookmarkItem *parent = bookmarkItem->GetParent();
+
+	if (!parent)
+	{
+		return false;
+	}
+
+	return IsAncestor(parent, possibleAncestor);
 }

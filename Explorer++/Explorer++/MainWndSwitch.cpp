@@ -1265,7 +1265,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		{
 			ManageBookmarksDialog *pManageBookmarksDialog = new ManageBookmarksDialog(m_hLanguageModule,
 				hwnd, this, m_navigation.get(), &m_bookmarkTree);
-			g_hwndManageBookmarks = pManageBookmarksDialog->ShowModelessDialog(new CModelessDialogNotification());
+			g_hwndManageBookmarks = pManageBookmarksDialog->ShowModelessDialog(new ModelessDialogNotification());
 		}
 		else
 		{
@@ -1382,27 +1382,6 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 
 	case ToolbarButton::Views:
 		OnToolbarViews();
-		break;
-
-		/* Messages from the context menu that
-		is used with the bookmarks toolbar. */
-		/* TODO: [Bookmarks] Handle menu messages. */
-	case IDM_BT_OPEN:
-		break;
-
-	case IDM_BT_OPENINNEWTAB:
-		break;
-
-	case IDM_BT_DELETE:
-		break;
-
-	case IDM_BT_PROPERTIES:
-		break;
-
-	case IDM_BT_NEWBOOKMARK:
-		break;
-
-	case IDM_BT_NEWFOLDER:
 		break;
 
 		/* Listview column header context menu. */
