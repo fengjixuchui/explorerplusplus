@@ -26,8 +26,8 @@
 
 namespace
 {
-	static const TCHAR CLASS_NAME[] = _T("DisplayWindow");
-	static const TCHAR WINDOW_NAME[] = _T("DisplayWindow");
+	const TCHAR CLASS_NAME[] = _T("DisplayWindow");
+	const TCHAR WINDOW_NAME[] = _T("DisplayWindow");
 }
 
 ULONG_PTR token;
@@ -43,11 +43,11 @@ namespace
 		wc.lpfnWndProc		= DisplayWindowProcStub;
 		wc.cbClsExtra		= 0;
 		wc.cbWndExtra		= sizeof(DisplayWindow *);
-		wc.hInstance		= GetModuleHandle(NULL);
-		wc.hIcon			= NULL;
-		wc.hCursor			= LoadCursor(NULL,IDC_ARROW);
-		wc.hbrBackground	= NULL;
-		wc.lpszMenuName		= NULL;
+		wc.hInstance		= GetModuleHandle(nullptr);
+		wc.hIcon			= nullptr;
+		wc.hCursor			= LoadCursor(nullptr,IDC_ARROW);
+		wc.hbrBackground	= nullptr;
+		wc.lpszMenuName		= nullptr;
 		wc.lpszClassName	= CLASS_NAME;
 
 		if(!RegisterClass(&wc))
@@ -55,7 +55,7 @@ namespace
 			return FALSE;
 		}
 
-		Gdiplus::GdiplusStartup(&token,&startupInput,NULL);
+		Gdiplus::GdiplusStartup(&token,&startupInput, nullptr);
 
 		return TRUE;
 	}
@@ -67,7 +67,7 @@ HWND CreateDisplayWindow(HWND Parent,DWInitialSettings_t *pSettings)
 
 	HWND hDisplayWindow = CreateWindow(WINDOW_NAME,EMPTY_STRING,
 		WS_VISIBLE|WS_CHILD|WS_CLIPSIBLINGS,0,0,0,0,
-		Parent,NULL,GetModuleHandle(NULL),reinterpret_cast<LPVOID>(pSettings));
+		Parent,nullptr,GetModuleHandle(nullptr),reinterpret_cast<LPVOID>(pSettings));
 
 	return hDisplayWindow;
 }
@@ -86,11 +86,11 @@ DisplayWindow::DisplayWindow(HWND hDisplayWindow,DWInitialSettings_t *pInitialSe
 	m_LeftIndent	= 80;
 
 	m_bSizing = FALSE;
-	m_hbmThumbnail = NULL;
+	m_hbmThumbnail = nullptr;
 	m_bShowThumbnail = FALSE;
 	m_bThumbnailExtracted = FALSE;
 	m_bThumbnailExtractionFailed = FALSE;
-	m_hBitmapBackground = NULL;
+	m_hBitmapBackground = nullptr;
 
 	InitializeCriticalSection(&m_csDWThumbnails);
 }
@@ -132,7 +132,6 @@ WPARAM wParam,LPARAM lParam)
 		case WM_NCDESTROY:
 			delete pdw;
 			return 0;
-			break;
 	}
 
 	return pdw->DisplayWindowProc(hwnd,msg,wParam,lParam);
@@ -154,7 +153,6 @@ WPARAM wParam,LPARAM lParam)
 
 		case WM_MOUSEMOVE:
 			return OnMouseMove(lParam);
-			break;
 
 		case WM_LBUTTONDOWN:
 			OnLButtonDown(lParam);
@@ -185,11 +183,11 @@ WPARAM wParam,LPARAM lParam)
 		case DWM_BUFFERTEXT:
 			{
 				LineData_t ld;
-				TCHAR *pszText = NULL;
+				TCHAR *pszText = nullptr;
 
 				pszText = (TCHAR *)lParam;
 
-				if(pszText != NULL)
+				if(pszText != nullptr)
 				{
 					StringCchCopy(ld.szText,SIZEOF_ARRAY(ld.szText),pszText);
 
@@ -197,7 +195,7 @@ WPARAM wParam,LPARAM lParam)
 				}
 
 				/* TODO: Optimize? */
-				RedrawWindow(DisplayWindow,NULL,NULL,RDW_INVALIDATE);
+				RedrawWindow(DisplayWindow, nullptr, nullptr,RDW_INVALIDATE);
 			}
 			break;
 
@@ -209,7 +207,7 @@ WPARAM wParam,LPARAM lParam)
 
 		case DWM_SETLINE:
 			{
-				TCHAR *pszText = NULL;
+				TCHAR *pszText = nullptr;
 				std::vector<LineData_t>::iterator itr;
 				unsigned int iLine;
 				unsigned int i = 0;
@@ -217,7 +215,7 @@ WPARAM wParam,LPARAM lParam)
 				iLine = (int)wParam;
 				pszText = (TCHAR *)lParam;
 
-				if(pszText != NULL && iLine < m_LineList.size())
+				if(pszText != nullptr && iLine < m_LineList.size())
 				{
 					for(itr = m_LineList.begin();itr != m_LineList.end();itr++)
 					{
@@ -232,22 +230,20 @@ WPARAM wParam,LPARAM lParam)
 				}
 
 				/* TODO: Optimize? */
-				RedrawWindow(DisplayWindow,NULL,NULL,RDW_INVALIDATE);
+				RedrawWindow(DisplayWindow, nullptr, nullptr,RDW_INVALIDATE);
 			}
 			break;
 
 		case DWM_SETTHUMBNAILFILE:
 			OnSetThumbnailFile(wParam,lParam);
-			RedrawWindow(DisplayWindow,NULL,NULL,RDW_INVALIDATE);
+			RedrawWindow(DisplayWindow, nullptr, nullptr,RDW_INVALIDATE);
 			break;
 
 		case DWM_GETCENTRECOLOR:
 			return m_CentreColor.ToCOLORREF();
-			break;
 
 		case DWM_GETSURROUNDCOLOR:
 			return m_SurroundColor.ToCOLORREF();
-			break;
 
 		case DWM_SETCENTRECOLOR:
 			{
@@ -258,7 +254,7 @@ WPARAM wParam,LPARAM lParam)
 				GetClientRect(DisplayWindow,&rc);
 				DrawGradientFill(hdc,&rc);
 				ReleaseDC(DisplayWindow,hdc);
-				RedrawWindow(DisplayWindow,NULL,NULL,RDW_INVALIDATE);
+				RedrawWindow(DisplayWindow, nullptr, nullptr,RDW_INVALIDATE);
 			}
 			break;
 
@@ -271,7 +267,7 @@ WPARAM wParam,LPARAM lParam)
 				GetClientRect(DisplayWindow,&rc);
 				DrawGradientFill(hdc,&rc);
 				ReleaseDC(DisplayWindow,hdc);
-				RedrawWindow(DisplayWindow,NULL,NULL,RDW_INVALIDATE);
+				RedrawWindow(DisplayWindow, nullptr, nullptr,RDW_INVALIDATE);
 			}
 			break;
 
@@ -287,7 +283,6 @@ WPARAM wParam,LPARAM lParam)
 
 		case DWM_GETTEXTCOLOR:
 			return m_TextColor;
-			break;
 
 		case DWM_SETTEXTCOLOR:
 			OnSetTextColor((COLORREF)wParam);
@@ -307,7 +302,6 @@ WPARAM wParam,LPARAM lParam)
 			PatchBackground(hdc,&rc,&UpdateRect);
 			ReleaseDC(DisplayWindow,hdc);
 			return 1;
-			break;
 
 		case WM_SIZE:
 			OnSize(LOWORD(lParam), HIWORD(lParam));

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // See LICENSE in the top level directory
 
-#include "pch.h"
-#include "../Explorer++/ShellBrowser/CachedIcons.h"
+#include "../Helper/CachedIcons.h"
+#include <gtest/gtest.h>
 
-TEST(TestCachedIcons, TestMaxSize)
+TEST(CachedIconsTest, TestMaxSize)
 {
 	CachedIcons cachedIcons(2);
 
@@ -35,7 +35,7 @@ TEST(TestCachedIcons, TestMaxSize)
 	EXPECT_TRUE(itr != cachedIcons.end());
 }
 
-TEST(TestCachedIcons, TestLookup)
+TEST(CachedIconsTest, TestLookup)
 {
 	CachedIcons cachedIcons(2);
 
@@ -51,7 +51,7 @@ TEST(TestCachedIcons, TestLookup)
 	EXPECT_TRUE(itr == cachedIcons.end());
 }
 
-TEST(TestCachedIcons, TestReplace)
+TEST(CachedIconsTest, TestReplace)
 {
 	CachedIcons cachedIcons(2);
 

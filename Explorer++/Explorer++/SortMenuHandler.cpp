@@ -6,15 +6,10 @@
 #include "Explorer++.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "ShellBrowser/SortModes.h"
 #include "SortModeHelper.h"
-#include "../Helper/Controls.h"
-#include "../Helper/FileOperations.h"
-#include "../Helper/Helper.h"
-#include "../Helper/Macros.h"
 #include "../Helper/MenuHelper.h"
-#include "../Helper/ShellHelper.h"
-#include <list>
 
 const int SORT_MENU_RESOURCE_BLOCK_SIZE = 1000;
 

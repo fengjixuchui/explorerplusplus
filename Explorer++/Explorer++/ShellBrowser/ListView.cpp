@@ -5,11 +5,14 @@
 #include "stdafx.h"
 #include "ShellBrowser.h"
 #include "Config.h"
+#include "ItemData.h"
 #include "MainResource.h"
+#include "NavigationController.h"
 #include "ResourceHelper.h"
 #include "SetFileAttributesDialog.h"
 #include "../Helper/CachedIcons.h"
 #include "../Helper/Helper.h"
+#include "../Helper/IconFetcher.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/ShellHelper.h"
 #include <boost/format.hpp>
@@ -110,7 +113,6 @@ LRESULT CALLBACK ShellBrowser::ListViewParentProc(HWND hwnd, UINT uMsg, WPARAM w
 
 			case LVN_GETINFOTIP:
 				return OnListViewGetInfoTip(reinterpret_cast<NMLVGETINFOTIP *>(lParam));
-				break;
 
 			case LVN_ITEMCHANGED:
 				OnListViewItemChanged(reinterpret_cast<NMLISTVIEW *>(lParam));
@@ -191,13 +193,11 @@ void ShellBrowser::OnListViewMButtonUp(const POINT *pt)
 
 void ShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 {
-	NMLVDISPINFO	*pnmv = NULL;
-	LVITEM			*plvItem = NULL;
-	NMHDR			*nmhdr = NULL;
+	NMLVDISPINFO	*pnmv = nullptr;
+	LVITEM			*plvItem = nullptr;
 
 	pnmv = (NMLVDISPINFO *)lParam;
 	plvItem = &pnmv->item;
-	nmhdr = &pnmv->hdr;
 
 	int internalIndex = static_cast<int>(plvItem->lParam);
 
@@ -261,9 +261,7 @@ void ShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 			}
 		}
 
-		m_iconFetcher->QueueIconTask(itemInfo.pidlComplete.get(), [this, internalIndex] (PCIDLIST_ABSOLUTE pidl, int iconIndex) {
-			UNREFERENCED_PARAMETER(pidl);
-
+		m_iconFetcher->QueueIconTask(itemInfo.pidlComplete.get(), [this, internalIndex] (int iconIndex) {
 			ProcessIconResult(internalIndex, iconIndex);
 		});
 	}
@@ -271,7 +269,7 @@ void ShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 	plvItem->mask |= LVIF_DI_SETITEM;
 }
 
-boost::optional<int> ShellBrowser::GetCachedIconIndex(const ItemInfo_t &itemInfo)
+std::optional<int> ShellBrowser::GetCachedIconIndex(const ItemInfo_t &itemInfo)
 {
 	TCHAR filePath[MAX_PATH];
 	HRESULT hr = GetDisplayName(itemInfo.pidlComplete.get(),
@@ -279,14 +277,14 @@ boost::optional<int> ShellBrowser::GetCachedIconIndex(const ItemInfo_t &itemInfo
 
 	if (FAILED(hr))
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	auto cachedItr = m_cachedIcons->findByPath(filePath);
 
 	if (cachedItr == m_cachedIcons->end())
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	return cachedItr->iconIndex;
@@ -354,7 +352,7 @@ void ShellBrowser::QueueInfoTipTask(int internalIndex, const std::wstring &exist
 	m_infoTipResults.insert({ infoTipResultId, std::move(result) });
 }
 
-boost::optional<ShellBrowser::InfoTipResult> ShellBrowser::GetInfoTipAsync(HWND listView, int infoTipResultId,
+std::optional<ShellBrowser::InfoTipResult> ShellBrowser::GetInfoTipAsync(HWND listView, int infoTipResultId,
 	int internalIndex, const BasicItemInfo_t &basicItemInfo, const Config &config, HINSTANCE instance, bool virtualFolder)
 {
 	std::wstring infoTip;
@@ -368,7 +366,7 @@ boost::optional<ShellBrowser::InfoTipResult> ShellBrowser::GetInfoTipAsync(HWND 
 
 		if (FAILED(hr))
 		{
-			return boost::none;
+			return std::nullopt;
 		}
 
 		infoTip = infoTipText;
@@ -384,7 +382,7 @@ boost::optional<ShellBrowser::InfoTipResult> ShellBrowser::GetInfoTipAsync(HWND 
 
 		if (!fileTimeResult)
 		{
-			return boost::none;
+			return std::nullopt;
 		}
 
 		infoTip = str(boost::wformat(_T("%s: %s")) % dateModified % fileModificationText);
@@ -708,7 +706,7 @@ void ShellBrowser::OnListViewHeaderRightClick(const POINTS &cursorPos)
 	}
 
 	int cmd = TrackPopupMenu(headerMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERTICAL | TPM_RETURNCMD,
-		cursorPos.x, cursorPos.y, 0, m_hListView, NULL);
+		cursorPos.x, cursorPos.y, 0, m_hListView, nullptr);
 
 	if (cmd == 0)
 	{

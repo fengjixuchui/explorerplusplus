@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "CoreInterface.h"
+__interface IExplorerplusplus;
 
 class ServiceProvider : public IServiceProvider
 {
@@ -15,12 +15,12 @@ public:
 private:
 
 	/* IUnknown methods. */
-	HRESULT __stdcall	QueryInterface(REFIID iid,void **ppvObject);
-	ULONG __stdcall		AddRef(void);
-	ULONG __stdcall		Release(void);
+	HRESULT __stdcall	QueryInterface(REFIID iid,void **ppvObject) override;
+	ULONG __stdcall		AddRef(void) override;
+	ULONG __stdcall		Release(void) override;
 
 	/* IServiceProvider methods. */
-	HRESULT	__stdcall	QueryService(REFGUID guidService,REFIID riid,void **ppv);
+	HRESULT	__stdcall	QueryService(REFGUID guidService,REFIID riid,void **ppv) override;
 
 	ULONG				m_RefCount;
 	IExplorerplusplus	*m_pexpp;

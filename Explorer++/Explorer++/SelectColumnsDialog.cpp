@@ -4,12 +4,14 @@
 
 #include "stdafx.h"
 #include "SelectColumnsDialog.h"
-#include "Explorer++_internal.h"
+#include "CoreInterface.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
+#include "ShellBrowser/Columns.h"
+#include "ShellBrowser/NavigationController.h"
 #include "ShellBrowser/ShellBrowser.h"
-#include "../Helper/Helper.h"
+#include "TabContainer.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include <algorithm>
@@ -24,13 +26,13 @@ SelectColumnsDialog::SelectColumnsDialog(HINSTANCE hInstance, HWND hParent,
 	m_tabContainer(tabContainer),
 	m_bColumnsSwapped(FALSE)
 {
-	m_pscdps = &SelectColumnsDialogPersistentSettings::GetInstance();
+	m_persistentSettings = &SelectColumnsDialogPersistentSettings::GetInstance();
 }
 
 INT_PTR SelectColumnsDialog::OnInitDialog()
 {
 	HWND hListView = GetDlgItem(m_hDlg,IDC_COLUMNS_LISTVIEW);
-	SetWindowTheme(hListView,L"Explorer",NULL);
+	SetWindowTheme(hListView,L"Explorer", nullptr);
 
 	ListView_SetExtendedListViewStyleEx(hListView,
 		LVS_EX_CHECKBOXES,LVS_EX_CHECKBOXES);
@@ -70,7 +72,7 @@ INT_PTR SelectColumnsDialog::OnInitDialog()
 	NListView::ListView_SelectItem(hListView,0,TRUE);
 	SetFocus(hListView);
 
-	m_pscdps->RestoreDialogPosition(m_hDlg,true);
+	m_persistentSettings->RestoreDialogPosition(m_hDlg,true);
 
 	return 0;
 }
@@ -217,7 +219,6 @@ INT_PTR SelectColumnsDialog::OnNotify(NMHDR *pnmhdr)
 		SetWindowLongPtr(m_hDlg, DWLP_MSGRESULT, res);
 		return TRUE;
 	}
-		break;
 
 	case LVN_ITEMCHANGED:
 		OnLvnItemChanged(reinterpret_cast<NMLISTVIEW *>(pnmhdr));
@@ -235,8 +236,8 @@ INT_PTR SelectColumnsDialog::OnClose()
 
 void SelectColumnsDialog::SaveState()
 {
-	m_pscdps->SaveDialogPosition(m_hDlg);
-	m_pscdps->m_bStateSaved = TRUE;
+	m_persistentSettings->SaveDialogPosition(m_hDlg);
+	m_persistentSettings->m_bStateSaved = TRUE;
 }
 
 void SelectColumnsDialog::OnOk()

@@ -1,26 +1,59 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="TestAcceleratorParser.cpp" />
-    <ClCompile Include="pch.cpp" />
-    <ClCompile Include="TestManifest.cpp" />
-    <ClCompile Include="TestCachedIcons.cpp">
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\lib\native\src\gtest\gtest-all.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\lib\native\src\gmock\gmock-all.cc" />
+    <ClCompile Include="BookmarkClipboardTest.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkItemTest.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkTreeTest.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="CachedIconsTest.cpp">
+      <Filter>Helper</Filter>
+    </ClCompile>
+    <ClCompile Include="NavigationControllerTest.cpp">
       <Filter>ShellBrowser</Filter>
     </ClCompile>
-    <ClCompile Include="TestViewModeHelper.cpp" />
-    <ClCompile Include="TestPathManager.cpp">
-      <Filter>ShellBrowser</Filter>
+    <ClCompile Include="AcceleratorParserTest.cpp" />
+    <ClCompile Include="ManifestTest.cpp" />
+    <ClCompile Include="ViewModeHelperTest.cpp" />
+    <ClCompile Include="BookmarkDropInfoTest.cpp">
+      <Filter>Bookmarks</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="pch.h" />
+    <ClCompile Include="DataObjectTest.cpp">
+      <Filter>Helper</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="ShellBrowser">
-      <UniqueIdentifier>{5008b879-90f9-4547-b71c-247c2a2f174a}</UniqueIdentifier>
+    <Filter Include="Bookmarks">
+      <UniqueIdentifier>{7dd3ae31-2bd9-4bf2-99c5-8bf64e5f1f5c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Helper">
+      <UniqueIdentifier>{486e737f-f618-476b-a8e5-4baef24e3c9c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShellBrowser">
+      <UniqueIdentifier>{7ac66260-1cf9-4a66-b10f-9746b340444d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{d79645af-c720-443f-aeb6-c40b1167b6bb}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TestExplorer++.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="BookmarkTreeHelper.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

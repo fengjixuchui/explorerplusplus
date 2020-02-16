@@ -8,15 +8,19 @@
 #include "HolderWindow.h"
 #include "MainResource.h"
 #include "MainToolbar.h"
-#include "Navigation.h"
+#include "ResourceHelper.h"
 #include "SetFileAttributesDialog.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "ShellTreeView/ShellTreeView.h"
+#include "TabContainer.h"
 #include "../Helper/BulkClipboardWriter.h"
 #include "../Helper/Controls.h"
 #include "../Helper/FileContextMenuManager.h"
+#include "../Helper/FileOperations.h"
 #include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
-#include "../MyTreeView/MyTreeView.h"
 
 #define TREEVIEW_FOLDER_OPEN_DELAY	500
 #define FOLDERS_TOOLBAR_CLOSE		6000
@@ -43,18 +47,18 @@ void Explorerplusplus::CreateFolderControls(void)
 	m_hTreeView = CreateTreeView(m_hHolder,WS_CHILD|WS_VISIBLE|TVS_SHOWSELALWAYS|
 		TVS_HASBUTTONS|TVS_EDITLABELS|TVS_HASLINES|TVS_TRACKSELECT);
 
-	SetWindowTheme(m_hTreeView,L"Explorer",NULL);
+	SetWindowTheme(m_hTreeView,L"Explorer", nullptr);
 
 	SetWindowLongPtr(m_hTreeView,GWL_EXSTYLE,WS_EX_CLIENTEDGE);
-	m_pMyTreeView = new MyTreeView(m_hTreeView, m_hHolder, m_pDirMon, &m_cachedIcons);
+	m_shellTreeView = new ShellTreeView(m_hTreeView, m_hHolder, m_pDirMon, &m_cachedIcons);
 
 	/* Now, subclass the treeview again. This is needed for messages
 	such as WM_MOUSEWHEEL, which need to be intercepted before they
-	reach the window procedure provided by CMyTreeView. */
+	reach the window procedure provided by ShellTreeView. */
 	SetWindowSubclass(m_hTreeView,TreeViewSubclassStub,1,(DWORD_PTR)this);
 
-	LoadString(m_hLanguageModule,IDS_HIDEFOLDERSPANE,szTemp,SIZEOF_ARRAY(szTemp));
-	m_hFoldersToolbar = CreateTabToolbar(m_hHolder,FOLDERS_TOOLBAR_CLOSE,szTemp);
+	m_hFoldersToolbar = CreateTabToolbar(m_hHolder, FOLDERS_TOOLBAR_CLOSE,
+		ResourceHelper::LoadString(m_hLanguageModule, IDS_HIDEFOLDERSPANE));
 
 	m_InitializationFinished.addObserver([this] (bool newValue) {
 		if (newValue)
@@ -122,13 +126,13 @@ WPARAM wParam,LPARAM lParam)
 
 			TreeView_HitTest(m_hTreeView,&tvhi);
 
-			if(tvhi.flags != LVHT_NOWHERE && tvhi.hItem != NULL)
+			if(tvhi.flags != LVHT_NOWHERE && tvhi.hItem != nullptr)
 			{
 				m_hTVMButtonItem = tvhi.hItem;
 			}
 			else
 			{
-				m_hTVMButtonItem = NULL;
+				m_hTVMButtonItem = nullptr;
 			}
 		}
 		break;
@@ -141,14 +145,14 @@ WPARAM wParam,LPARAM lParam)
 
 			TreeView_HitTest(m_hTreeView,&tvhi);
 
-			if(tvhi.flags != LVHT_NOWHERE && tvhi.hItem != NULL)
+			if(tvhi.flags != LVHT_NOWHERE && tvhi.hItem != nullptr)
 			{
 				/* Only open an item if it was the one
 				on which the middle mouse button was
 				initially clicked on. */
 				if(tvhi.hItem == m_hTVMButtonItem)
 				{
-					auto pidl = m_pMyTreeView->GetItemPidl(tvhi.hItem);
+					auto pidl = m_shellTreeView->GetItemPidl(tvhi.hItem);
 					m_tabContainer->CreateNewTab(pidl.get());
 				}
 			}
@@ -187,26 +191,26 @@ void Explorerplusplus::OnTreeViewFileDelete(BOOL bPermanent)
 	// Select the parent item to release the lock and allow deletion
 	TreeView_Select(m_hTreeView,hParentItem,TVGN_CARET);
 
-	if(hItem != NULL)
+	if(hItem != nullptr)
 	{
-		auto pidl = m_pMyTreeView->GetItemPidl(hItem);
+		auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
 		if(bPermanent)
 		{
 			fMask = CMIC_MASK_SHIFT_DOWN;
 		}
 
-		hr = ExecuteActionFromContextMenu(pidl.get(),NULL,m_hContainer,0,_T("delete"),fMask);
+		hr = ExecuteActionFromContextMenu(pidl.get(), nullptr,m_hContainer,0,_T("delete"),fMask);
 	}
 }
 
 void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 {
-	POINT *ppt = NULL;
+	POINT *ppt = nullptr;
 	HTREEITEM hItem;
 	HTREEITEM hPrevItem;
-	IShellFolder *pShellParentFolder = NULL;
-	PCITEMID_CHILD pidlRelative = NULL;
+	IShellFolder *pShellParentFolder = nullptr;
+	PCITEMID_CHILD pidlRelative = nullptr;
 	HRESULT hr;
 
 	hItem	= (HTREEITEM)wParam;
@@ -216,7 +220,7 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 
 	hPrevItem = TreeView_GetSelection(m_hTreeView);
 	TreeView_SelectItem(m_hTreeView,hItem);
-	auto pidl = m_pMyTreeView->GetItemPidl(hItem);
+	auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
 	hr = SHBindToParent(pidl.get(), IID_PPV_ARGS(&pShellParentFolder), &pidlRelative);
 
@@ -229,14 +233,14 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 		/* If we right-click on the "Desktop" item in the treeview, there is no parent.
 		   In such case, use "Desktop" as parent item as well, to allow the context menu
 		   to be shown. */
-		if(hParent == NULL)
+		if(hParent == nullptr)
 		{
 			hParent = hItem;
 		}
 
-		if(hParent != NULL)
+		if(hParent != nullptr)
 		{
-			auto pidlParent = m_pMyTreeView->GetItemPidl(hParent);
+			auto pidlParent = m_shellTreeView->GetItemPidl(hParent);
 
 			if(pidlParent)
 			{
@@ -279,17 +283,17 @@ void Explorerplusplus::OnTreeViewShowFileProperties(void) const
 	HTREEITEM hItem = TreeView_GetSelection(m_hTreeView);
 
 	/* Get the path of the currently selected item. */
-	auto pidlDirectory = m_pMyTreeView->GetItemPidl(hItem);
-	ShowMultipleFileProperties(pidlDirectory.get(), NULL, m_hContainer, 0);
+	auto pidlDirectory = m_shellTreeView->GetItemPidl(hItem);
+	ShowMultipleFileProperties(pidlDirectory.get(), nullptr, m_hContainer, 0);
 }
 
 void Explorerplusplus::OnTreeViewCopyItemPath(void) const
 {
 	HTREEITEM hItem = TreeView_GetSelection(m_hTreeView);
 
-	if(hItem != NULL)
+	if(hItem != nullptr)
 	{
-		auto pidl = m_pMyTreeView->GetItemPidl(hItem);
+		auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
 		TCHAR szFullFileName[MAX_PATH];
 		GetDisplayName(pidl.get(),szFullFileName,SIZEOF_ARRAY(szFullFileName),SHGDN_FORPARSING);
@@ -309,9 +313,9 @@ void Explorerplusplus::OnTreeViewCopyUniversalPaths(void) const
 
 	hItem = TreeView_GetSelection(m_hTreeView);
 
-	if(hItem != NULL)
+	if(hItem != nullptr)
 	{
-		auto pidl = m_pMyTreeView->GetItemPidl(hItem);
+		auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
 		GetDisplayName(pidl.get(),szFullFileName,SIZEOF_ARRAY(szFullFileName),SHGDN_FORPARSING);
 
@@ -334,16 +338,16 @@ void Explorerplusplus::OnTreeViewCopyUniversalPaths(void) const
 
 void Explorerplusplus::OnTreeViewCopy(BOOL bCopy)
 {
-	IDataObject		*pClipboardDataObject = NULL;
+	IDataObject		*pClipboardDataObject = nullptr;
 	HTREEITEM		hItem;
 	TVITEM			tvItem;
 	HRESULT			hr;
 
 	hItem = TreeView_GetSelection(m_hTreeView);
 
-	if(hItem != NULL)
+	if(hItem != nullptr)
 	{
-		auto pidl = m_pMyTreeView->GetItemPidl(hItem);
+		auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
 		std::list<std::wstring> FileNameList;
 		TCHAR szFullFileName[MAX_PATH];
@@ -383,7 +387,7 @@ void Explorerplusplus::OnTreeViewCopy(BOOL bCopy)
 
 void Explorerplusplus::OnTreeViewHolderWindowTimer(void)
 {
-	auto pidlDirectory = m_pMyTreeView->GetItemPidl(g_NewSelectionItem);
+	auto pidlDirectory = m_shellTreeView->GetItemPidl(g_NewSelectionItem);
 	auto pidlCurrentDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
 
 	if(!m_bSelectingTreeViewDirectory && !m_bTreeViewRightClick &&
@@ -403,14 +407,14 @@ void Explorerplusplus::OnTreeViewHolderWindowTimer(void)
 
 void Explorerplusplus::OnTreeViewSelChanged(LPARAM lParam)
 {
-	NMTREEVIEW	*pnmtv = NULL;
-	TVITEM		*tvItem = NULL;
+	NMTREEVIEW	*pnmtv = nullptr;
+	TVITEM		*tvItem = nullptr;
 
 	/* Check whether the selection was changed because a new directory
 	was browsed to, or if the treeview control is involved in a
 	drag and drop operation. */
 	if(!m_bSelectingTreeViewDirectory && !m_bTreeViewRightClick &&
-		!m_pMyTreeView->QueryDragging())
+		!m_shellTreeView->QueryDragging())
 	{
 			pnmtv = (LPNMTREEVIEW)lParam;
 
@@ -423,13 +427,13 @@ void Explorerplusplus::OnTreeViewSelChanged(LPARAM lParam)
 				/* Schedule a folder change. This adds enough
 				of a delay for the treeview selection to be changed
 				without the current folder been changed immediately. */
-				SetTimer(m_hHolder,0,TREEVIEW_FOLDER_OPEN_DELAY,NULL);
+				SetTimer(m_hHolder,0,TREEVIEW_FOLDER_OPEN_DELAY, nullptr);
 			}
 			else
 			{
 				/* The treeview delay is disabled. For simplicity, just
 				set a timer of length 0. */
-				SetTimer(m_hHolder,0,0,NULL);
+				SetTimer(m_hHolder,0,0, nullptr);
 			}
 	}
 	else
@@ -442,7 +446,7 @@ int Explorerplusplus::OnTreeViewBeginLabelEdit(LPARAM lParam)
 {
 	NMTVDISPINFO *pdi = reinterpret_cast<NMTVDISPINFO *>(lParam);
 
-	auto pidl = m_pMyTreeView->GetItemPidl(pdi->item.hItem);
+	auto pidl = m_shellTreeView->GetItemPidl(pdi->item.hItem);
 
 	/* Save the old filename, in the case that the file
 	needs to be renamed. */
@@ -453,14 +457,14 @@ int Explorerplusplus::OnTreeViewBeginLabelEdit(LPARAM lParam)
 
 int Explorerplusplus::OnTreeViewEndLabelEdit(LPARAM lParam)
 {
-	NMTVDISPINFO	*pdi = NULL;
+	NMTVDISPINFO	*pdi = nullptr;
 	TCHAR			NewFileName[MAX_PATH];
 
 	pdi = (NMTVDISPINFO *)lParam;
 
 	/* No text was entered, so simply notify
 	the control to revert to the previous text. */
-	if(pdi->item.pszText == NULL)
+	if(pdi->item.pszText == nullptr)
 		return FALSE;
 
 	/* Build the new filename from the text entered
@@ -490,7 +494,7 @@ int Explorerplusplus::OnTreeViewEndLabelEdit(LPARAM lParam)
 
 LRESULT Explorerplusplus::OnTreeViewKeyDown(LPARAM lParam)
 {
-	NMTVKEYDOWN	*nmtvkd = NULL;
+	NMTVKEYDOWN	*nmtvkd = nullptr;
 
 	nmtvkd = (NMTVKEYDOWN *)lParam;
 
@@ -563,11 +567,9 @@ UINT msg,WPARAM wParam,LPARAM lParam)
 	{
 	case WM_NOTIFY:
 		return TreeViewHolderWindowNotifyHandler(hwnd, msg, wParam, lParam);
-		break;
 
 	case WM_COMMAND:
 		return TreeViewHolderWindowCommandHandler(wParam);
-		break;
 
 	case WM_TIMER:
 		OnTreeViewHolderWindowTimer();
@@ -600,11 +602,10 @@ LRESULT CALLBACK Explorerplusplus::TreeViewHolderWindowNotifyHandler(HWND hwnd,
 
 	case TVN_KEYDOWN:
 		return OnTreeViewKeyDown(lParam);
-		break;
 
 	case NM_RCLICK:
 		{
-			NMHDR *nmhdr = NULL;
+			NMHDR *nmhdr = nullptr;
 			POINT ptCursor;
 			DWORD dwPos;
 			TVHITTESTINFO	tvht;
@@ -651,7 +652,7 @@ void Explorerplusplus::OnTreeViewSetFileAttributes(void) const
 {
 	HTREEITEM hItem = TreeView_GetSelection(m_hTreeView);
 
-	if(hItem == NULL)
+	if(hItem == nullptr)
 	{
 		return;
 	}
@@ -659,7 +660,7 @@ void Explorerplusplus::OnTreeViewSetFileAttributes(void) const
 	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> sfaiList;
 	NSetFileAttributesDialogExternal::SetFileAttributesInfo_t sfai;
 
-	auto pidlItem = m_pMyTreeView->GetItemPidl(hItem);
+	auto pidlItem = m_shellTreeView->GetItemPidl(hItem);
 	HRESULT hr = GetDisplayName(pidlItem.get(),sfai.szFullFileName,SIZEOF_ARRAY(sfai.szFullFileName),SHGDN_FORPARSING);
 
 	if(hr == S_OK)
@@ -685,9 +686,9 @@ void Explorerplusplus::OnTreeViewPaste(void)
 
 	hItem = TreeView_GetSelection(m_hTreeView);
 
-	if(hItem != NULL)
+	if(hItem != nullptr)
 	{
-		IDataObject *pClipboardObject = NULL;
+		IDataObject *pClipboardObject = nullptr;
 
 		HRESULT hr = OleGetClipboard(&pClipboardObject);
 
@@ -695,7 +696,7 @@ void Explorerplusplus::OnTreeViewPaste(void)
 		{
 			DropHandler *pDropHandler = DropHandler::CreateNew();
 
-			auto pidl = m_pMyTreeView->GetItemPidl(hItem);
+			auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
 			GetDisplayName(pidl.get(),szFullFileName,SIZEOF_ARRAY(szFullFileName),SHGDN_FORPARSING);
 
@@ -703,7 +704,7 @@ void Explorerplusplus::OnTreeViewPaste(void)
 			szFullFileName[lstrlen(szFullFileName) + 1] = '\0';
 
 			pDropHandler->CopyClipboardData(pClipboardObject,
-				m_hTreeView,szFullFileName,NULL,
+				m_hTreeView,szFullFileName, nullptr,
 				!m_config->overwriteExistingFilesConfirmation);
 
 			pDropHandler->Release();
@@ -746,9 +747,9 @@ void Explorerplusplus::UpdateTreeViewSelection()
 	treeview with network or UNC paths. */
 	if(!bNetworkPath)
 	{
-		hItem = m_pMyTreeView->LocateItem(pidlDirectory.get());
+		hItem = m_shellTreeView->LocateItem(pidlDirectory.get());
 
-		if(hItem != NULL)
+		if(hItem != nullptr)
 		{
 			/* TVN_SELCHANGED is NOT sent when the new selected
 			item is the same as the old selected item. It is only

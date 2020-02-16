@@ -23,9 +23,9 @@ public:
 	};
 
 	NavigationController(NavigatorInterface *navigator, TabNavigationInterface *tabNavigation,
-		IconFetcher *iconFetcher);
+		IconFetcherInterface *iconFetcher);
 	NavigationController(NavigatorInterface *navigator, TabNavigationInterface *tabNavigation,
-		IconFetcher *iconFetcher, const std::vector<std::unique_ptr<PreservedHistoryEntry>> &preservedEntries,
+		IconFetcherInterface *iconFetcher, const std::vector<std::unique_ptr<PreservedHistoryEntry>> &preservedEntries,
 		int currentEntry);
 
 	int GetNumHistoryEntries() const;
@@ -58,7 +58,7 @@ private:
 
 	void Initialize();
 
-	static std::vector<std::unique_ptr<HistoryEntry>> NavigationController::CopyPreservedHistoryEntries(
+	static std::vector<std::unique_ptr<HistoryEntry>> CopyPreservedHistoryEntries(
 		const std::vector<std::unique_ptr<PreservedHistoryEntry>> &preservedEntries);
 
 	void OnNavigationCompleted(PCIDLIST_ABSOLUTE pidlDirectory, bool addHistoryEntry);
@@ -74,7 +74,7 @@ private:
 	TabNavigationInterface *m_tabNavigation;
 	NavigationMode m_navigationMode = NavigationMode::Normal;
 
-	IconFetcher *m_iconFetcher;
+	IconFetcherInterface *m_iconFetcher;
 
 	std::vector<boost::signals2::scoped_connection> m_connections;
 };

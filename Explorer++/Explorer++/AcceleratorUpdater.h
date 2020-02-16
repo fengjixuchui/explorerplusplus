@@ -5,7 +5,6 @@
 #pragma once
 
 #include "Accelerator.h"
-#include <boost/optional.hpp>
 
 class AcceleratorUpdater
 {
@@ -13,7 +12,7 @@ public:
 
 	AcceleratorUpdater(HACCEL *acceleratorTable);
 
-	void update(std::vector<ShortcutKey> shortcutKeys);
+	void update(const std::vector<ShortcutKey> &shortcutKeys);
 
 private:
 

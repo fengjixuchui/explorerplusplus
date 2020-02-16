@@ -4,7 +4,7 @@
 
 #include "stdafx.h"
 #include "SplitFileDialog.h"
-#include "Explorer++_internal.h"
+#include "CoreInterface.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
@@ -40,7 +40,7 @@ const TCHAR SplitFileDialogPersistentSettings::SETTING_SIZE[] = _T("Size");
 const TCHAR SplitFileDialogPersistentSettings::SETTING_SIZE_GROUP[] = _T("SizeGroup");
 
 SplitFileDialog::SplitFileDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
-	std::wstring strFullFilename) :
+	const std::wstring &strFullFilename) :
 	BaseDialog(hInstance, IDD_SPLITFILE, hParent, false),
 	m_expp(expp),
 	m_strFullFilename(strFullFilename),
@@ -49,12 +49,12 @@ SplitFileDialog::SplitFileDialog(HINSTANCE hInstance, HWND hParent, IExplorerplu
 	m_CurrentError(ERROR_NONE),
 	m_pSplitFile(nullptr)
 {
-	m_psfdps = &SplitFileDialogPersistentSettings::GetInstance();
+	m_persistentSettings = &SplitFileDialogPersistentSettings::GetInstance();
 }
 
 SplitFileDialog::~SplitFileDialog()
 {
-	if(m_pSplitFile != NULL)
+	if(m_pSplitFile != nullptr)
 	{
 		m_pSplitFile->StopSplitting();
 		m_pSplitFile->Release();
@@ -81,7 +81,7 @@ INT_PTR SplitFileDialog::OnInitDialog()
 	SetDlgItemText(m_hDlg,IDC_SPLIT_EDIT_FILENAME,m_strFullFilename.c_str());
 
 	HANDLE hFile = CreateFile(m_strFullFilename.c_str(),GENERIC_READ,
-		FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);
+		FILE_SHARE_READ, nullptr,OPEN_EXISTING,0, nullptr);
 
 	if(hFile != INVALID_HANDLE_VALUE)
 	{
@@ -121,10 +121,10 @@ INT_PTR SplitFileDialog::OnInitDialog()
 	iPos = static_cast<int>(SendMessage(hComboBox,CB_INSERTSTRING,static_cast<WPARAM>(-1),reinterpret_cast<LPARAM>(szTemp)));
 	m_SizeMap.insert(std::unordered_map<int,SizeType_t>::value_type(iPos,SIZE_TYPE_GB));
 
-	SendMessage(hComboBox,CB_SELECTSTRING,static_cast<WPARAM>(-1),reinterpret_cast<LPARAM>(m_psfdps->m_strSplitGroup.c_str()));
+	SendMessage(hComboBox,CB_SELECTSTRING,static_cast<WPARAM>(-1),reinterpret_cast<LPARAM>(m_persistentSettings->m_strSplitGroup.c_str()));
 
 	HWND hEditSize = GetDlgItem(m_hDlg,IDC_SPLIT_EDIT_SIZE);
-	SetWindowText(hEditSize,m_psfdps->m_strSplitSize.c_str());
+	SetWindowText(hEditSize,m_persistentSettings->m_strSplitSize.c_str());
 	SendMessage(hEditSize,EM_SETSEL,0,-1);
 	SetFocus(hEditSize);
 
@@ -149,7 +149,7 @@ INT_PTR SplitFileDialog::OnInitDialog()
 
 	SetDlgItemText(m_hDlg,IDC_SPLIT_STATIC_ELAPSEDTIME,_T("00:00:00"));
 
-	m_psfdps->RestoreDialogPosition(m_hDlg,false);
+	m_persistentSettings->RestoreDialogPosition(m_hDlg,false);
 
 	return 0;
 }
@@ -269,12 +269,12 @@ INT_PTR SplitFileDialog::OnDestroy()
 
 void SplitFileDialog::SaveState()
 {
-	m_psfdps->SaveDialogPosition(m_hDlg);
+	m_persistentSettings->SaveDialogPosition(m_hDlg);
 
-	GetWindowString(GetDlgItem(m_hDlg,IDC_SPLIT_EDIT_SIZE),m_psfdps->m_strSplitSize);
-	GetWindowString(GetDlgItem(m_hDlg,IDC_SPLIT_COMBOBOX_SIZES),m_psfdps->m_strSplitGroup);
+	GetWindowString(GetDlgItem(m_hDlg,IDC_SPLIT_EDIT_SIZE),m_persistentSettings->m_strSplitSize);
+	GetWindowString(GetDlgItem(m_hDlg,IDC_SPLIT_COMBOBOX_SIZES),m_persistentSettings->m_strSplitGroup);
 
-	m_psfdps->m_bStateSaved = TRUE;
+	m_persistentSettings->m_bStateSaved = TRUE;
 }
 
 INT_PTR SplitFileDialog::OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
@@ -302,10 +302,10 @@ INT_PTR SplitFileDialog::OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 				szTemp,SIZEOF_ARRAY(szTemp));
 			SetDlgItemText(m_hDlg,IDC_SPLIT_STATIC_MESSAGE,szTemp);
 
-			assert(m_pSplitFile != NULL);
+			assert(m_pSplitFile != nullptr);
 
 			m_pSplitFile->Release();
-			m_pSplitFile = NULL;
+			m_pSplitFile = nullptr;
 
 			m_bSplittingFile = false;
 			m_bStopSplitting = false;
@@ -440,14 +440,14 @@ void SplitFileDialog::OnOk()
 		m_bSplittingFile = true;
 
 		m_uElapsedTime = 0;
-		SetTimer(m_hDlg,ELPASED_TIMER_ID,ELPASED_TIMER_TIMEOUT,NULL);
+		SetTimer(m_hDlg,ELPASED_TIMER_ID,ELPASED_TIMER_TIMEOUT, nullptr);
 
 		LoadString(GetInstance(),IDS_SPLITFILEDIALOG_SPLITTING,
 			szTemp,SIZEOF_ARRAY(szTemp));
 		SetDlgItemText(m_hDlg,IDC_SPLIT_STATIC_MESSAGE,szTemp);
 
-		HANDLE hThread = CreateThread(NULL,0,NSplitFileDialog::SplitFileThreadProcStub,
-			reinterpret_cast<LPVOID>(m_pSplitFile),0,NULL);
+		HANDLE hThread = CreateThread(nullptr,0,NSplitFileDialog::SplitFileThreadProcStub,
+			reinterpret_cast<LPVOID>(m_pSplitFile),0, nullptr);
 		SetThreadPriority(hThread,THREAD_PRIORITY_LOWEST);
 		CloseHandle(hThread);
 	}
@@ -455,7 +455,7 @@ void SplitFileDialog::OnOk()
 	{
 		m_bStopSplitting = true;
 
-		if(m_pSplitFile != NULL)
+		if(m_pSplitFile != nullptr)
 		{
 			m_pSplitFile->StopSplitting();
 		}
@@ -520,10 +520,10 @@ void SplitFileDialog::OnSplitFinished()
 
 	SetDlgItemText(m_hDlg,IDC_SPLIT_STATIC_MESSAGE,szTemp);
 
-	assert(m_pSplitFile != NULL);
+	assert(m_pSplitFile != nullptr);
 
 	m_pSplitFile->Release();
-	m_pSplitFile = NULL;
+	m_pSplitFile = nullptr;
 
 	m_bSplittingFile = false;
 	m_bStopSplitting = false;
@@ -538,7 +538,7 @@ void SplitFileDialog::OnSplitFinished()
 
 DWORD WINAPI NSplitFileDialog::SplitFileThreadProcStub(LPVOID pParam)
 {
-	assert(pParam != NULL);
+	assert(pParam != nullptr);
 
 	SplitFile *pSplitFile = reinterpret_cast<SplitFile *>(pParam);
 	pSplitFile->Split();
@@ -546,8 +546,8 @@ DWORD WINAPI NSplitFileDialog::SplitFileThreadProcStub(LPVOID pParam)
 	return 0;
 }
 
-SplitFile::SplitFile(HWND hDlg,std::wstring strFullFilename,
-	std::wstring strOutputFilename,std::wstring strOutputDirectory,
+SplitFile::SplitFile(HWND hDlg, const std::wstring &strFullFilename,
+	const std::wstring &strOutputFilename, const std::wstring &strOutputDirectory,
 	UINT uSplitSize)
 {
 	m_hDlg					= hDlg;
@@ -569,7 +569,7 @@ SplitFile::~SplitFile()
 void SplitFile::Split()
 {
 	HANDLE hInputFile = CreateFile(m_strFullFilename.c_str(),GENERIC_READ,
-		FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);
+		FILE_SHARE_READ, nullptr,OPEN_EXISTING,0, nullptr);
 
 	if(hInputFile == INVALID_HANDLE_VALUE)
 	{
@@ -607,19 +607,19 @@ void SplitFile::SplitInternal(HANDLE hInputFile,const LARGE_INTEGER &lFileSize)
 		!bStop)
 	{
 		DWORD dwNumberOfBytesRead;
-		ReadFile(hInputFile,reinterpret_cast<LPVOID>(pBuffer),m_uSplitSize,&dwNumberOfBytesRead,NULL);
+		ReadFile(hInputFile,reinterpret_cast<LPVOID>(pBuffer),m_uSplitSize,&dwNumberOfBytesRead, nullptr);
 
 		std::wstring strOutputFullFilename;
 		ProcessFilename(nSplitsMade,strOutputFullFilename);
 
-		HANDLE hOutputFile = CreateFile(strOutputFullFilename.c_str(),GENERIC_WRITE,0,NULL,CREATE_NEW,
-			FILE_ATTRIBUTE_NORMAL,NULL);
+		HANDLE hOutputFile = CreateFile(strOutputFullFilename.c_str(),GENERIC_WRITE,0, nullptr,CREATE_NEW,
+			FILE_ATTRIBUTE_NORMAL, nullptr);
 
 		if(hOutputFile != INVALID_HANDLE_VALUE)
 		{
 			DWORD dwNumberOfBytesWritten;
 			WriteFile(hOutputFile,reinterpret_cast<LPCVOID>(pBuffer),dwNumberOfBytesRead,
-				&dwNumberOfBytesWritten,NULL);
+				&dwNumberOfBytesWritten, nullptr);
 
 			CloseHandle(hOutputFile);
 		}

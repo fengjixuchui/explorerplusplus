@@ -4,14 +4,19 @@
 
 #include "stdafx.h"
 #include "AddressBar.h"
+#include "CoreInterface.h"
+#include "MainToolbar.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "Tab.h"
 #include "TabContainer.h"
 #include "../Helper/Controls.h"
+#include "../Helper/Helper.h"
 #include "../Helper/iDataObject.h"
 #include "../Helper/iDropSource.h"
 #include "../Helper/ShellHelper.h"
 #include <wil/common.h>
 #include <wil/resource.h>
-#include <functional>
 
 AddressBar *AddressBar::Create(HWND parent, IExplorerplusplus *expp, MainToolbar *mainToolbar)
 {
@@ -36,18 +41,18 @@ HWND AddressBar::CreateAddressBar(HWND parent)
 void AddressBar::Initialize(HWND parent)
 {
 	HIMAGELIST SmallIcons;
-	Shell_GetImageLists(NULL, &SmallIcons);
+	Shell_GetImageLists(nullptr, &SmallIcons);
 	SendMessage(m_hwnd, CBEM_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(SmallIcons));
 
 	HWND hEdit = reinterpret_cast<HWND>(SendMessage(m_hwnd, CBEM_GETEDITCONTROL, 0, 0));
-	m_windowSubclasses.push_back(WindowSubclassWrapper(hEdit, EditSubclassStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(hEdit, EditSubclassStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
 
 	/* Turn on auto complete for the edit control within the combobox.
 	This will let the os complete paths as they are typed. */
 	SHAutoComplete(hEdit, SHACF_FILESYSTEM | SHACF_AUTOSUGGEST_FORCE_ON);
 
-	m_windowSubclasses.push_back(WindowSubclassWrapper(parent, ParentWndProcStub,
-		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(parent, ParentWndProcStub, PARENT_SUBCLASS_ID,
+		reinterpret_cast<DWORD_PTR>(this));
 
 	m_expp->AddTabsInitializedObserver([this] {
 		m_connections.push_back(m_expp->GetTabContainer()->tabSelectedSignal.AddObserver(
@@ -77,7 +82,6 @@ LRESULT CALLBACK AddressBar::EditSubclass(HWND hwnd, UINT msg, WPARAM wParam, LP
 		case VK_RETURN:
 			OnGo();
 			return 0;
-			break;
 		}
 		break;
 
@@ -155,11 +159,11 @@ void AddressBar::OnGo()
 
 void AddressBar::OnBeginDrag()
 {
-	IDragSourceHelper *pDragSourceHelper = NULL;
-	IDropSource *pDropSource = NULL;
+	IDragSourceHelper *pDragSourceHelper = nullptr;
+	IDropSource *pDropSource = nullptr;
 	HRESULT hr;
 
-	hr = CoCreateInstance(CLSID_DragDropHelper, NULL, CLSCTX_ALL,
+	hr = CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_ALL,
 		IID_PPV_ARGS(&pDragSourceHelper));
 
 	if (SUCCEEDED(hr))
@@ -175,7 +179,7 @@ void AddressBar::OnBeginDrag()
 			STGMEDIUM stg[2];
 
 			SetFORMATETC(&ftc[0], (CLIPFORMAT)RegisterClipboardFormat(CFSTR_FILEDESCRIPTOR),
-				NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL);
+				nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL);
 
 			HGLOBAL hglb = GlobalAlloc(GMEM_MOVEABLE, 1000);
 
@@ -199,20 +203,20 @@ void AddressBar::OnBeginDrag()
 
 			GlobalUnlock(hglb);
 
-			stg[0].pUnkForRelease = 0;
+			stg[0].pUnkForRelease = nullptr;
 			stg[0].hGlobal = hglb;
 			stg[0].tymed = TYMED_HGLOBAL;
 
 			/* File contents. */
 			SetFORMATETC(&ftc[1], (CLIPFORMAT)RegisterClipboardFormat(CFSTR_FILECONTENTS),
-				NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL);
+				nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL);
 
 			hglb = GlobalAlloc(GMEM_MOVEABLE, 16384);
 
-			IShellLink *pShellLink = NULL;
-			IPersistStream *pPersistStream = NULL;
+			IShellLink *pShellLink = nullptr;
+			IPersistStream *pPersistStream = nullptr;
 
-			hr = CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
+			hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
 				IID_PPV_ARGS(&pShellLink));
 
 			if (SUCCEEDED(hr))
@@ -227,7 +231,7 @@ void AddressBar::OnBeginDrag()
 
 				if (SUCCEEDED(hr))
 				{
-					IStream *pStream = NULL;
+					IStream *pStream = nullptr;
 
 					hr = CreateStreamOnHGlobal(hglb, FALSE, &pStream);
 
@@ -240,7 +244,7 @@ void AddressBar::OnBeginDrag()
 
 			GlobalUnlock(hglb);
 
-			stg[1].pUnkForRelease = 0;
+			stg[1].pUnkForRelease = nullptr;
 			stg[1].hGlobal = hglb;
 			stg[1].tymed = TYMED_HGLOBAL;
 

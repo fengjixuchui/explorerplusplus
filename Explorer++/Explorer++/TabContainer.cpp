@@ -4,17 +4,20 @@
 
 #include "stdafx.h"
 #include "TabContainer.h"
+#include "BookmarkHelper.h"
 #include "Config.h"
-#include "Explorer++_internal.h"
+#include "CoreInterface.h"
 #include "Icon.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
-#include "Navigation.h"
 #include "PreservedTab.h"
 #include "RenameTabDialog.h"
 #include "ResourceHelper.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "TabBacking.h"
 #include "TabDropHandler.h"
+#include "TabRestorer.h"
 #include "../Helper/CachedIcons.h"
 #include "../Helper/Controls.h"
 #include "../Helper/IconFetcher.h"
@@ -37,21 +40,21 @@ const std::map<UINT, Icon> TAB_RIGHT_CLICK_MENU_IMAGE_MAPPINGS = {
 };
 
 TabContainer *TabContainer::Create(HWND parent, TabNavigationInterface *tabNavigation,
-	Navigation *navigation, IExplorerplusplus *expp, CachedIcons *cachedIcons,
+	IExplorerplusplus *expp, CachedIcons *cachedIcons, BookmarkTree *bookmarkTree,
 	HINSTANCE instance, std::shared_ptr<Config> config)
 {
-	return new TabContainer(parent, tabNavigation, navigation, expp,
-		cachedIcons, instance, config);
+	return new TabContainer(parent, tabNavigation, expp, cachedIcons, bookmarkTree,
+		instance, config);
 }
 
 TabContainer::TabContainer(HWND parent, TabNavigationInterface *tabNavigation,
-	Navigation *navigation, IExplorerplusplus *expp, CachedIcons *cachedIcons,
+	IExplorerplusplus *expp, CachedIcons *cachedIcons, BookmarkTree *bookmarkTree,
 	HINSTANCE instance, std::shared_ptr<Config> config) :
 	BaseWindow(CreateTabControl(parent, config->forceSameTabWidth.get())),
 	m_tabNavigation(tabNavigation),
-	m_navigation(navigation),
 	m_expp(expp),
 	m_cachedIcons(cachedIcons),
+	m_bookmarkTree(bookmarkTree),
 	m_instance(instance),
 	m_config(config),
 	m_bTabBeenDragged(FALSE),
@@ -100,8 +103,8 @@ void TabContainer::Initialize(HWND parent)
 	RegisterDragDrop(m_hwnd, pTabDropHandler);
 	pTabDropHandler->Release();
 
-	m_windowSubclasses.push_back(WindowSubclassWrapper(m_hwnd, WndProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
-	m_windowSubclasses.push_back(WindowSubclassWrapper(parent, ParentWndProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(m_hwnd, WndProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.emplace_back(parent, ParentWndProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
 
 	m_connections.push_back(tabCreatedSignal.AddObserver(boost::bind(&TabContainer::OnTabCreated, this, _1, _2)));
 	m_connections.push_back(tabNavigationCompletedSignal.AddObserver(boost::bind(&TabContainer::OnNavigationCompleted, this, _1)));
@@ -118,7 +121,8 @@ void TabContainer::AddDefaultTabIcons(HIMAGELIST himlTab)
 	wil::unique_hbitmap bitmap = m_expp->GetIconResourceLoader()->LoadBitmapFromPNGForDpi(Icon::Lock, ICON_SIZE_96DPI, ICON_SIZE_96DPI, dpi);
 	m_tabIconLockIndex = ImageList_Add(himlTab, bitmap.get(), nullptr);
 
-	m_defaultFolderIconIndex = AddSystemImageListIconToTabImageList(m_defaultFolderIconSystemImageListIndex);
+	m_defaultFolderIconIndex = ImageHelper::CopyImageListIcon(m_tabCtrlImageList.get(),
+		reinterpret_cast<HIMAGELIST>(m_systemImageList.get()), m_defaultFolderIconSystemImageListIndex);
 }
 
 bool TabContainer::IsDefaultIcon(int iconIndex)
@@ -453,7 +457,7 @@ void TabContainer::OnOpenParentInNewTab(const Tab &tab)
 {
 	auto pidlCurrent = tab.GetShellBrowser()->GetDirectoryIdl();
 
-	PIDLIST_ABSOLUTE pidlParent = NULL;
+	PIDLIST_ABSOLUTE pidlParent = nullptr;
 	HRESULT hr = GetVirtualParentPath(pidlCurrent.get(), &pidlParent);
 
 	if (SUCCEEDED(hr))
@@ -546,15 +550,16 @@ LRESULT CALLBACK TabContainer::ParentWndProc(HWND hwnd, UINT uMsg, WPARAM wParam
 	switch (uMsg)
 	{
 	case WM_LBUTTONDBLCLK:
-	{
-		HRESULT hr = CreateNewTab(m_config->defaultTabDirectory.c_str(), TabSettings(_selected = true));
+		CreateNewTabInDefaultDirectory(TabSettings(_selected = true));
+		break;
 
-		if (FAILED(hr))
-		{
-			CreateNewTab(m_config->defaultTabDirectoryStatic.c_str(), TabSettings(_selected = true));
-		}
+	case WM_RBUTTONUP:
+	{
+		POINT ptClient;
+		POINTSTOPOINT(ptClient, MAKEPOINTS(lParam));
+		ShowBackgroundContextMenu(ptClient);
 	}
-	break;
+		break;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam))
@@ -580,6 +585,56 @@ LRESULT CALLBACK TabContainer::ParentWndProc(HWND hwnd, UINT uMsg, WPARAM wParam
 	}
 
 	return DefSubclassProc(hwnd, uMsg, wParam, lParam);
+}
+
+void TabContainer::ShowBackgroundContextMenu(const POINT &ptClient)
+{
+	wil::unique_hmenu parentMenu(LoadMenu(m_instance, MAKEINTRESOURCE(IDR_TAB_CONTAINER_CONTEXT_MENU)));
+
+	if (!parentMenu)
+	{
+		return;
+	}
+
+	HMENU menu = GetSubMenu(parentMenu.get(), 0);
+
+	if (m_expp->GetTabRestorer()->GetClosedTabs().empty())
+	{
+		lEnableMenuItem(menu, IDM_TAB_CONTAINER_REOPEN_CLOSED_TAB, FALSE);
+	}
+
+	POINT ptScreen = ptClient;
+	ClientToScreen(m_hwnd, &ptScreen);
+
+	int menuItemId = TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_RETURNCMD, ptScreen.x,
+		ptScreen.y, 0, m_hwnd, nullptr);
+
+	if (menuItemId != 0)
+	{
+		OnBackgroundMenuItemSelected(menuItemId);
+	}
+}
+
+void TabContainer::OnBackgroundMenuItemSelected(int menuItemId)
+{
+	switch (menuItemId)
+	{
+	case IDM_TAB_CONTAINER_NEW_TAB:
+		CreateNewTabInDefaultDirectory(TabSettings(_selected = true));
+		break;
+
+	case IDM_TAB_CONTAINER_REOPEN_CLOSED_TAB:
+		m_expp->GetTabRestorer()->RestoreLastTab();
+		break;
+
+	case IDM_TAB_CONTAINER_BOOKMARK_ALL_TABS:
+		BookmarkHelper::BookmarkAllTabs(m_bookmarkTree, m_instance, m_hwnd, m_expp);
+		break;
+
+	default:
+		assert(false);
+		break;
+	}
 }
 
 void TabContainer::OnGetDispInfo(NMTTDISPINFO *dispInfo)
@@ -719,9 +774,7 @@ void TabContainer::SetTabIcon(const Tab &tab)
 		auto pidlDirectory = tab.GetShellBrowser()->GetDirectoryIdl();
 
 		m_iconFetcher.QueueIconTask(pidlDirectory.get(),
-			[this, tabId = tab.GetId(), folderId = tab.GetShellBrowser()->GetUniqueFolderId()] (PCIDLIST_ABSOLUTE pidl, int iconIndex) {
-				UNREFERENCED_PARAMETER(pidl);
-
+			[this, tabId = tab.GetId(), folderId = tab.GetShellBrowser()->GetUniqueFolderId()] (int iconIndex) {
 				auto tab = GetTabOptional(tabId);
 
 				if (!tab)
@@ -748,25 +801,13 @@ void TabContainer::SetTabIconFromSystemImageList(const Tab &tab, int systemIconI
 		return;
 	}
 
-	int index = AddSystemImageListIconToTabImageList(systemIconIndex);
+	int index = ImageHelper::CopyImageListIcon(m_tabCtrlImageList.get(),
+		reinterpret_cast<HIMAGELIST>(m_systemImageList.get()), systemIconIndex);
 
 	if (index != -1)
 	{
 		SetTabIconFromImageList(tab, index);
 	}
-}
-
-int TabContainer::AddSystemImageListIconToTabImageList(int systemIconIndex)
-{
-	wil::unique_hicon icon;
-	HRESULT hr = m_systemImageList->GetIcon(systemIconIndex, ILD_NORMAL, &icon);
-
-	if (FAILED(hr))
-	{
-		return - 1;
-	}
-
-	return ImageList_AddIcon(TabCtrl_GetImageList(m_hwnd), icon.get());
 }
 
 void TabContainer::SetTabIconFromImageList(const Tab &tab, int imageIndex)
@@ -799,9 +840,21 @@ void TabContainer::SetTabIconFromImageList(const Tab &tab, int imageIndex)
 	}
 }
 
+HRESULT TabContainer::CreateNewTabInDefaultDirectory(const TabSettings &tabSettings)
+{
+	HRESULT hr = CreateNewTab(m_config->defaultTabDirectory.c_str(), tabSettings);
+
+	if (FAILED(hr))
+	{
+		hr = CreateNewTab(m_config->defaultTabDirectoryStatic.c_str(), tabSettings);
+	}
+
+	return hr;
+}
+
 HRESULT TabContainer::CreateNewTab(const TCHAR *TabDirectory,
 	const TabSettings &tabSettings, const FolderSettings *folderSettings,
-	boost::optional<FolderColumns> initialColumns, int *newTabId)
+	std::optional<FolderColumns> initialColumns, int *newTabId)
 {
 	/* Attempt to expand the path (in the event that
 	it contains embedded environment variables). */
@@ -847,7 +900,7 @@ HRESULT TabContainer::CreateNewTab(const PreservedTab &preservedTab, int *newTab
 
 HRESULT TabContainer::CreateNewTab(PCIDLIST_ABSOLUTE pidlDirectory,
 	const TabSettings &tabSettings, const FolderSettings *folderSettings,
-	boost::optional<FolderColumns> initialColumns, int *newTabId)
+	std::optional<FolderColumns> initialColumns, int *newTabId)
 {
 	if (!CheckIdl(pidlDirectory) || !IsIdlDirectory(pidlDirectory))
 	{
@@ -970,7 +1023,7 @@ HRESULT TabContainer::SetUpNewTab(Tab &tab, PCIDLIST_ABSOLUTE pidlDirectory,
 	return S_OK;
 }
 
-void TabContainer::InsertNewTab(int index, int tabId, PCIDLIST_ABSOLUTE pidlDirectory, boost::optional<std::wstring> customName)
+void TabContainer::InsertNewTab(int index, int tabId, PCIDLIST_ABSOLUTE pidlDirectory, std::optional<std::wstring> customName)
 {
 	std::wstring name;
 
@@ -1234,7 +1287,7 @@ std::vector<std::reference_wrapper<const Tab>> TabContainer::GetAllTabsInOrder()
 
 	for (const auto &tab : m_tabs | boost::adaptors::map_values)
 	{
-		sortedTabs.push_back(*tab);
+		sortedTabs.emplace_back(*tab);
 	}
 
 	// The Tab class is non-copyable, so there are essentially two ways of

@@ -75,7 +75,7 @@ void UpdateMenuItemAcceleratorString(HMENU menu, UINT id, const std::vector<ACCE
 	});
 
 	std::wstring text = menuText;
-	auto tabPosition = text.find(L"\t");
+	auto tabPosition = text.find('\t');
 
 	// Ideally, the strings for the menu items would be stored independently and
 	// the accelerator string would simply be appended, but that's not how
@@ -116,17 +116,17 @@ std::wstring BuildAcceleratorString(const ACCEL &accelerator)
 
 	if ((accelerator.fVirt & FCONTROL) == FCONTROL)
 	{
-		acceleratorParts.push_back(L"Ctrl");
+		acceleratorParts.emplace_back(L"Ctrl");
 	}
 
 	if ((accelerator.fVirt & FALT) == FALT)
 	{
-		acceleratorParts.push_back(L"Alt");
+		acceleratorParts.emplace_back(L"Alt");
 	}
 
 	if ((accelerator.fVirt & FSHIFT) == FSHIFT)
 	{
-		acceleratorParts.push_back(L"Shift");
+		acceleratorParts.emplace_back(L"Shift");
 	}
 
 	acceleratorParts.push_back(keyString);

@@ -5,8 +5,13 @@
 #include "stdafx.h"
 #include "BookmarkListView.h"
 #include "BookmarkDataExchange.h"
+#include "BookmarkTree.h"
+#include "CoreInterface.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "TabContainer.h"
 #include "../Helper/iDropSource.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
@@ -23,9 +28,10 @@ BookmarkListView::BookmarkListView(HWND hListView, HMODULE resourceModule,
 	m_expp(expp),
 	m_columns(initialColumns),
 	m_sortMode(BookmarkHelper::SortMode::Default),
-	m_sortAscending(true)
+	m_sortAscending(true),
+	m_bookmarkContextMenu(bookmarkTree, resourceModule, expp)
 {
-	SetWindowTheme(hListView, L"Explorer", NULL);
+	SetWindowTheme(hListView, L"Explorer", nullptr);
 	ListView_SetExtendedListViewStyleEx(hListView,
 		LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT,
 		LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT);
@@ -39,8 +45,8 @@ BookmarkListView::BookmarkListView(HWND hListView, HMODULE resourceModule,
 
 	InsertColumns(initialColumns);
 
-	m_windowSubclasses.push_back(WindowSubclassWrapper(GetParent(m_hListView), ParentWndProcStub,
-		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(GetParent(m_hListView), ParentWndProcStub, PARENT_SUBCLASS_ID,
+		reinterpret_cast<DWORD_PTR>(this));
 
 	m_connections.push_back(m_bookmarkTree->bookmarkItemAddedSignal.AddObserver(
 		std::bind(&BookmarkListView::OnBookmarkItemAdded, this, std::placeholders::_1, std::placeholders::_2)));
@@ -124,19 +130,15 @@ UINT BookmarkListView::GetColumnTextResourceId(ColumnType columnType)
 	{
 	case ColumnType::Name:
 		return IDS_BOOKMARKS_COLUMN_NAME;
-		break;
 
 	case ColumnType::Location:
 		return IDS_BOOKMARKS_COLUMN_LOCATION;
-		break;
 
 	case ColumnType::DateCreated:
 		return IDS_BOOKMARKS_COLUMN_DATE_CREATED;
-		break;
 
 	case ColumnType::DateModified:
 		return IDS_BOOKMARKS_COLUMN_DATE_MODIFIED;
-		break;
 	}
 
 	throw std::runtime_error("Bookmark column string resource not found");
@@ -167,7 +169,6 @@ LRESULT CALLBACK BookmarkListView::ParentWndProc(HWND hwnd, UINT uMsg, WPARAM wP
 			case NM_RCLICK:
 				OnRClick(reinterpret_cast<NMITEMACTIVATE *>(lParam));
 				return TRUE;
-				break;
 
 			case LVN_GETDISPINFO:
 				OnGetDispInfo(reinterpret_cast<NMLVDISPINFO *>(lParam));
@@ -175,18 +176,16 @@ LRESULT CALLBACK BookmarkListView::ParentWndProc(HWND hwnd, UINT uMsg, WPARAM wP
 
 			case LVN_BEGINLABELEDIT:
 				return OnBeginLabelEdit(reinterpret_cast<NMLVDISPINFO *>(lParam));
-				break;
 
 			case LVN_ENDLABELEDIT:
 				return OnEndLabelEdit(reinterpret_cast<NMLVDISPINFO *>(lParam));
-				break;
 
 			case LVN_KEYDOWN:
 				OnKeyDown(reinterpret_cast<NMLVKEYDOWN *>(lParam));
 				break;
 
 			case LVN_BEGINDRAG:
-				OnBeginDrag(reinterpret_cast<NMLISTVIEW *>(lParam));
+				OnBeginDrag();
 				break;
 			}
 		}
@@ -202,7 +201,6 @@ LRESULT CALLBACK BookmarkListView::ParentWndProc(HWND hwnd, UINT uMsg, WPARAM wP
 				OnHeaderRClick(pt);
 				return TRUE;
 			}
-			break;
 			}
 		}
 		break;
@@ -342,20 +340,103 @@ void BookmarkListView::OnDblClk(const NMITEMACTIVATE *itemActivate)
 	else
 	{
 		Tab &selectedTab = m_expp->GetTabContainer()->GetSelectedTab();
-		selectedTab.GetShellBrowser()->GetNavigationController()->BrowseFolder(bookmarkItem->GetLocation().c_str());
+		selectedTab.GetShellBrowser()->GetNavigationController()->BrowseFolder(bookmarkItem->GetLocation());
 	}
 }
 
 void BookmarkListView::OnRClick(const NMITEMACTIVATE *itemActivate)
 {
-	HMENU hMenu = LoadMenu(m_resourceModule, MAKEINTRESOURCE(IDR_MANAGEBOOKMARKS_BOOKMARK_RCLICK_MENU));
-	SetMenuDefaultItem(GetSubMenu(hMenu, 0), IDM_MB_BOOKMARK_OPEN, FALSE);
+	auto rawBookmarkItems = GetSelectedBookmarkItems();
 
-	POINT pt = itemActivate->ptAction;
-	ClientToScreen(m_hListView, &pt);
+	POINT ptScreen = itemActivate->ptAction;
+	ClientToScreen(m_hListView, &ptScreen);
 
-	TrackPopupMenu(GetSubMenu(hMenu, 0), TPM_LEFTALIGN, pt.x, pt.y, 0, m_hListView, NULL);
-	DestroyMenu(hMenu);
+	if (rawBookmarkItems.empty())
+	{
+		ShowBackgroundContextMenu(ptScreen);
+	}
+	else
+	{
+		m_bookmarkContextMenu.ShowMenu(m_hListView, m_currentBookmarkFolder,
+			rawBookmarkItems, ptScreen);
+	}
+}
+
+void BookmarkListView::ShowBackgroundContextMenu(const POINT &ptScreen)
+{
+	wil::unique_hmenu parentMenu(LoadMenu(m_resourceModule, MAKEINTRESOURCE(IDR_BOOKMARK_LISTVIEW_CONTEXT_MENU)));
+
+	if (!parentMenu)
+	{
+		return;
+	}
+
+	HMENU menu = GetSubMenu(parentMenu.get(), 0);
+
+	int menuItemId = TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_RETURNCMD, ptScreen.x,
+		ptScreen.y, 0, m_hListView, nullptr);
+
+	if (menuItemId != 0)
+	{
+		OnMenuItemSelected(menuItemId);
+	}
+}
+
+void BookmarkListView::OnMenuItemSelected(int menuItemId)
+{
+	switch (menuItemId)
+	{
+	case IDM_BOOKMARKS_NEW_BOOKMARK:
+		OnNewBookmark();
+		break;
+
+	case IDM_BOOKMARKS_NEW_FOLDER:
+		OnNewFolder();
+		break;
+
+	default:
+		assert(false);
+		break;
+	}
+}
+
+void BookmarkListView::OnNewBookmark()
+{
+	auto bookmark = BookmarkHelper::AddBookmarkItem(m_bookmarkTree, BookmarkItem::Type::Bookmark,
+		m_currentBookmarkFolder, m_resourceModule, m_hListView, m_expp->GetTabContainer(),
+		m_expp);
+
+	if (!bookmark)
+	{
+		return;
+	}
+
+	if (bookmark->GetParent() != m_currentBookmarkFolder)
+	{
+		return;
+	}
+
+	auto index = GetBookmarkItemIndex(bookmark);
+	assert(index);
+
+	SetFocus(m_hListView);
+	NListView::ListView_SelectItem(m_hListView, *index, TRUE);
+}
+
+void BookmarkListView::OnNewFolder()
+{
+	auto bookmarkItem = std::make_unique<BookmarkItem>(std::nullopt,
+		ResourceHelper::LoadString(m_resourceModule, IDS_BOOKMARKS_NEWBOOKMARKFOLDER), std::nullopt);
+	auto rawBookmarkItem = bookmarkItem.get();
+
+	m_bookmarkTree->AddBookmarkItem(m_currentBookmarkFolder, std::move(bookmarkItem),
+		m_currentBookmarkFolder->GetChildren().size());
+
+	auto index = GetBookmarkItemIndex(rawBookmarkItem);
+	assert(index);
+
+	SetFocus(m_hListView);
+	ListView_EditLabel(m_hListView, *index);
 }
 
 void BookmarkListView::OnGetDispInfo(NMLVDISPINFO *dispInfo)
@@ -382,7 +463,6 @@ std::wstring BookmarkListView::GetBookmarkItemColumnInfo(const BookmarkItem *boo
 	{
 	case ColumnType::Name:
 		return bookmarkItem->GetName();
-		break;
 
 	case ColumnType::Location:
 		if (bookmarkItem->IsBookmark())
@@ -393,21 +473,18 @@ std::wstring BookmarkListView::GetBookmarkItemColumnInfo(const BookmarkItem *boo
 		{
 			return std::wstring();
 		}
-		break;
 
 	case ColumnType::DateCreated:
 	{
 		FILETIME dateCreated = bookmarkItem->GetDateCreated();
 		return FormatDate(&dateCreated);
 	}
-	break;
 
 	case ColumnType::DateModified:
 	{
 		FILETIME dateModified = bookmarkItem->GetDateModified();
 		return FormatDate(&dateModified);
 	}
-	break;
 	}
 
 	throw std::runtime_error("Bookmark column type not found");
@@ -485,7 +562,7 @@ void BookmarkListView::OnKeyDown(const NMLVKEYDOWN *keyDown)
 	}
 }
 
-void BookmarkListView::OnBeginDrag(const NMLISTVIEW *listView)
+void BookmarkListView::OnBeginDrag()
 {
 	wil::com_ptr<IDropSource> dropSource;
 	HRESULT hr = CreateDropSource(&dropSource, DragType::LeftClick);
@@ -495,9 +572,22 @@ void BookmarkListView::OnBeginDrag(const NMLISTVIEW *listView)
 		return;
 	}
 
-	BookmarkItem *bookmarkItem = GetBookmarkItemFromListView(listView->iItem);
-	auto &ownedPtr = bookmarkItem->GetParent()->GetChildOwnedPtr(bookmarkItem);
-	auto dataObject = BookmarkDataExchange::CreateDataObject(ownedPtr);
+	auto rawBookmarkItems = GetSelectedBookmarkItems();
+
+	if (rawBookmarkItems.empty())
+	{
+		return;
+	}
+
+	OwnedRefBookmarkItems bookmarkItems;
+
+	for (auto &rawBookmarkItem : rawBookmarkItems)
+	{
+		auto &ownedPtr = rawBookmarkItem->GetParent()->GetChildOwnedPtr(rawBookmarkItem);
+		bookmarkItems.push_back(ownedPtr);
+	}
+
+	auto dataObject = BookmarkDataExchange::CreateDataObject(bookmarkItems);
 
 	wil::com_ptr<IDragSourceHelper> dragSourceHelper;
 	hr = CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_ALL,
@@ -524,17 +614,17 @@ void BookmarkListView::OnRename()
 
 void BookmarkListView::OnDelete()
 {
-	std::vector<BookmarkItem *> bookmarkItems = GetSelectedBookmarkItems();
+	auto rawBookmarkItems = GetSelectedBookmarkItems();
 
-	for (BookmarkItem *bookmarkItem : bookmarkItems)
+	for (BookmarkItem *bookmarkItem : rawBookmarkItems)
 	{
 		m_bookmarkTree->RemoveBookmarkItem(bookmarkItem);
 	}
 }
 
-std::vector<BookmarkItem *> BookmarkListView::GetSelectedBookmarkItems()
+RawBookmarkItems BookmarkListView::GetSelectedBookmarkItems()
 {
-	std::vector<BookmarkItem *> bookmarksItems;
+	RawBookmarkItems bookmarksItems;
 	int index = -1;
 
 	while ((index = ListView_GetNextItem(m_hListView, index, LVNI_SELECTED)) != -1)
@@ -613,16 +703,6 @@ void BookmarkListView::OnHeaderContextMenuItemSelected(int menuItemId)
 	if (nowActive)
 	{
 		InsertColumn(column, columnIndex);
-
-		// TODO: Update.
-		/*for (const auto &childItem : bookmarkFolder->GetChildren())
-		{
-			TCHAR szColumn[256];
-			GetBookmarkItemColumnInfo(childItem.get(), itr->ColumnType, szColumn, SIZEOF_ARRAY(szColumn));
-			ListView_SetItemText(hListView, iBookmarkItem, iColumn, szColumn);
-
-			++iBookmarkItem;
-		}*/
 	}
 	else
 	{
@@ -729,7 +809,6 @@ BookmarkListView::ColumnType BookmarkListView::MapPropertyTypeToColumnType(Bookm
 
 	default:
 		throw std::runtime_error("Bookmark column not found");
-		break;
 	}
 }
 

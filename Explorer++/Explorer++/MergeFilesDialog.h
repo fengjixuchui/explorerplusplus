@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "CoreInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ReferenceCount.h"
 #include "../Helper/ResizableDialog.h"
 
+__interface IExplorerplusplus;
 class MergeFilesDialog;
 
 class MergeFilesDialogPersistentSettings : public DialogSettings
@@ -34,7 +34,7 @@ class MergeFiles : public ReferenceCount
 {
 public:
 	
-	MergeFiles(HWND hDlg,std::wstring strOutputFilename,std::list<std::wstring> FullFilenameList);
+	MergeFiles(HWND hDlg, const std::wstring &strOutputFilename, const std::list<std::wstring> &FullFilenameList);
 	~MergeFiles();
 
 	void					StartMerging();
@@ -56,24 +56,24 @@ class MergeFilesDialog : public BaseDialog
 public:
 
 	MergeFilesDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
-		std::wstring strOutputDirectory, std::list<std::wstring> FullFilenameList,
+		const std::wstring &strOutputDirectory, const std::list<std::wstring> &FullFilenameList,
 		BOOL bShowFriendlyDates);
 	~MergeFilesDialog();
 
 protected:
 
-	INT_PTR	OnInitDialog();
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam);
-	INT_PTR	OnClose();
+	INT_PTR	OnInitDialog() override;
+	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR	OnClose() override;
 
-	INT_PTR	OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR	OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const override;
 
 private:
 
-	void	GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList);
-	void	SaveState();
+	void	GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList) override;
+	void	SaveState() override;
 
 	void	OnOk();
 	void	OnCancel();
@@ -92,5 +92,5 @@ private:
 	bool m_bStopMerging;
 	TCHAR m_szOk[32];
 
-	MergeFilesDialogPersistentSettings *m_pmfdps;
+	MergeFilesDialogPersistentSettings *m_persistentSettings;
 };

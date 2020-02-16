@@ -4,20 +4,20 @@
 
 #pragma once
 
-#include "BookmarkDropInfo.h"
+#include "BookmarkContextMenu.h"
 #include "BookmarkDropTargetWindow.h"
 #include "BookmarkHelper.h"
 #include "BookmarkItem.h"
-#include "BookmarkTree.h"
-#include "CoreInterface.h"
 #include "ResourceHelper.h"
 #include "SignalWrapper.h"
 #include "../Helper/DpiCompatibility.h"
 #include "../Helper/WindowSubclassWrapper.h"
 #include <boost/signals2.hpp>
-#include <wil/com.h>
 #include <wil/resource.h>
 #include <optional>
+
+class BookmarkTree;
+__interface IExplorerplusplus;
 
 class BookmarkListView : private BookmarkDropTargetWindow
 {
@@ -81,15 +81,19 @@ private:
 
 	void OnDblClk(const NMITEMACTIVATE *itemActivate);
 	void OnRClick(const NMITEMACTIVATE *itemActivate);
+	void ShowBackgroundContextMenu(const POINT &ptScreen);
+	void OnMenuItemSelected(int menuItemId);
+	void OnNewBookmark();
+	void OnNewFolder();
 	void OnGetDispInfo(NMLVDISPINFO *dispInfo);
 	BOOL OnBeginLabelEdit(const NMLVDISPINFO *dispInfo);
 	BOOL OnEndLabelEdit(const NMLVDISPINFO *dispInfo);
 	void OnKeyDown(const NMLVKEYDOWN *keyDown);
-	void OnBeginDrag(const NMLISTVIEW *listView);
+	void OnBeginDrag();
 	void OnRename();
 	void OnDelete();
 
-	std::vector<BookmarkItem *> GetSelectedBookmarkItems();
+	RawBookmarkItems GetSelectedBookmarkItems();
 
 	void OnHeaderRClick(const POINT &pt);
 	wil::unique_hmenu BuildHeaderContextMenu();
@@ -126,6 +130,7 @@ private:
 	BookmarkItem *m_currentBookmarkFolder;
 	BookmarkHelper::SortMode m_sortMode;
 	bool m_sortAscending;
+	BookmarkContextMenu m_bookmarkContextMenu;
 
 	std::optional<int> m_previousDropItem;
 

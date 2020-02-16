@@ -4,18 +4,18 @@
 
 #pragma once
 
-#include "BookmarkHelper.h"
-#include "BookmarkItem.h"
-#include "BookmarkTree.h"
-#include "BookmarkTreeView.h"
-#include "CoreInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
 #include <wil/resource.h>
+#include <optional>
 #include <unordered_set>
 
 class AddBookmarkDialog;
+class BookmarkItem;
+class BookmarkTree;
+class BookmarkTreeView;
+__interface IExplorerplusplus;
 
 class AddBookmarkDialogPersistentSettings : public DialogSettings
 {
@@ -44,16 +44,16 @@ class AddBookmarkDialog : public BaseDialog
 public:
 
 	AddBookmarkDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
-		BookmarkTree *bookmarkTree, BookmarkItem *bookmarkItem,
-		BookmarkItem **selectedParentFolder);
+		BookmarkTree *bookmarkTree, BookmarkItem *bookmarkItem, BookmarkItem *defaultParentSelection,
+		BookmarkItem **selectedParentFolder, std::optional<std::wstring> customDialogTitle = std::nullopt);
 
 protected:
 
-	INT_PTR	OnInitDialog();
-	INT_PTR	OnCtlColorEdit(HWND hwnd,HDC hdc);
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam);
-	INT_PTR	OnClose();
-	INT_PTR	OnNcDestroy();
+	INT_PTR	OnInitDialog() override;
+	INT_PTR	OnCtlColorEdit(HWND hwnd,HDC hdc) override;
+	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR	OnClose() override;
+	INT_PTR	OnNcDestroy() override;
 
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const override;
 
@@ -64,9 +64,11 @@ private:
 	AddBookmarkDialog & operator = (const AddBookmarkDialog &abd);
 
 	void UpdateDialogForBookmarkFolder();
+	void SetDialogTitle();
+	std::wstring LoadDialogTitle();
 
-	void GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList);
-	void SaveState();
+	void GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList) override;
+	void SaveState() override;
 
 	void OnOk();
 	void OnCancel();
@@ -79,10 +81,11 @@ private:
 	BookmarkTree *m_bookmarkTree;
 	BookmarkItem *m_bookmarkItem;
 	BookmarkItem **m_selectedParentFolder;
+	std::optional<std::wstring> m_customDialogTitle;
 
 	BookmarkTreeView *m_pBookmarkTreeView;
 
 	wil::unique_hbrush m_ErrorBrush;
 
-	AddBookmarkDialogPersistentSettings *m_pabdps;
+	AddBookmarkDialogPersistentSettings *m_persistentSettings;
 };

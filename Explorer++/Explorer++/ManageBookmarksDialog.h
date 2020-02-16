@@ -4,20 +4,18 @@
 
 #pragma once
 
-#include "BookmarkHelper.h"
 #include "BookmarkListView.h"
-#include "BookmarkTree.h"
 #include "BookmarkTreeView.h"
-#include "CoreInterface.h"
 #include "Navigation.h"
 #include "ResourceHelper.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
-#include "../Helper/ResizableDialog.h"
 #include <boost/signals2.hpp>
 #include <stack>
 #include <unordered_set>
 
+class BookmarkTree;
+__interface IExplorerplusplus;
 class ManageBookmarksDialog;
 
 class ManageBookmarksDialogPersistentSettings : public DialogSettings
@@ -54,20 +52,17 @@ public:
 		Navigation *navigation, BookmarkTree *bookmarkTree);
 	~ManageBookmarksDialog();
 
-	// TODO: Update.
-	//void	OnBookmarkFolderAdded(const CBookmarkFolder &ParentBookmarkFolder,const CBookmarkFolder &BookmarkFolder,std::size_t Position);
-
 protected:
 
-	INT_PTR	OnInitDialog();
-	INT_PTR	OnAppCommand(HWND hwnd,UINT uCmd,UINT uDevice,DWORD dwKeys);
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam);
-	INT_PTR	OnNotify(NMHDR *pnmhdr);
-	INT_PTR	OnClose();
-	INT_PTR	OnDestroy();
-	INT_PTR	OnNcDestroy();
+	INT_PTR	OnInitDialog() override;
+	INT_PTR	OnAppCommand(HWND hwnd,UINT uCmd,UINT uDevice,DWORD dwKeys) override;
+	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR	OnNotify(NMHDR *pnmhdr) override;
+	INT_PTR	OnClose() override;
+	INT_PTR	OnDestroy() override;
+	INT_PTR	OnNcDestroy() override;
 
-	void	SaveState();
+	void	SaveState() override;
 
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const override;
 
@@ -127,5 +122,5 @@ private:
 
 	std::vector<boost::signals2::scoped_connection> m_connections;
 
-	ManageBookmarksDialogPersistentSettings *m_pmbdps;
+	ManageBookmarksDialogPersistentSettings *m_persistentSettings;
 };

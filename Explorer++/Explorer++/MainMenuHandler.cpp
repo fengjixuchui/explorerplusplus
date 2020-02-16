@@ -9,6 +9,7 @@
 #include "CustomizeColorsDialog.h"
 #include "DestroyFilesDialog.h"
 #include "DisplayColoursDialog.h"
+#include "Explorer++_internal.h"
 #include "FileProgressSink.h"
 #include "FilterDialog.h"
 #include "HelpFileMissingDialog.h"
@@ -18,17 +19,17 @@
 #include "OptionsDialog.h"
 #include "ScriptingDialog.h"
 #include "SearchDialog.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "SplitFileDialog.h"
+#include "TabContainer.h"
 #include "UpdateCheckDialog.h"
 #include "WildcardSelectDialog.h"
 #include "MainResource.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/ProcessHelper.h"
 #include "../Helper/ShellHelper.h"
-#include <boost/scope_exit.hpp>
 #include <wil/com.h>
-
-#pragma warning(disable:4459) // declaration of 'boost_scope_exit_aux_args' hides global declaration
 
 void Explorerplusplus::OnChangeDisplayColors()
 {
@@ -55,7 +56,7 @@ void Explorerplusplus::OnMergeFiles()
 	{
 		TCHAR szFullFilename[MAX_PATH];
 		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
-		FullFilenameList.push_back(szFullFilename);
+		FullFilenameList.emplace_back(szFullFilename);
 	}
 
 	MergeFilesDialog mergeFilesDialog(m_hLanguageModule, m_hContainer, this, currentDirectory,
@@ -86,7 +87,7 @@ void Explorerplusplus::OnDestroyFiles()
 	{
 		TCHAR szFullFilename[MAX_PATH];
 		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
-		FullFilenameList.push_back(szFullFilename);
+		FullFilenameList.emplace_back(szFullFilename);
 	}
 
 	DestroyFilesDialog destroyFilesDialog(m_hLanguageModule, m_hContainer,
@@ -102,7 +103,7 @@ void Explorerplusplus::OnWildcardSelect(BOOL bSelect)
 
 void Explorerplusplus::OnSearch()
 {
-	if(g_hwndSearch == NULL)
+	if(g_hwndSearch == nullptr)
 	{
 		Tab &selectedTab = m_tabContainer->GetSelectedTab();
 		std::wstring currentDirectory = selectedTab.GetShellBrowser()->GetDirectory();
@@ -124,12 +125,12 @@ void Explorerplusplus::OnCustomizeColors()
 
 	/* Causes the active listview to redraw (therefore
 	applying any updated color schemes). */
-	InvalidateRect(m_hActiveListView, NULL, FALSE);
+	InvalidateRect(m_hActiveListView, nullptr, FALSE);
 }
 
 void Explorerplusplus::OnRunScript()
 {
-	if (g_hwndRunScript == NULL)
+	if (g_hwndRunScript == nullptr)
 	{
 		ScriptingDialog *scriptingDialog = new ScriptingDialog(m_hLanguageModule, m_hContainer, this);
 		g_hwndRunScript = scriptingDialog->ShowModelessDialog(new ModelessDialogNotification());
@@ -142,7 +143,7 @@ void Explorerplusplus::OnRunScript()
 
 void Explorerplusplus::OnShowOptions()
 {
-	if(g_hwndOptions == NULL)
+	if(g_hwndOptions == nullptr)
 	{
 		OptionsDialog *optionsDialog = OptionsDialog::Create(m_config, m_hLanguageModule, this, m_tabContainer);
 		g_hwndOptions = optionsDialog->Show(m_hContainer);
@@ -167,7 +168,7 @@ void Explorerplusplus::OnShowHelp()
 
 	if(SUCCEEDED(hr))
 	{
-		BOOL bRes = ExecuteFileAction(m_hContainer, NULL, NULL, NULL, pidl.get());
+		BOOL bRes = ExecuteFileAction(m_hContainer, nullptr, nullptr, nullptr, pidl.get());
 
 		if(bRes)
 		{

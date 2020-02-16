@@ -6,6 +6,7 @@
 #include "BookmarkDropInfo.h"
 #include "BookmarkDataExchange.h"
 #include "BookmarkHelper.h"
+#include "BookmarkTree.h"
 #include "../Helper/DataExchangeHelper.h"
 #include "../Helper/ShellHelper.h"
 
@@ -119,13 +120,8 @@ BookmarkDropInfo::ExtractedInfo BookmarkDropInfo::ExtractBookmarkItems()
 
 	if (IsDropFormatAvailable(m_dataObject, BookmarkDataExchange::GetFormatEtc()))
 	{
-		auto bookmarkItem = ExtractBookmarkItemFromCustomFormat();
-
-		if (bookmarkItem)
-		{
-			bookmarkItems.push_back(std::move(bookmarkItem));
-			extractionSource = ExtractionSource::CustomFormat;
-		}
+		bookmarkItems = ExtractBookmarkItemsFromCustomFormat();
+		extractionSource = ExtractionSource::CustomFormat;
 	}
 	else if (IsDropFormatAvailable(m_dataObject, GetDroppedFilesFormatEtc()))
 	{
@@ -136,7 +132,7 @@ BookmarkDropInfo::ExtractedInfo BookmarkDropInfo::ExtractBookmarkItems()
 	return { std::move(bookmarkItems), extractionSource };
 }
 
-std::unique_ptr<BookmarkItem> BookmarkDropInfo::ExtractBookmarkItemFromCustomFormat()
+BookmarkItems BookmarkDropInfo::ExtractBookmarkItemsFromCustomFormat()
 {
 	FORMATETC formatEtc = BookmarkDataExchange::GetFormatEtc();
 	wil::unique_stg_medium stgMedium;
@@ -144,17 +140,17 @@ std::unique_ptr<BookmarkItem> BookmarkDropInfo::ExtractBookmarkItemFromCustomFor
 
 	if (hr != S_OK)
 	{
-		return nullptr;
+		return {};
 	}
 
 	auto data = ReadBinaryDataFromGlobal(stgMedium.hGlobal);
 
 	if (!data)
 	{
-		return nullptr;
+		return {};
 	}
 
-	return BookmarkDataExchange::DeserializeBookmarkItem(*data);
+	return BookmarkDataExchange::DeserializeBookmarkItems(*data);
 }
 
 BookmarkItems BookmarkDropInfo::ExtractBookmarkItemsFromHDrop()

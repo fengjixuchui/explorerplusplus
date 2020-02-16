@@ -4,20 +4,17 @@
 
 #include "stdafx.h"
 #include "BookmarkMenu.h"
-#include "MainResource.h"
-#include "../Helper/Macros.h"
 
 BookmarkMenu::BookmarkMenu(BookmarkTree *bookmarkTree, HMODULE resourceModule,
 	IExplorerplusplus *expp, HWND parentWindow) :
 	m_parentWindow(parentWindow),
-	m_instance(resourceModule),
 	m_menuBuilder(resourceModule),
 	m_bookmarkContextMenu(bookmarkTree, resourceModule, expp),
 	m_showingMenu(false),
-	m_menuItemMappings(nullptr)
+	m_menuItemPositionMappings(nullptr)
 {
-	m_windowSubclasses.push_back(WindowSubclassWrapper(parentWindow, ParentWindowSubclassStub,
-		SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(parentWindow, ParentWindowSubclassStub,
+		SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
 }
 
 LRESULT CALLBACK BookmarkMenu::ParentWindowSubclassStub(HWND hwnd, UINT uMsg,
@@ -68,21 +65,14 @@ void BookmarkMenu::OnMenuRightButtonUp(HMENU menu, int index, const POINT &pt)
 		return;
 	}
 
-	int menuItemId = GetMenuItemID(menu, index);
+	auto itr = m_menuItemPositionMappings->find({ menu, index });
 
-	if (menuItemId == -1)
+	if (itr == m_menuItemPositionMappings->end())
 	{
 		return;
 	}
 
-	auto itr = m_menuItemMappings->find(menuItemId);
-
-	if (itr == m_menuItemMappings->end())
-	{
-		return;
-	}
-
-	m_bookmarkContextMenu.ShowMenu(m_parentWindow, itr->second, pt, true);
+	m_bookmarkContextMenu.ShowMenu(m_parentWindow, itr->second->GetParent(), { itr->second } , pt, true);
 }
 
 BOOL BookmarkMenu::ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCallback callback)
@@ -94,8 +84,10 @@ BOOL BookmarkMenu::ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCal
 		return FALSE;
 	}
 
-	BookmarkMenuBuilder::ItemMap menuItemMappings;
-	BOOL res = m_menuBuilder.BuildMenu(menu.get(), bookmarkItem, { MIN_ID, MAX_ID }, 0, menuItemMappings);
+	BookmarkMenuBuilder::ItemIdMap menuItemIdMappings;
+	BookmarkMenuBuilder::ItemPositionMap menuItemPositionMappings;
+	BOOL res = m_menuBuilder.BuildMenu(menu.get(), bookmarkItem, { MIN_ID, MAX_ID }, 0,
+		menuItemIdMappings, &menuItemPositionMappings);
 
 	if (!res)
 	{
@@ -103,27 +95,27 @@ BOOL BookmarkMenu::ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCal
 	}
 
 	m_showingMenu = true;
-	m_menuItemMappings = &menuItemMappings;
+	m_menuItemPositionMappings = &menuItemPositionMappings;
 
 	int cmd = TrackPopupMenu(menu.get(), TPM_LEFTALIGN | TPM_RETURNCMD, pt.x, pt.y, 0, m_parentWindow, nullptr);
 
 	m_showingMenu = false;
-	m_menuItemMappings = nullptr;
+	m_menuItemPositionMappings = nullptr;
 
 	if (cmd != 0)
 	{
-		OnMenuItemSelected(cmd, menuItemMappings, callback);
+		OnMenuItemSelected(cmd, menuItemIdMappings, callback);
 	}
 
 	return TRUE;
 }
 
-void BookmarkMenu::OnMenuItemSelected(int menuItemId, BookmarkMenuBuilder::ItemMap &menuItemMappings,
+void BookmarkMenu::OnMenuItemSelected(int menuItemId, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings,
 	MenuCallback callback)
 {
-	auto itr = menuItemMappings.find(menuItemId);
+	auto itr = menuItemIdMappings.find(menuItemId);
 
-	if (itr == menuItemMappings.end())
+	if (itr == menuItemIdMappings.end())
 	{
 		return;
 	}

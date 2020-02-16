@@ -391,6 +391,42 @@
     <ClCompile Include="BookmarkDropTargetWindow.cpp">
       <Filter>Bookmarks\UI</Filter>
     </ClCompile>
+    <ClCompile Include="BookmarkRegistryStorage.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkXmlStorage.cpp">
+      <Filter>Bookmarks</Filter>
+    </ClCompile>
+    <ClCompile Include="BookmarkContextMenuController.cpp">
+      <Filter>Bookmarks\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellTreeView\DirectoryModificationHandler.cpp">
+      <Filter>ShellTreeView</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellTreeView\iDropSource.cpp">
+      <Filter>ShellTreeView</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellTreeView\iDropTarget.cpp">
+      <Filter>ShellTreeView</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellTreeView\ShellTreeView.cpp">
+      <Filter>ShellTreeView</Filter>
+    </ClCompile>
+    <ClCompile Include="DisplayWindow\DisplayWindow.cpp">
+      <Filter>DisplayWindow</Filter>
+    </ClCompile>
+    <ClCompile Include="DisplayWindow\MsgHandler.cpp">
+      <Filter>DisplayWindow</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellBrowser\PreservedFolderState.cpp">
+      <Filter>ShellBrowser</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellBrowser\PreservedHistoryEntry.cpp">
+      <Filter>ShellBrowser</Filter>
+    </ClCompile>
+    <ClCompile Include="PreservedTab.cpp">
+      <Filter>Tabs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationToolbar.h">
@@ -792,6 +828,24 @@
     <ClInclude Include="BookmarkDropTargetWindow.h">
       <Filter>Bookmarks\UI</Filter>
     </ClInclude>
+    <ClInclude Include="BookmarkRegistryStorage.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkXmlStorage.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkStorage.h">
+      <Filter>Bookmarks</Filter>
+    </ClInclude>
+    <ClInclude Include="BookmarkContextMenuController.h">
+      <Filter>Bookmarks\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ShellTreeView\ShellTreeView.h">
+      <Filter>ShellTreeView</Filter>
+    </ClInclude>
+    <ClInclude Include="DisplayWindow\DisplayWindow.h">
+      <Filter>DisplayWindow</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Explorer++.rc">
@@ -897,6 +951,12 @@
     </Filter>
     <Filter Include="Bookmarks\UI">
       <UniqueIdentifier>{ce3e8ee9-017a-43b7-b601-015d3d2d1b4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShellTreeView">
+      <UniqueIdentifier>{e9f8553a-d212-4c0f-a749-708a1664278c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DisplayWindow">
+      <UniqueIdentifier>{fae666be-a68a-4fd0-91cd-01523513a8d4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

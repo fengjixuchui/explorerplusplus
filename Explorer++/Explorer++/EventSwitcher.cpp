@@ -10,7 +10,8 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "Explorer++_internal.h"
-#include "Navigation.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "TabContainer.h"
 
 void Explorerplusplus::OnCopyItemPath() const
 {
@@ -237,9 +238,9 @@ BOOL Explorerplusplus::OnMouseWheel(MousewheelSource_t MousewheelSource, WPARAM 
 	{
 		bMessageHandled = TRUE;
 
-		HWND hUpDown = FindWindowEx(m_tabContainer->GetHWND(), NULL, UPDOWN_CLASS, NULL);
+		HWND hUpDown = FindWindowEx(m_tabContainer->GetHWND(), nullptr, UPDOWN_CLASS, nullptr);
 
-		if (hUpDown != NULL)
+		if (hUpDown != nullptr)
 		{
 			BOOL bSuccess;
 			int iPos = static_cast<int>(SendMessage(hUpDown, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&bSuccess)));

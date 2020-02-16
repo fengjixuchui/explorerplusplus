@@ -4,11 +4,10 @@
 
 #include "stdafx.h"
 #include "WildcardSelectDialog.h"
-#include "Explorer++_internal.h"
+#include "CoreInterface.h"
 #include "MainResource.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/BaseDialog.h"
-#include "../Helper/Helper.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/RegistrySettings.h"
@@ -31,7 +30,7 @@ WildcardSelectDialog::WildcardSelectDialog(HINSTANCE hInstance, HWND hParent,
 
 INT_PTR WildcardSelectDialog::OnInitDialog()
 {
-	m_icon.reset(LoadIcon(GetModuleHandle(0),MAKEINTRESOURCE(IDI_MAIN)));
+	m_icon.reset(LoadIcon(GetModuleHandle(nullptr),MAKEINTRESOURCE(IDI_MAIN)));
 	SetClassLongPtr(m_hDlg,GCLP_HICONSM,reinterpret_cast<LONG_PTR>(m_icon.get()));
 
 	HWND hComboBox = GetDlgItem(m_hDlg,IDC_SELECTGROUP_COMBOBOX);
@@ -215,7 +214,7 @@ void WildcardSelectDialogPersistentSettings::LoadExtraXMLSettings(BSTR bstrName,
 	if(CompareString(LOCALE_INVARIANT, NORM_IGNORECASE, bstrName, lstrlen(SETTING_PATTERN_LIST),
 		SETTING_PATTERN_LIST, lstrlen(SETTING_PATTERN_LIST)) == CSTR_EQUAL)
 	{
-		m_PatternList.push_back(bstrValue);
+		m_PatternList.emplace_back(bstrValue);
 	}
 	else if(lstrcmpi(bstrName, SETTING_CURRENT_TEXT) == 0)
 	{

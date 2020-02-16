@@ -5,13 +5,17 @@
 #include "stdafx.h"
 #include "Tab.h"
 #include "Config.h"
+#include "CoreInterface.h"
 #include "PreservedTab.h"
+#include "ShellBrowser/FolderSettings.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include <wil/resource.h>
 
 int Tab::idCounter = 1;
 
 Tab::Tab(IExplorerplusplus *expp, TabNavigationInterface *tabNavigation,
-	const FolderSettings *folderSettings, boost::optional<FolderColumns> initialColumns) :
+	const FolderSettings *folderSettings, std::optional<FolderColumns> initialColumns) :
 	m_id(idCounter++),
 	m_useCustomName(false),
 	m_lockState(LockState::NotLocked)

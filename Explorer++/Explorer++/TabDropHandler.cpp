@@ -3,10 +3,12 @@
 // See LICENSE in the top level directory
 
 #include "stdafx.h"
-#include <list>
 #include "TabDropHandler.h"
-#include "../Helper/ShellHelper.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "TabContainer.h"
 #include "../Helper/Macros.h"
+#include "../Helper/ShellHelper.h"
+#include <list>
 
 TabDropHandler::TabDropHandler(HWND hTabCtrl, TabContainer *tabContainer) :
 	m_hTabCtrl(hTabCtrl),
@@ -15,7 +17,7 @@ TabDropHandler::TabDropHandler(HWND hTabCtrl, TabContainer *tabContainer) :
 {
 	SetWindowSubclass(m_hTabCtrl,TabCtrlProcStub,SUBCLASS_ID,reinterpret_cast<DWORD_PTR>(this));
 
-	CoCreateInstance(CLSID_DragDropHelper,NULL,CLSCTX_INPROC_SERVER,
+	CoCreateInstance(CLSID_DragDropHelper, nullptr,CLSCTX_INPROC_SERVER,
 		IID_PPV_ARGS(&m_pDragSourceHelper));
 
 	m_pDragSourceHelper->QueryInterface(IID_PPV_ARGS(&m_pDropTargetHelper));
@@ -29,7 +31,7 @@ TabDropHandler::~TabDropHandler()
 
 HRESULT __stdcall TabDropHandler::QueryInterface(REFIID iid,void **ppvObject)
 {
-	*ppvObject = NULL;
+	*ppvObject = nullptr;
 
 	if(iid == IID_IUnknown)
 	{
@@ -155,7 +157,7 @@ void TabDropHandler::GetRepresentativeSourceDrive(IDataObject *pDataObject,CLIPF
 
 void TabDropHandler::GetRepresentativeSourceDriveHDrop(IDataObject *pDataObject)
 {
-	FORMATETC ftc = {CF_HDROP,NULL,DVASPECT_CONTENT,-1,TYMED_HGLOBAL};
+	FORMATETC ftc = {CF_HDROP, nullptr,DVASPECT_CONTENT,-1,TYMED_HGLOBAL};
 	STGMEDIUM stg;
 
 	HRESULT hr = pDataObject->GetData(&ftc,&stg);
@@ -164,9 +166,9 @@ void TabDropHandler::GetRepresentativeSourceDriveHDrop(IDataObject *pDataObject)
 	{
 		DROPFILES *pdf = reinterpret_cast<DROPFILES *>(GlobalLock(stg.hGlobal));
 
-		if(pdf != NULL)
+		if(pdf != nullptr)
 		{
-			int nDroppedFiles = DragQueryFile(reinterpret_cast<HDROP>(pdf),0xFFFFFFFF,NULL,NULL);
+			int nDroppedFiles = DragQueryFile(reinterpret_cast<HDROP>(pdf),0xFFFFFFFF, nullptr,0);
 
 			if(nDroppedFiles >= 1)
 			{
@@ -220,7 +222,7 @@ HRESULT __stdcall TabDropHandler::DragOver(DWORD grfKeyState,POINTL pt,DWORD *pd
 		iTab != m_tabContainer->GetSelectedTabIndex() &&
 		iTab != m_TabHoverIndex)
 	{
-		SetTimer(m_hTabCtrl,TIMER_ID,TIMEOUT_VALUE,NULL);
+		SetTimer(m_hTabCtrl,TIMER_ID,TIMEOUT_VALUE, nullptr);
 	}
 	else if(iTab == -1 ||
 		iTab != m_TabHoverIndex)
@@ -264,7 +266,7 @@ HRESULT __stdcall TabDropHandler::Drop(IDataObject *pDataObject,DWORD grfKeyStat
 
 		DropHandler *pDropHandler = DropHandler::CreateNew();
 		pDropHandler->Drop(pDataObject, grfKeyState, pt, pdwEffect, m_hTabCtrl,
-			m_DragType, destDirectory.data(), NULL, FALSE);
+			m_DragType, destDirectory.data(), nullptr, FALSE);
 		pDropHandler->Release();
 	}
 

@@ -13,21 +13,21 @@
 
 class CachedIcons;
 
-class MyTreeView : public IDropTarget, public IDropSource
+class ShellTreeView : public IDropTarget, public IDropSource
 {
 public:
 
 	/* IUnknown methods. */
-	HRESULT __stdcall	QueryInterface(REFIID iid,void **ppvObject);
-	ULONG __stdcall		AddRef(void);
-	ULONG __stdcall		Release(void);
+	HRESULT __stdcall	QueryInterface(REFIID iid,void **ppvObject) override;
+	ULONG __stdcall		AddRef(void) override;
+	ULONG __stdcall		Release(void) override;
 
-	MyTreeView(HWND hTreeView, HWND hParent, IDirectoryMonitor *pDirMon, CachedIcons *cachedIcons);
-	~MyTreeView();
+	ShellTreeView(HWND hTreeView, HWND hParent, IDirectoryMonitor *pDirMon, CachedIcons *cachedIcons);
+	~ShellTreeView();
 
 	/* Drop source functions. */
-	HRESULT _stdcall	QueryContinueDrag(BOOL fEscapePressed,DWORD gfrKeyState);
-	HRESULT _stdcall	GiveFeedback(DWORD dwEffect);
+	HRESULT _stdcall	QueryContinueDrag(BOOL fEscapePressed,DWORD gfrKeyState) override;
+	HRESULT _stdcall	GiveFeedback(DWORD dwEffect) override;
 
 	/* User functions. */
 	unique_pidl_absolute	GetItemPidl(HTREEITEM hTreeItem);
@@ -40,10 +40,10 @@ public:
 	int CALLBACK		CompareItems(LPARAM lParam1,LPARAM lParam2);
 
 	/* Drag and Drop. */
-	HRESULT _stdcall	DragEnter(IDataObject *pDataObject,DWORD grfKeyState,POINTL pt,DWORD *pdwEffect);
-	HRESULT _stdcall	DragOver(DWORD grfKeyState,POINTL pt,DWORD *pdwEffect);
-	HRESULT _stdcall	DragLeave(void);
-	HRESULT _stdcall	Drop(IDataObject *pDataObject,DWORD grfKeyState,POINTL pt,DWORD *pdwEffect);
+	HRESULT _stdcall	DragEnter(IDataObject *pDataObject,DWORD grfKeyState,POINTL pt,DWORD *pdwEffect) override;
+	HRESULT _stdcall	DragOver(DWORD grfKeyState,POINTL pt,DWORD *pdwEffect) override;
+	HRESULT _stdcall	DragLeave(void) override;
+	HRESULT _stdcall	Drop(IDataObject *pDataObject,DWORD grfKeyState,POINTL pt,DWORD *pdwEffect) override;
 
 	void				MonitorDrivePublic(const TCHAR *szDrive);
 
@@ -101,7 +101,7 @@ private:
 	typedef struct
 	{
 		TCHAR szPath[MAX_PATH];
-		MyTreeView *pMyTreeView;
+		ShellTreeView *shellTreeView;
 	} DirectoryAltered_t;
 
 	typedef struct
@@ -174,7 +174,6 @@ private:
 	HTREEITEM	LocateExistingItem(const TCHAR *szParsingPath);
 	HTREEITEM	LocateExistingItem(PCIDLIST_ABSOLUTE pidlDirectory);
 	HTREEITEM	LocateItemInternal(PCIDLIST_ABSOLUTE pidlDirectory, BOOL bOnlyLocateExistingItem);
-	void		MonitorAllDrives(void);
 	void		MonitorDrive(const TCHAR *szDrive);
 	HTREEITEM	DetermineDriveSortedPosition(HTREEITEM hParent, const TCHAR *szItemName);
 	HTREEITEM	DetermineItemSortedPosition(HTREEITEM hParent, const TCHAR *szItem);

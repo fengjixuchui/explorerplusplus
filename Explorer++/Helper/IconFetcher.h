@@ -7,6 +7,7 @@
 #include "ShellHelper.h"
 #include "WindowSubclassWrapper.h"
 #include "../ThirdParty/CTPL/cpl_stl.h"
+#include <ShlObj.h>
 #include <future>
 #include <functional>
 #include <optional>
@@ -14,17 +15,27 @@
 
 class CachedIcons;
 
-class IconFetcher
+class IconFetcherInterface
 {
 public:
 
-	using Callback = std::function<void(PCIDLIST_ABSOLUTE pidl, int iconIndex)>;
+	using Callback = std::function<void(int iconIndex)>;
+
+	virtual void QueueIconTask(std::wstring_view path, Callback callback) = 0;
+	virtual void QueueIconTask(PCIDLIST_ABSOLUTE pidl, Callback callback) = 0;
+	virtual void ClearQueue() = 0;
+};
+
+class IconFetcher : public IconFetcherInterface
+{
+public:
 
 	IconFetcher(HWND hwnd, CachedIcons *cachedIcons);
-	~IconFetcher();
+	virtual ~IconFetcher();
 
-	void QueueIconTask(PCIDLIST_ABSOLUTE pidl, Callback callback);
-	void ClearQueue();
+	void QueueIconTask(std::wstring_view path, Callback callback) override;
+	void QueueIconTask(PCIDLIST_ABSOLUTE pidl, Callback callback) override;
+	void ClearQueue() override;
 
 private:
 
@@ -53,14 +64,13 @@ private:
 	struct FutureResult
 	{
 		Callback callback;
-		unique_pidl_absolute pidl;
 		std::future<std::optional<IconResult>> iconResult;
 	};
 
 	static LRESULT CALLBACK WindowSubclassStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 	LRESULT CALLBACK WindowSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-	static std::optional<IconResult> FindIconAsync(HWND hwnd, int iconResultId, PCIDLIST_ABSOLUTE pidl);
+	static std::optional<int> FindIconAsync(PCIDLIST_ABSOLUTE pidl);
 	void ProcessIconResult(int iconResultId);
 
 	const HWND m_hwnd;

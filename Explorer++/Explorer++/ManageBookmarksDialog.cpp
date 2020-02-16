@@ -5,13 +5,12 @@
 #include "stdafx.h"
 #include "ManageBookmarksDialog.h"
 #include "BookmarkHelper.h"
-#include "Explorer++_internal.h"
+#include "BookmarkTree.h"
+#include "CoreInterface.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "../Helper/Controls.h"
-#include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
-#include "../Helper/WindowHelper.h"
 
 const TCHAR ManageBookmarksDialogPersistentSettings::SETTINGS_KEY[] = _T("ManageBookmarks");
 
@@ -24,11 +23,11 @@ ManageBookmarksDialog::ManageBookmarksDialog(HINSTANCE hInstance, HWND hParent,
 	m_bNewFolderAdded(false),
 	m_bSaveHistory(true)
 {
-	m_pmbdps = &ManageBookmarksDialogPersistentSettings::GetInstance();
+	m_persistentSettings = &ManageBookmarksDialogPersistentSettings::GetInstance();
 
-	if(!m_pmbdps->m_bInitialized)
+	if(!m_persistentSettings->m_bInitialized)
 	{
-		m_pmbdps->m_bInitialized = true;
+		m_persistentSettings->m_bInitialized = true;
 	}
 }
 
@@ -47,6 +46,8 @@ INT_PTR ManageBookmarksDialog::OnInitDialog()
 	m_bookmarkListView->NavigateToBookmarkFolder(m_bookmarkTree->GetBookmarksToolbarFolder());
 
 	SetFocus(GetDlgItem(m_hDlg,IDC_MANAGEBOOKMARKS_LISTVIEW));
+
+	m_persistentSettings->RestoreDialogPosition(m_hDlg, true);
 
 	return 0;
 }
@@ -129,7 +130,7 @@ void ManageBookmarksDialog::SetupToolbar()
 	MapWindowPoints(HWND_DESKTOP, m_hDlg, reinterpret_cast<LPPOINT>(&rcListView), 2);
 
 	DWORD dwButtonSize = static_cast<DWORD>(SendMessage(m_hToolbar,TB_GETBUTTONSIZE,0,0));
-	SetWindowPos(m_hToolbar,NULL,rcTreeView.left,(rcTreeView.top - HIWORD(dwButtonSize)) / 2,
+	SetWindowPos(m_hToolbar, nullptr,rcTreeView.left,(rcTreeView.top - HIWORD(dwButtonSize)) / 2,
 		rcListView.right - rcTreeView.left,HIWORD(dwButtonSize),0);
 }
 
@@ -138,7 +139,7 @@ void ManageBookmarksDialog::SetupTreeView()
 	HWND hTreeView = GetDlgItem(m_hDlg, IDC_MANAGEBOOKMARKS_TREEVIEW);
 
 	m_bookmarkTreeView = new BookmarkTreeView(hTreeView, GetInstance(), m_pexpp,
-		m_bookmarkTree, m_pmbdps->m_setExpansion);
+		m_bookmarkTree, m_persistentSettings->m_setExpansion);
 
 	m_connections.push_back(m_bookmarkTreeView->selectionChangedSignal.AddObserver(
 		std::bind(&ManageBookmarksDialog::OnTreeViewSelectionChanged, this, std::placeholders::_1)));
@@ -149,7 +150,7 @@ void ManageBookmarksDialog::SetupListView()
 	HWND hListView = GetDlgItem(m_hDlg,IDC_MANAGEBOOKMARKS_LISTVIEW);
 
 	m_bookmarkListView = new BookmarkListView(hListView, GetInstance(), m_bookmarkTree,
-		m_pexpp, m_pmbdps->m_listViewColumns);
+		m_pexpp, m_persistentSettings->m_listViewColumns);
 
 	m_connections.push_back(m_bookmarkListView->navigationSignal.AddObserver(
 		std::bind(&ManageBookmarksDialog::OnListViewNavigation, this, std::placeholders::_1)));
@@ -239,17 +240,6 @@ LRESULT ManageBookmarksDialog::HandleMenuOrAccelerator(WPARAM wParam)
 		m_bookmarkListView->SetSortAscending(false);
 		break;
 
-		/* TODO: */
-	case IDM_MB_BOOKMARK_OPEN:
-		break;
-
-	case IDM_MB_BOOKMARK_OPENINNEWTAB:
-		break;
-
-	case IDM_MB_BOOKMARK_DELETE:
-		//OnDeleteBookmark();
-		break;
-
 	case IDOK:
 		OnOk();
 		break;
@@ -288,7 +278,7 @@ void ManageBookmarksDialog::OnNewFolder()
 	HWND hTreeView = GetDlgItem(m_hDlg,IDC_BOOKMARK_TREEVIEW);
 	HTREEITEM hSelectedItem = TreeView_GetSelection(hTreeView);
 
-	assert(hSelectedItem != NULL);
+	assert(hSelectedItem != nullptr);
 
 	auto bookmarkFolder = m_bookmarkTreeView->GetBookmarkFolderFromTreeView(
 		hSelectedItem);
@@ -373,7 +363,7 @@ void ManageBookmarksDialog::ShowViewMenu()
 	pt.y = rcButton.bottom;
 	ClientToScreen(m_hToolbar,&pt);
 
-	TrackPopupMenu(GetSubMenu(hMenu,0),TPM_LEFTALIGN,pt.x,pt.y,0,m_hDlg,NULL);
+	TrackPopupMenu(GetSubMenu(hMenu,0),TPM_LEFTALIGN,pt.x,pt.y,0,m_hDlg, nullptr);
 	DestroyMenu(hMenu);
 
 	SendMessage(m_hToolbar,TB_SETSTATE,TOOLBAR_ID_VIEWS,MAKEWORD(dwButtonState,0));
@@ -394,7 +384,7 @@ void ManageBookmarksDialog::ShowOrganizeMenu()
 	pt.y = rcButton.bottom;
 	ClientToScreen(m_hToolbar,&pt);
 
-	TrackPopupMenu(GetSubMenu(hMenu,0),TPM_LEFTALIGN,pt.x,pt.y,0,m_hDlg,NULL);
+	TrackPopupMenu(GetSubMenu(hMenu,0),TPM_LEFTALIGN,pt.x,pt.y,0,m_hDlg, nullptr);
 	DestroyMenu(hMenu);
 
 	SendMessage(m_hToolbar,TB_SETSTATE,TOOLBAR_ID_ORGANIZE,MAKEWORD(dwButtonState,0));
@@ -429,7 +419,7 @@ void ManageBookmarksDialog::OnListViewNavigation(BookmarkItem *bookmarkFolder)
 
 void ManageBookmarksDialog::BrowseBack()
 {
-	if(m_stackBack.size() == 0)
+	if(m_stackBack.empty())
 	{
 		return;
 	}
@@ -444,7 +434,7 @@ void ManageBookmarksDialog::BrowseBack()
 
 void ManageBookmarksDialog::BrowseForward()
 {
-	if(m_stackForward.size() == 0)
+	if(m_stackForward.empty())
 	{
 		return;
 	}
@@ -459,31 +449,9 @@ void ManageBookmarksDialog::BrowseForward()
 
 void ManageBookmarksDialog::UpdateToolbarState()
 {
-	SendMessage(m_hToolbar,TB_ENABLEBUTTON,TOOLBAR_ID_BACK,m_stackBack.size() != 0);
-	SendMessage(m_hToolbar,TB_ENABLEBUTTON,TOOLBAR_ID_FORWARD,m_stackForward.size() != 0);
+	SendMessage(m_hToolbar,TB_ENABLEBUTTON,TOOLBAR_ID_BACK,!m_stackBack.empty());
+	SendMessage(m_hToolbar,TB_ENABLEBUTTON,TOOLBAR_ID_FORWARD,!m_stackForward.empty());
 }
-
-// TODO: Update.
-//void CManageBookmarksDialog::OnBookmarkFolderAdded(const CBookmarkFolder &ParentBookmarkFolder,
-//	const CBookmarkFolder &BookmarkFolder,std::size_t Position)
-//{
-//	if(ParentBookmarkFolder.GetGUID() == m_guidCurrentFolder)
-//	{
-//		int iItem = m_pBookmarkListView->InsertBookmarkFolderIntoListView(BookmarkFolder,static_cast<int>(Position));
-//
-//		if(BookmarkFolder.GetGUID() == m_guidNewFolder)
-//		{
-//			HWND hListView = GetDlgItem(m_hDlg,IDC_MANAGEBOOKMARKS_LISTVIEW);
-//
-//			SetFocus(hListView);
-//			NListView::ListView_SelectAllItems(hListView,FALSE);
-//			NListView::ListView_SelectItem(hListView,iItem,TRUE);
-//			ListView_EditLabel(hListView,iItem);
-//
-//			m_bNewFolderAdded = false;
-//		}
-//	}
-//}
 
 void ManageBookmarksDialog::OnOk()
 {
@@ -503,7 +471,7 @@ INT_PTR ManageBookmarksDialog::OnClose()
 
 INT_PTR	ManageBookmarksDialog::OnDestroy()
 {
-	m_pmbdps->m_listViewColumns = m_bookmarkListView->GetColumns();
+	m_persistentSettings->m_listViewColumns = m_bookmarkListView->GetColumns();
 	return 0;
 }
 
@@ -516,9 +484,9 @@ INT_PTR ManageBookmarksDialog::OnNcDestroy()
 
 void ManageBookmarksDialog::SaveState()
 {
-	m_pmbdps->SaveDialogPosition(m_hDlg);
+	m_persistentSettings->SaveDialogPosition(m_hDlg);
 
-	m_pmbdps->m_bStateSaved = TRUE;
+	m_persistentSettings->m_bStateSaved = TRUE;
 }
 
 ManageBookmarksDialogPersistentSettings::ManageBookmarksDialogPersistentSettings() :

@@ -7,14 +7,13 @@
 #include "Config.h"
 #include "ItemData.h"
 #include "MainResource.h"
+#include "NavigationController.h"
 #include "PreservedFolderState.h"
 #include "SortModes.h"
 #include "ViewModes.h"
 #include "../Helper/Controls.h"
 #include "../Helper/DriveInfo.h"
-#include "../Helper/FileOperations.h"
-#include "../Helper/FolderSize.h"
-#include "../Helper/Helper.h"
+#include "../Helper/IconFetcher.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
@@ -31,7 +30,7 @@ int ShellBrowser::listViewParentSubclassIdCounter = 0;
 /* IUnknown interface members. */
 HRESULT __stdcall ShellBrowser::QueryInterface(REFIID iid, void **ppvObject)
 {
-	*ppvObject = NULL;
+	*ppvObject = nullptr;
 
 	if (iid == IID_IUnknown)
 	{
@@ -67,7 +66,7 @@ ULONG __stdcall ShellBrowser::Release(void)
 
 ShellBrowser *ShellBrowser::CreateNew(int id, HINSTANCE resourceInstance, HWND hOwner,
 	CachedIcons *cachedIcons, const Config *config, TabNavigationInterface *tabNavigation,
-	const FolderSettings &folderSettings, boost::optional<FolderColumns> initialColumns)
+	const FolderSettings &folderSettings, std::optional<FolderColumns> initialColumns)
 {
 	return new ShellBrowser(id, resourceInstance, hOwner, cachedIcons, config, tabNavigation,
 		folderSettings, initialColumns);
@@ -87,7 +86,7 @@ ShellBrowser::ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner,
 	const std::vector<std::unique_ptr<PreservedHistoryEntry>> &history, int currentEntry,
 	const PreservedFolderState &preservedFolderState) :
 	ShellBrowser(id, resourceInstance, hOwner, cachedIcons, config, tabNavigation,
-		preservedFolderState.folderSettings, boost::none)
+		preservedFolderState.folderSettings, std::nullopt)
 {
 	m_navigationController = std::make_unique<NavigationController>(this, tabNavigation, m_iconFetcher.get(),
 		history, currentEntry);
@@ -95,7 +94,7 @@ ShellBrowser::ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner,
 
 ShellBrowser::ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner, CachedIcons *cachedIcons,
 	const Config *config, TabNavigationInterface *tabNavigation, const FolderSettings &folderSettings,
-	boost::optional<FolderColumns> initialColumns) :
+	std::optional<FolderColumns> initialColumns) :
 	m_ID(id),
 	m_hResourceModule(resourceInstance),
 	m_hOwner(hOwner),
@@ -128,7 +127,7 @@ ShellBrowser::ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner, Cach
 	m_bThumbnailsSetup = FALSE;
 	m_nCurrentColumns = 0;
 	m_iDirMonitorId = -1;
-	m_pActiveColumns = NULL;
+	m_pActiveColumns = nullptr;
 	m_bPerformingDrag = FALSE;
 	m_nActiveColumns = 0;
 	m_bNewItemCreated = FALSE;
@@ -147,7 +146,7 @@ ShellBrowser::ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner, Cach
 	m_thumbnailThreadPool.push([] (int id) {
 		UNREFERENCED_PARAMETER(id);
 
-		CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+		CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 	});
 }
 
@@ -210,13 +209,13 @@ HWND ShellBrowser::SetUpListView(HWND parent)
 	NListView::ListView_ActivateOneClickSelect(m_hListView, m_config->globalFolderSettings.oneClickActivate,
 		m_config->globalFolderSettings.oneClickActivateHoverTime);
 
-	SetWindowTheme(hListView, L"Explorer", NULL);
+	SetWindowTheme(hListView, L"Explorer", nullptr);
 
-	m_windowSubclasses.push_back(WindowSubclassWrapper(hListView, ListViewProcStub,
-		LISTVIEW_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(hListView, ListViewProcStub, LISTVIEW_SUBCLASS_ID,
+		reinterpret_cast<DWORD_PTR>(this));
 
-	m_windowSubclasses.push_back(WindowSubclassWrapper(parent, ListViewParentProcStub,
-		listViewParentSubclassIdCounter++, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(parent, ListViewParentProcStub,
+		listViewParentSubclassIdCounter++, reinterpret_cast<DWORD_PTR>(this));
 
 	return hListView;
 }
@@ -389,7 +388,7 @@ HRESULT ShellBrowser::InitializeDragDropHelpers(void)
 	HRESULT hr;
 
 	/* Initialize the drag source helper, and use it to initialize the drop target helper. */
-	hr = CoCreateInstance(CLSID_DragDropHelper, NULL, CLSCTX_INPROC_SERVER,
+	hr = CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER,
 		IID_PPV_ARGS(&m_pDragSourceHelper));
 
 	if (SUCCEEDED(hr))
@@ -522,14 +521,13 @@ int ShellBrowser::LocateFileItemInternalIndex(const TCHAR *szFileName) const
 			(lstrcmp(m_itemInfoMap.at((int)lvItem.lParam).wfd.cAlternateFileName,szFileName) == 0))
 		{
 			return (int)lvItem.lParam;
-			break;
 		}
 	}
 
 	return -1;
 }
 
-boost::optional<int> ShellBrowser::LocateItemByInternalIndex(int internalIndex) const
+std::optional<int> ShellBrowser::LocateItemByInternalIndex(int internalIndex) const
 {
 	LVFINDINFO lvfi;
 	lvfi.flags = LVFI_PARAM;
@@ -538,7 +536,7 @@ boost::optional<int> ShellBrowser::LocateItemByInternalIndex(int internalIndex) 
 
 	if (item == -1)
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	return item;
@@ -635,7 +633,7 @@ BOOL ShellBrowser::CanCreate(void) const
 {
 	BOOL bCanCreate = FALSE;
 	unique_pidl_absolute pidl;
-	HRESULT hr = SHGetFolderLocation(NULL,CSIDL_DESKTOP,NULL,0,wil::out_param(pidl));
+	HRESULT hr = SHGetFolderLocation(nullptr,CSIDL_DESKTOP, nullptr,0,wil::out_param(pidl));
 
 	if(SUCCEEDED(hr))
 	{
@@ -1012,9 +1010,9 @@ BOOL ShellBrowser::GetFilterStatus(void) const
 	return m_folderSettings.applyFilter;
 }
 
-void ShellBrowser::SetFilterCaseSensitive(BOOL bFilterCaseSensitive)
+void ShellBrowser::SetFilterCaseSensitive(BOOL filterCaseSensitive)
 {
-	m_folderSettings.filterCaseSensitive = bFilterCaseSensitive;
+	m_folderSettings.filterCaseSensitive = filterCaseSensitive;
 }
 
 BOOL ShellBrowser::GetFilterCaseSensitive(void) const
@@ -1254,13 +1252,13 @@ void ShellBrowser::OnDeviceChange(WPARAM wParam,LPARAM lParam)
 			drives toolbar as necessary. */
 		case DBT_DEVICEARRIVAL:
 			{
-				DEV_BROADCAST_HDR *dbh = NULL;
+				DEV_BROADCAST_HDR *dbh = nullptr;
 
 				dbh = (DEV_BROADCAST_HDR *)lParam;
 
 				if(dbh->dbch_devicetype == DBT_DEVTYP_VOLUME)
 				{
-					DEV_BROADCAST_VOLUME	*pdbv = NULL;
+					DEV_BROADCAST_VOLUME	*pdbv = nullptr;
 					TCHAR					chDrive;
 					TCHAR					szDrive[4];
 
@@ -1285,13 +1283,13 @@ void ShellBrowser::OnDeviceChange(WPARAM wParam,LPARAM lParam)
 
 		case DBT_DEVICEREMOVECOMPLETE:
 			{
-				DEV_BROADCAST_HDR				*dbh = NULL;
+				DEV_BROADCAST_HDR				*dbh = nullptr;
 
 				dbh = (DEV_BROADCAST_HDR *)lParam;
 
 				if(dbh->dbch_devicetype == DBT_DEVTYP_VOLUME)
 				{
-					DEV_BROADCAST_VOLUME	*pdbv = NULL;
+					DEV_BROADCAST_VOLUME	*pdbv = nullptr;
 					TCHAR					chDrive;
 					TCHAR					szDrive[4];
 

@@ -10,6 +10,7 @@
 
 #include "stdafx.h"
 #include "INewMenuClient.h"
+#include "CoreInterface.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/Logging.h"
 
@@ -22,7 +23,7 @@ m_RefCount(1)
 
 HRESULT __stdcall NewMenuClient::QueryInterface(REFIID iid,void **ppvObject)
 {
-	*ppvObject = NULL;
+	*ppvObject = nullptr;
 
 	if(iid == IID_IUnknown)
 	{

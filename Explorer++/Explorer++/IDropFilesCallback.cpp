@@ -9,6 +9,7 @@
 
 #include "stdafx.h"
 #include "IDropFilesCallback.h"
+#include "CoreInterface.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include <list>
 
@@ -21,7 +22,7 @@ m_RefCount(1)
 
 HRESULT __stdcall DropFilesCallback::QueryInterface(REFIID iid,void **ppvObject)
 {
-	*ppvObject = NULL;
+	*ppvObject = nullptr;
 
 	if(iid == IID_IUnknown)
 	{

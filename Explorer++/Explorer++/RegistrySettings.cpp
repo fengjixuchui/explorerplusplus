@@ -5,20 +5,20 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "ApplicationToolbar.h"
-#include "ColorRuleHelper.h"
+#include "BookmarkRegistryStorage.h"
 #include "Config.h"
 #include "DefaultColumns.h"
+#include "DisplayWindow/DisplayWindow.h"
 #include "Explorer++_internal.h"
 #include "MainToolbar.h"
-#include "../DisplayWindow/DisplayWindow.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "TabContainer.h"
 #include "../Helper/RegistrySettings.h"
 #include "../Helper/Macros.h"
 #include <boost/range/adaptor/map.hpp>
 
 namespace
 {
-	const TCHAR REG_BOOKMARKS_KEY_V1[] = _T("Software\\Explorer++\\Bookmarks");
-	const TCHAR REG_BOOKMARKS_KEY_V2[] = _T("Software\\Explorer++\\Bookmarksv2");
 	const TCHAR REG_TABS_KEY[] = _T("Software\\Explorer++\\Tabs");
 	const TCHAR REG_TOOLBARS_KEY[] = _T("Software\\Explorer++\\Toolbars");
 	const TCHAR REG_COLUMNS_KEY[] = _T("Software\\Explorer++\\DefaultColumns");
@@ -39,7 +39,7 @@ BOOL LoadWindowPositionFromRegistry(WINDOWPLACEMENT *pwndpl)
 	{
 		DWORD dwSize = sizeof(WINDOWPLACEMENT);
 
-		RegQueryValueEx(hSettingsKey,_T("Position"),NULL,NULL,
+		RegQueryValueEx(hSettingsKey,_T("Position"), nullptr, nullptr,
 			(LPBYTE)pwndpl,&dwSize);
 
 		if(dwSize == sizeof(WINDOWPLACEMENT) &&
@@ -80,8 +80,8 @@ LONG Explorerplusplus::SaveGenericSettingsToRegistry()
 	TBSAVEPARAMS	tbSave;
 
 	/* Open/Create the main key that is used to store data. */
-	ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,NExplorerplusplus::REG_SETTINGS_KEY,0,NULL,
-	REG_OPTION_NON_VOLATILE,KEY_WRITE,NULL,&hSettingsKey,&Disposition);
+	ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,NExplorerplusplus::REG_SETTINGS_KEY,0, nullptr,
+	REG_OPTION_NON_VOLATILE,KEY_WRITE, nullptr,&hSettingsKey,&Disposition);
 
 	if(ReturnValue == ERROR_SUCCESS)
 	{
@@ -327,7 +327,7 @@ LONG Explorerplusplus::LoadGenericSettingsFromRegistry()
 		dwType = REG_BINARY;
 		dwSize = sizeof(SurroundColor);
 
-		SurroundColorStatus = RegQueryValueEx(hSettingsKey,_T("DisplaySurroundColor"),0,&dwType,(LPBYTE)&SurroundColor,
+		SurroundColorStatus = RegQueryValueEx(hSettingsKey,_T("DisplaySurroundColor"),nullptr,&dwType,(LPBYTE)&SurroundColor,
 			&dwSize);
 
 		if (SurroundColorStatus == ERROR_SUCCESS)
@@ -338,7 +338,7 @@ LONG Explorerplusplus::LoadGenericSettingsFromRegistry()
 		dwType = REG_BINARY;
 		dwSize = sizeof(CentreColor);
 
-		CentreColorStatus = RegQueryValueEx(hSettingsKey,_T("DisplayCentreColor"),0,&dwType,(LPBYTE)&CentreColor,
+		CentreColorStatus = RegQueryValueEx(hSettingsKey,_T("DisplayCentreColor"),nullptr,&dwType,(LPBYTE)&CentreColor,
 			&dwSize);
 
 		if (CentreColorStatus == ERROR_SUCCESS)
@@ -349,7 +349,7 @@ LONG Explorerplusplus::LoadGenericSettingsFromRegistry()
 		dwType = REG_BINARY;
 		dwSize = sizeof(TextColor);
 
-		TextColorStatus = RegQueryValueEx(hSettingsKey,_T("DisplayTextColor"),0,&dwType,(LPBYTE)&TextColor,
+		TextColorStatus = RegQueryValueEx(hSettingsKey,_T("DisplayTextColor"),nullptr,&dwType,(LPBYTE)&TextColor,
 			&dwSize);
 
 		if (TextColorStatus == ERROR_SUCCESS)
@@ -360,7 +360,7 @@ LONG Explorerplusplus::LoadGenericSettingsFromRegistry()
 		dwType = REG_BINARY;
 		dwSize = sizeof(LOGFONT);
 
-		FontStatus = RegQueryValueEx(hSettingsKey,_T("DisplayFont"),0,&dwType,(LPBYTE)&LogFont,
+		FontStatus = RegQueryValueEx(hSettingsKey,_T("DisplayFont"),nullptr,&dwType,(LPBYTE)&LogFont,
 			&dwSize);
 
 		if (FontStatus == ERROR_SUCCESS)
@@ -391,24 +391,24 @@ void DeleteKey(HKEY hKey)
 
 	/* Enumerate all the previous bookmarks keys and
 	delete them. */
-	if(RegQueryInfoKey(hKey,NULL,NULL,NULL,&nSubKeys,NULL,NULL,
-		NULL,NULL,NULL,NULL,NULL) == ERROR_SUCCESS)
+	if(RegQueryInfoKey(hKey, nullptr, nullptr, nullptr,&nSubKeys, nullptr, nullptr,
+		nullptr, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
 	{
 		for(i = nSubKeys - 1;i >= 0;i--)
 		{
 			dwName = SIZEOF_ARRAY(lpName);
 
 			if(RegEnumKeyEx(hKey,i,lpName,&dwName,
-				0,NULL,NULL,NULL) == ERROR_SUCCESS)
+				nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
 			{
 				ReturnValue = RegCreateKeyEx(hKey,lpName,0,
-					NULL,REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_ENUMERATE_SUB_KEYS |
-					KEY_QUERY_VALUE | DELETE,NULL,&hChildKey,&Disposition);
+					nullptr,REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_ENUMERATE_SUB_KEYS |
+					KEY_QUERY_VALUE | DELETE, nullptr,&hChildKey,&Disposition);
 
 				if(ReturnValue == ERROR_SUCCESS)
 				{
-					RegQueryInfoKey(hChildKey,NULL,NULL,NULL,&nChildSubKeys,
-						NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+					RegQueryInfoKey(hChildKey, nullptr, nullptr, nullptr,&nChildSubKeys,
+						nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
 					/* If this key contains subkeys, it cannot just
 					be deleted. It must have each of it's subkeys
@@ -429,27 +429,12 @@ void DeleteKey(HKEY hKey)
 
 void Explorerplusplus::SaveBookmarksToRegistry()
 {
-	SHDeleteKey(HKEY_CURRENT_USER, REG_BOOKMARKS_KEY_V2);
-
-	wil::unique_hkey bookmarksKey;
-	LONG res = RegCreateKeyEx(HKEY_CURRENT_USER, REG_BOOKMARKS_KEY_V2, 0, nullptr,
-		REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &bookmarksKey, nullptr);
-
-	if (res == ERROR_SUCCESS)
-	{
-		m_bookmarkTree.SaveRegistrySettings(bookmarksKey.get());
-	}
+	BookmarkRegistryStorage::Save(&m_bookmarkTree);
 }
 
 void Explorerplusplus::LoadBookmarksFromRegistry()
 {
-	wil::unique_hkey bookmarksKey;
-	LONG res = RegOpenKeyEx(HKEY_CURRENT_USER, REG_BOOKMARKS_KEY_V2, 0, KEY_READ, &bookmarksKey);
-
-	if (res == ERROR_SUCCESS)
-	{
-		m_bookmarkTree.LoadRegistrySettings(bookmarksKey.get());
-	}
+	BookmarkRegistryStorage::Load(&m_bookmarkTree);
 }
 
 void Explorerplusplus::SaveTabSettingsToRegistry(void)
@@ -470,7 +455,7 @@ void Explorerplusplus::SaveTabSettingsToRegistry(void)
 	SHDeleteKey(HKEY_CURRENT_USER,REG_TABS_KEY);
 
 	ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,REG_TABS_KEY,
-		0,NULL,REG_OPTION_NON_VOLATILE,KEY_WRITE,NULL,&hKey,
+		0, nullptr,REG_OPTION_NON_VOLATILE,KEY_WRITE, nullptr,&hKey,
 		&Disposition);
 
 	if(ReturnValue == ERROR_SUCCESS)
@@ -484,9 +469,9 @@ void Explorerplusplus::SaveTabSettingsToRegistry(void)
 			StringCchPrintf(szItemKey,SIZEOF_ARRAY(szItemKey),
 				_T("%d"),tabNum);
 
-			ReturnValue = RegCreateKeyEx(hKey,szItemKey,0,NULL,
+			ReturnValue = RegCreateKeyEx(hKey,szItemKey,0, nullptr,
 				REG_OPTION_NON_VOLATILE,KEY_WRITE,
-				NULL,&hTabKey,&Disposition);
+				nullptr,&hTabKey,&Disposition);
 
 			if(ReturnValue == ERROR_SUCCESS)
 			{
@@ -513,7 +498,7 @@ void Explorerplusplus::SaveTabSettingsToRegistry(void)
 
 				/* Now save the tabs columns. */
 				ReturnValue = RegCreateKeyEx(hTabKey,_T("Columns"),
-					0,NULL,REG_OPTION_NON_VOLATILE,KEY_WRITE,NULL,&hColumnsKey,
+					0, nullptr,REG_OPTION_NON_VOLATILE,KEY_WRITE, nullptr,&hColumnsKey,
 					&Disposition);
 
 				if(ReturnValue == ERROR_SUCCESS)
@@ -582,7 +567,7 @@ int Explorerplusplus::LoadTabSettingsFromRegistry()
 	HKEY				hTabKey;
 	HKEY				hColumnsKey;
 	TCHAR				szItemKey[128];
-	LPITEMIDLIST		pidlDirectory = NULL;
+	LPITEMIDLIST		pidlDirectory = nullptr;
 	LONG				ReturnValue;
 	DWORD				cbData;
 	DWORD				Type;
@@ -601,12 +586,12 @@ int Explorerplusplus::LoadTabSettingsFromRegistry()
 
 		while(ReturnValue == ERROR_SUCCESS)
 		{
-			if(RegQueryValueEx(hTabKey,_T("Directory"),0,NULL,NULL,&cbData)
+			if(RegQueryValueEx(hTabKey,_T("Directory"),nullptr, nullptr, nullptr,&cbData)
 				== ERROR_SUCCESS)
 			{
 				pidlDirectory = (LPITEMIDLIST)CoTaskMemAlloc(cbData);
 
-				RegQueryValueEx(hTabKey,_T("Directory"),0,&Type,(LPBYTE)pidlDirectory,&cbData);
+				RegQueryValueEx(hTabKey,_T("Directory"),nullptr,&Type,(LPBYTE)pidlDirectory,&cbData);
 			}
 
 			FolderSettings folderSettings;
@@ -718,7 +703,7 @@ void Explorerplusplus::SaveColumnWidthsToRegistry(HKEY hColumnsKey, const TCHAR 
 		int iWidth;
 	} ColumnWidth_t;
 
-	ColumnWidth_t				*pColumnList = NULL;
+	ColumnWidth_t				*pColumnList = nullptr;
 	int							iColumn = 0;
 
 	pColumnList = (ColumnWidth_t *)malloc(pColumns->size() * sizeof(ColumnWidth_t));
@@ -743,7 +728,7 @@ std::vector<ColumnWidth_t> Explorerplusplus::LoadColumnWidthsFromRegistry(HKEY h
 	DWORD dwType = REG_BINARY;
 	DWORD dwSize = sizeof(columnWidthData);
 
-	LONG ret = RegQueryValueEx(hColumnsKey,szKeyName,0,&dwType,(LPBYTE)columnWidthData, &dwSize);
+	LONG ret = RegQueryValueEx(hColumnsKey,szKeyName,nullptr,&dwType,(LPBYTE)columnWidthData, &dwSize);
 
 	std::vector<ColumnWidth_t> columnWidths;
 
@@ -764,7 +749,7 @@ std::vector<ColumnWidth_t> Explorerplusplus::LoadColumnWidthsFromRegistry(HKEY h
 
 void Explorerplusplus::SaveColumnToRegistry(HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns)
 {
-	ColumnOld_t					*pColumnList = NULL;
+	ColumnOld_t					*pColumnList = nullptr;
 	int							iColumn = 0;
 
 	pColumnList = (ColumnOld_t *)malloc(pColumns->size() * sizeof(ColumnOld_t));
@@ -794,7 +779,7 @@ std::vector<Column_t> Explorerplusplus::LoadColumnFromRegistry(HKEY hColumnsKey,
 	dwType = REG_BINARY;
 	dwSize = sizeof(ColumnList);
 
-	RegQueryValueEx(hColumnsKey,szKeyName,0,&dwType,(LPBYTE)ColumnList,
+	RegQueryValueEx(hColumnsKey,szKeyName,nullptr,&dwType,(LPBYTE)ColumnList,
 		&dwSize);
 
 	std::vector<Column_t> columns;
@@ -818,8 +803,8 @@ void Explorerplusplus::SaveDefaultColumnsToRegistry()
 	LONG			ReturnValue;
 
 	/* Open/Create the main key that is used to store data. */
-	ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,REG_COLUMNS_KEY,0,NULL,
-	REG_OPTION_NON_VOLATILE,KEY_WRITE,NULL,&hColumnsKey,&Disposition);
+	ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,REG_COLUMNS_KEY,0, nullptr,
+	REG_OPTION_NON_VOLATILE,KEY_WRITE, nullptr,&hColumnsKey,&Disposition);
 
 	if(ReturnValue == ERROR_SUCCESS)
 	{
@@ -907,7 +892,7 @@ void Explorerplusplus::SaveToolbarInformationToRegistry(void)
 	SHDeleteKey(HKEY_CURRENT_USER,REG_TOOLBARS_KEY);
 
 	ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,REG_TOOLBARS_KEY,
-		0,NULL,REG_OPTION_NON_VOLATILE,KEY_WRITE,NULL,&hKey,
+		0, nullptr,REG_OPTION_NON_VOLATILE,KEY_WRITE, nullptr,&hKey,
 		&Disposition);
 
 	if(ReturnValue == ERROR_SUCCESS)
@@ -920,9 +905,9 @@ void Explorerplusplus::SaveToolbarInformationToRegistry(void)
 			StringCchPrintf(szItemKey,SIZEOF_ARRAY(szItemKey),
 				_T("%d"),i);
 
-			ReturnValue = RegCreateKeyEx(hKey,szItemKey,0,NULL,
+			ReturnValue = RegCreateKeyEx(hKey,szItemKey,0, nullptr,
 				REG_OPTION_NON_VOLATILE,KEY_WRITE,
-				NULL,&hToolbarKey,&Disposition);
+				nullptr,&hToolbarKey,&Disposition);
 
 			if(ReturnValue == ERROR_SUCCESS)
 			{
@@ -1009,7 +994,7 @@ void Explorerplusplus::SaveApplicationToolbarToRegistry()
 
 	HKEY hKey;
 	LONG ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,REG_APPLICATIONS_KEY,
-		0,NULL,REG_OPTION_NON_VOLATILE,KEY_WRITE,NULL,&hKey,NULL);
+		0, nullptr,REG_OPTION_NON_VOLATILE,KEY_WRITE, nullptr,&hKey, nullptr);
 
 	if(ReturnValue == ERROR_SUCCESS)
 	{

@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "PluginCommandManager.h"
+#include "Manifest.h"
 #include <boost/algorithm/string.hpp>
 
 Plugins::PluginCommandManager::PluginCommandManager(HACCEL *acceleratorTable, int startId, int endId) :
@@ -79,11 +80,11 @@ void Plugins::PluginCommandManager::addCommands(int pluginId, const std::vector<
 	*m_acceleratorTable = newAcceleratorTable;
 }
 
-boost::optional<int> Plugins::PluginCommandManager::generateId()
+std::optional<int> Plugins::PluginCommandManager::generateId()
 {
 	if (m_idCounter >= m_endId)
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	return m_idCounter++;

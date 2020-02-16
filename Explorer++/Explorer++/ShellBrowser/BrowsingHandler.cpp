@@ -5,12 +5,10 @@
 #include "stdafx.h"
 #include "ShellBrowser.h"
 #include "Config.h"
+#include "ItemData.h"
 #include "MainResource.h"
 #include "ViewModes.h"
-#include "../Helper/Controls.h"
-#include "../Helper/FileOperations.h"
-#include "../Helper/FolderSize.h"
-#include "../Helper/Helper.h"
+#include "../Helper/IconFetcher.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
@@ -19,10 +17,10 @@
 
 HRESULT ShellBrowser::BrowseFolder(PCIDLIST_ABSOLUTE pidlDirectory, bool addHistoryEntry)
 {
-	SetCursor(LoadCursor(NULL, IDC_WAIT));
+	SetCursor(LoadCursor(nullptr, IDC_WAIT));
 
 	auto resetCursor = wil::scope_exit([] {
-		SetCursor(LoadCursor(NULL, IDC_ARROW));
+		SetCursor(LoadCursor(nullptr, IDC_ARROW));
 	});
 
 	if(m_bFolderVisited)
@@ -517,7 +515,7 @@ void ShellBrowser::PlayNavigationSound() const
 {
 	if (m_config->playNavigationSound)
 	{
-		PlaySound(MAKEINTRESOURCE(IDR_WAVE_NAVIGATIONSTART), NULL,
+		PlaySound(MAKEINTRESOURCE(IDR_WAVE_NAVIGATIONSTART), nullptr,
 			SND_RESOURCE | SND_ASYNC);
 	}
 }

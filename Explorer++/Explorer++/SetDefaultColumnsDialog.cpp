@@ -4,10 +4,8 @@
 
 #include "stdafx.h"
 #include "SetDefaultColumnsDialog.h"
-#include "Explorer++_internal.h"
 #include "MainResource.h"
 #include "ShellBrowser/ShellBrowser.h"
-#include "../Helper/Helper.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/RegistrySettings.h"
@@ -29,7 +27,7 @@ SetDefaultColumnsDialog::SetDefaultColumnsDialog(HINSTANCE hInstance, HWND hPare
 
 INT_PTR SetDefaultColumnsDialog::OnInitDialog()
 {
-	m_icon.reset(LoadIcon(GetModuleHandle(0),MAKEINTRESOURCE(IDI_MAIN)));
+	m_icon.reset(LoadIcon(GetModuleHandle(nullptr),MAKEINTRESOURCE(IDI_MAIN)));
 	SetClassLongPtr(m_hDlg,GCLP_HICONSM,reinterpret_cast<LONG_PTR>(m_icon.get()));
 
 	HWND hComboBox = GetDlgItem(m_hDlg,IDC_DEFAULTCOLUMNS_COMBOBOX);
@@ -73,7 +71,7 @@ INT_PTR SetDefaultColumnsDialog::OnInitDialog()
 	m_PreviousFolderType = m_psdcdps->m_FolderType;
 
 	HWND hListView = GetDlgItem(m_hDlg,IDC_DEFAULTCOLUMNS_LISTVIEW);
-	SetWindowTheme(hListView, L"Explorer", NULL);
+	SetWindowTheme(hListView, L"Explorer", nullptr);
 
 	ListView_SetExtendedListViewStyleEx(hListView,
 	LVS_EX_CHECKBOXES,LVS_EX_CHECKBOXES);
@@ -317,31 +315,24 @@ std::vector<Column_t> &SetDefaultColumnsDialog::GetCurrentColumnList(FolderType_
 	{
 	case FOLDER_TYPE_GENERAL:
 		return m_folderColumns.realFolderColumns;
-		break;
 
 	case FOLDER_TYPE_COMPUTER:
 		return m_folderColumns.myComputerColumns;
-		break;
 
 	case FOLDER_TYPE_CONTROL_PANEL:
 		return m_folderColumns.controlPanelColumns;
-		break;
 
 	case FOLDER_TYPE_NETWORK:
 		return m_folderColumns.networkConnectionsColumns;
-		break;
 
 	case FOLDER_TYPE_NETWORK_PLACES:
 		return m_folderColumns.myNetworkPlacesColumns;
-		break;
 
 	case FOLDER_TYPE_PRINTERS:
 		return m_folderColumns.printersColumns;
-		break;
 
 	case FOLDER_TYPE_RECYCLE_BIN:
 		return m_folderColumns.recycleBinColumns;
-		break;
 	}
 
 	throw std::runtime_error("Unknown folder type selected");

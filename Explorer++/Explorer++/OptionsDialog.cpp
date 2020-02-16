@@ -13,14 +13,18 @@
 #include "stdafx.h"
 #include "OptionsDialog.h"
 #include "Config.h"
+#include "CoreInterface.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
-#include "ModelessDialogs.h"
 #include "ResourceHelper.h"
 #include "SetDefaultColumnsDialog.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "ShellBrowser/ViewModes.h"
+#include "TabContainer.h"
 #include "ViewModeHelper.h"
 #include "../Helper/ListViewHelper.h"
+#include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ProcessHelper.h"
 #include "../Helper/SetDefaultFileManager.h"
@@ -102,8 +106,8 @@ HWND OptionsDialog::Show(HWND parentWindow)
 	psh.pfnCallback	= nullptr;
 	HWND propertySheet = reinterpret_cast<HWND>(PropertySheet(&psh));
 
-	m_windowSubclasses.push_back(WindowSubclassWrapper(propertySheet, PropSheetProcStub,
-		PROP_SHEET_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(propertySheet, PropSheetProcStub,
+		PROP_SHEET_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
 
 	CenterWindow(parentWindow, propertySheet);
 
@@ -138,7 +142,6 @@ LRESULT CALLBACK OptionsDialog::PropSheetProc(HWND hwnd, UINT uMsg, WPARAM wPara
 	case WM_NCDESTROY:
 		delete this;
 		return 0;
-		break;
 	}
 
 	return DefSubclassProc(hwnd, uMsg, wParam, lParam);
@@ -265,7 +268,7 @@ INT_PTR CALLBACK OptionsDialog::GeneralSettingsProc(HWND hDlg,UINT uMsg,WPARAM w
 
 		case WM_NOTIFY:
 		{
-			NMHDR	*nmhdr = NULL;
+			NMHDR	*nmhdr = nullptr;
 			nmhdr = (NMHDR *)lParam;
 
 			switch(nmhdr->code)
@@ -576,7 +579,7 @@ INT_PTR CALLBACK OptionsDialog::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM wPar
 
 		case WM_NOTIFY:
 			{
-				NMHDR	*nmhdr = NULL;
+				NMHDR	*nmhdr = nullptr;
 				nmhdr = (NMHDR *)lParam;
 
 				switch(nmhdr->code)
@@ -601,7 +604,7 @@ INT_PTR CALLBACK OptionsDialog::FilesFoldersProc(HWND hDlg,UINT uMsg,WPARAM wPar
 						m_config->globalFolderSettings.oneClickActivate = (IsDlgButtonChecked(hDlg,IDC_SETTINGS_CHECK_SINGLECLICK)
 							== BST_CHECKED);
 
-						m_config->globalFolderSettings.oneClickActivateHoverTime = GetDlgItemInt(hDlg,IDC_OPTIONS_HOVER_TIME,NULL,FALSE);
+						m_config->globalFolderSettings.oneClickActivateHoverTime = GetDlgItemInt(hDlg,IDC_OPTIONS_HOVER_TIME, nullptr,FALSE);
 
 						m_config->overwriteExistingFilesConfirmation = (IsDlgButtonChecked(hDlg,IDC_SETTINGS_CHECK_EXISTINGFILESCONFIRMATION)
 							== BST_CHECKED);
@@ -743,7 +746,7 @@ INT_PTR CALLBACK OptionsDialog::WindowProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 
 	case WM_NOTIFY:
 		{
-			NMHDR	*nmhdr = NULL;
+			NMHDR	*nmhdr = nullptr;
 			nmhdr = (NMHDR *)lParam;
 
 			switch(nmhdr->code)
@@ -901,7 +904,7 @@ INT_PTR CALLBACK OptionsDialog::TabSettingsProc(HWND hDlg,UINT uMsg,WPARAM wPara
 
 		case WM_NOTIFY:
 			{
-				NMHDR	*nmhdr = NULL;
+				NMHDR	*nmhdr = nullptr;
 				nmhdr = (NMHDR *)lParam;
 
 				switch(nmhdr->code)
@@ -1039,7 +1042,7 @@ INT_PTR CALLBACK OptionsDialog::DefaultSettingsProc(HWND hDlg,UINT uMsg,WPARAM w
 
 		case WM_NOTIFY:
 			{
-				NMHDR	*nmhdr = NULL;
+				NMHDR	*nmhdr = nullptr;
 				nmhdr = (NMHDR *)lParam;
 
 				switch(nmhdr->code)
@@ -1102,10 +1105,10 @@ void OptionsDialog::OnDefaultSettingsNewTabDir(HWND hDlg)
 		StringCchCopy(g_szNewTabDirectory,SIZEOF_ARRAY(g_szNewTabDirectory),
 		szNewTabDir);
 
-	CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);
+	CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
 
 	bi.hwndOwner		= hDlg;
-	bi.pidlRoot			= NULL;
+	bi.pidlRoot			= nullptr;
 	bi.pszDisplayName	= szDisplayName;
 	bi.lpszTitle		= helperText.c_str();
 	bi.ulFlags			= BIF_NEWDIALOGSTYLE;
@@ -1115,7 +1118,7 @@ void OptionsDialog::OnDefaultSettingsNewTabDir(HWND hDlg)
 
 	CoUninitialize();
 
-	if(pidl != NULL)
+	if(pidl != nullptr)
 	{
 		hEdit = GetDlgItem(hDlg,IDC_DEFAULT_NEWTABDIR_EDIT);
 
@@ -1204,15 +1207,12 @@ UINT GetIconThemeStringResourceId(IconTheme iconTheme)
 	{
 	case IconTheme::Color:
 		return IDS_ICON_THEME_COLOR;
-		break;
 
 	case IconTheme::Windows10:
 		return IDS_ICON_THEME_WINDOWS_10;
-		break;
 
 	default:
 		throw std::runtime_error("IconTheme value not found");
-		break;
 	}
 }
 

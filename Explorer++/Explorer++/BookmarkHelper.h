@@ -5,9 +5,13 @@
 #pragma once
 
 #include "BookmarkItem.h"
-#include "BookmarkTree.h"
-#include "CoreInterface.h"
-#include "TabContainer.h"
+#include <optional>
+
+class BookmarkTree;
+__interface IExplorerplusplus;
+class TabContainer;
+
+using RawBookmarkItems = std::vector<BookmarkItem *>;
 
 namespace BookmarkHelper
 {
@@ -25,8 +29,12 @@ namespace BookmarkHelper
 
 	int CALLBACK Sort(SortMode sortMode, const BookmarkItem *firstItem, const BookmarkItem *secondItem);
 
-	void AddBookmarkItem(BookmarkTree *bookmarkTree, BookmarkItem::Type type, HMODULE resoureceModule,
-		HWND parentWindow, TabContainer *tabContainer, IExplorerplusplus *coreInterface);
+	void BookmarkAllTabs(BookmarkTree *bookmarkTree, HMODULE resoureceModule, HWND parentWindow,
+		IExplorerplusplus *coreInterface);
+	BookmarkItem *AddBookmarkItem(BookmarkTree *bookmarkTree, BookmarkItem::Type type,
+		BookmarkItem *defaultParentSelection, HMODULE resoureceModule, HWND parentWindow,
+		TabContainer *tabContainer, IExplorerplusplus *coreInterface,
+		std::optional<std::wstring> customDialogTitle = std::nullopt);
 	void EditBookmarkItem(BookmarkItem *bookmarkItem, BookmarkTree *bookmarkTree, HMODULE resoureceModule,
 		HWND parentWindow, IExplorerplusplus *coreInterface);
 	void OpenBookmarkItemInNewTab(const BookmarkItem *bookmarkItem, IExplorerplusplus *expp);

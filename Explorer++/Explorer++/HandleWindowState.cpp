@@ -5,21 +5,12 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "Config.h"
-#include "Explorer++_internal.h"
 #include "MainResource.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
 #include "ShellBrowser/ViewModes.h"
-#include "SortModeHelper.h"
-#include "ToolbarButtons.h"
-#include "../Helper/Controls.h"
-#include "../Helper/FileOperations.h"
-#include "../Helper/Helper.h"
-#include "../Helper/Macros.h"
+#include "TabContainer.h"
 #include "../Helper/MenuHelper.h"
-#include "../Helper/ProcessHelper.h"
-#include "../Helper/ShellHelper.h"
-#include "../Helper/TabHelper.h"
-#include <shobjidl.h>
-#include <list>
 
 void Explorerplusplus::UpdateWindowStates(const Tab &tab)
 {

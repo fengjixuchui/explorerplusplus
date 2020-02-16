@@ -3,9 +3,8 @@
 // See LICENSE in the top level directory
 
 #include "stdafx.h"
-#include "MyTreeView.h"
+#include "ShellTreeView.h"
 #include "../Helper/DropHandler.h"
-#include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
 
@@ -23,10 +22,10 @@ UINT_PTR idEvent,DWORD dwTime);
 void CALLBACK DragScrollTimerProc(HWND hwnd,UINT uMsg,
 UINT_PTR idEvent,DWORD dwTime);
 
-HTREEITEM	g_hExpand = NULL;
+HTREEITEM	g_hExpand = nullptr;
 BOOL		g_bAllowScroll = FALSE;
 
-HRESULT _stdcall MyTreeView::DragEnter(IDataObject *pDataObject,
+HRESULT _stdcall ShellTreeView::DragEnter(IDataObject *pDataObject,
 DWORD grfKeyState,POINTL pt,DWORD *pdwEffect)
 {
 	m_pDataObject = pDataObject;
@@ -62,7 +61,7 @@ DWORD grfKeyState,POINTL pt,DWORD *pdwEffect)
 		*pdwEffect		= DROPEFFECT_NONE;
 	}
 
-	g_hExpand = NULL;
+	g_hExpand = nullptr;
 
 	SetTimer(m_hTreeView,DRAGSCROLL_TIMER_ID,DRAGSCROLL_TIMER_ELAPSE,
 		DragScrollTimerProc);
@@ -90,7 +89,7 @@ void CALLBACK DragScrollTimerProc(HWND hwnd,UINT uMsg,UINT_PTR idEvent,DWORD dwT
 	KillTimer(hwnd,DRAGSCROLL_TIMER_ID);
 }
 
-DWORD MyTreeView::GetCurrentDragEffect(DWORD grfKeyState,DWORD dwCurrentEffect,POINTL *ptl)
+DWORD ShellTreeView::GetCurrentDragEffect(DWORD grfKeyState,DWORD dwCurrentEffect,POINTL *ptl)
 {
 	TVHITTESTINFO	tvhi;
 	HTREEITEM		hItem;
@@ -103,7 +102,7 @@ DWORD MyTreeView::GetCurrentDragEffect(DWORD grfKeyState,DWORD dwCurrentEffect,P
 
 	hItem = (HTREEITEM)SendMessage(m_hTreeView,TVM_HITTEST,0,(LPARAM)&tvhi);
 
-	if(hItem != NULL)
+	if(hItem != nullptr)
 	{
 		bOnSameDrive = CheckItemLocations(m_pDataObject,hItem,0);
 
@@ -129,7 +128,7 @@ void CALLBACK DragExpandTimerProc(HWND hwnd,UINT uMsg,UINT_PTR idEvent,DWORD dwT
 	KillTimer(hwnd,DRAGEXPAND_TIMER_ID);
 }
 
-HRESULT _stdcall MyTreeView::DragOver(DWORD grfKeyState,POINTL pt,DWORD *pdwEffect)
+HRESULT _stdcall ShellTreeView::DragOver(DWORD grfKeyState,POINTL pt,DWORD *pdwEffect)
 {
 	TVHITTESTINFO tvht;
 	RECT rc;
@@ -162,7 +161,7 @@ HRESULT _stdcall MyTreeView::DragOver(DWORD grfKeyState,POINTL pt,DWORD *pdwEffe
 	TreeView_HitTest(m_hTreeView,&tvht);
 
 	/* Is the mouse actually over an item? */
-	if(!(tvht.flags & LVHT_NOWHERE) && (tvht.hItem != NULL))
+	if(!(tvht.flags & LVHT_NOWHERE) && (tvht.hItem != nullptr))
 	{
 		/* The mouse is over an item, so select that item. */
 		TreeView_Select(m_hTreeView,tvht.hItem,TVGN_DROPHILITE);
@@ -187,12 +186,12 @@ if the files come from different drives,
 whether this operation is classed as a copy
 or move is only based on the location of the
 first file). */
-BOOL MyTreeView::CheckItemLocations(IDataObject *pDataObject,HTREEITEM hItem,
+BOOL ShellTreeView::CheckItemLocations(IDataObject *pDataObject,HTREEITEM hItem,
 int iDroppedItem)
 {
 	FORMATETC	ftc;
 	STGMEDIUM	stg;
-	DROPFILES	*pdf = NULL;
+	DROPFILES	*pdf = nullptr;
 	TCHAR		szDestDirectory[MAX_PATH];
 	TCHAR		szFullFileName[MAX_PATH];
 	HRESULT		hr;
@@ -200,7 +199,7 @@ int iDroppedItem)
 	int			nDroppedFiles;
 
 	ftc.cfFormat	= CF_HDROP;
-	ftc.ptd			= NULL;
+	ftc.ptd			= nullptr;
 	ftc.dwAspect	= DVASPECT_CONTENT;
 	ftc.lindex		= -1;
 	ftc.tymed		= TYMED_HGLOBAL;
@@ -211,10 +210,10 @@ int iDroppedItem)
 	{
 		pdf = (DROPFILES *)GlobalLock(stg.hGlobal);
 
-		if(pdf != NULL)
+		if(pdf != nullptr)
 		{
 			/* Request a count of the number of files that have been dropped. */
-			nDroppedFiles = DragQueryFile((HDROP)pdf,0xFFFFFFFF,NULL,NULL);
+			nDroppedFiles = DragQueryFile((HDROP)pdf,0xFFFFFFFF, nullptr,NULL);
 
 			if(iDroppedItem < nDroppedFiles)
 			{
@@ -239,7 +238,7 @@ int iDroppedItem)
 	return bOnSameDrive;
 }
 
-HRESULT _stdcall MyTreeView::DragLeave(void)
+HRESULT _stdcall ShellTreeView::DragLeave(void)
 {
 	RestoreState();
 
@@ -250,7 +249,7 @@ HRESULT _stdcall MyTreeView::DragLeave(void)
 	return S_OK;
 }
 
-HRESULT _stdcall MyTreeView::Drop(IDataObject *pDataObject,DWORD grfKeyState,
+HRESULT _stdcall ShellTreeView::Drop(IDataObject *pDataObject,DWORD grfKeyState,
 POINTL pt,DWORD *pdwEffect)
 {
 	KillTimer(m_hTreeView,DRAGEXPAND_TIMER_ID);
@@ -263,7 +262,7 @@ POINTL pt,DWORD *pdwEffect)
 	TreeView_HitTest(m_hTreeView,&tvht);
 
 	/* Is the mouse actually over an item? */
-	if(!(tvht.flags & LVHT_NOWHERE) && (tvht.hItem != NULL) && m_bDataAccept)
+	if(!(tvht.flags & LVHT_NOWHERE) && (tvht.hItem != nullptr) && m_bDataAccept)
 	{
 		auto pidlDirectory = GetItemPidl(tvht.hItem);
 
@@ -273,7 +272,7 @@ POINTL pt,DWORD *pdwEffect)
 		DropHandler *pDropHandler = DropHandler::CreateNew();
 		pDropHandler->Drop(pDataObject,
 			grfKeyState,pt,pdwEffect,m_hTreeView,
-			m_DragType,szDestDirectory,NULL,FALSE);
+			m_DragType,szDestDirectory, nullptr,FALSE);
 		pDropHandler->Release();
 	}
 
@@ -284,9 +283,9 @@ POINTL pt,DWORD *pdwEffect)
 	return S_OK;
 }
 
-void MyTreeView::RestoreState(void)
+void ShellTreeView::RestoreState(void)
 {
-	TreeView_Select(m_hTreeView,NULL,TVGN_DROPHILITE);
+	TreeView_Select(m_hTreeView,nullptr,TVGN_DROPHILITE);
 
 	g_bAllowScroll = FALSE;
 	m_bDragging = FALSE;

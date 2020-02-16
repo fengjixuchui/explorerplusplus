@@ -4,8 +4,9 @@
 
 #pragma once
 
-#include "CoreInterface.h"
 #include "../Helper/DropHandler.h"
+
+__interface IExplorerplusplus;
 
 class DropFilesCallback : public IDropFilesCallback
 {
@@ -14,14 +15,14 @@ public:
 	DropFilesCallback(IExplorerplusplus *pexpp);
 
 	/* IUnknown methods. */
-	HRESULT __stdcall	QueryInterface(REFIID iid,void **ppvObject);
-	ULONG __stdcall		AddRef(void);
-	ULONG __stdcall		Release(void);
+	HRESULT __stdcall	QueryInterface(REFIID iid,void **ppvObject) override;
+	ULONG __stdcall		AddRef(void) override;
+	ULONG __stdcall		Release(void) override;
 
 private:
 
 	/* IDropFilesCallback methods. */
-	void OnDropFile(const std::list<std::wstring> &PastedFileList, const POINT *ppt);
+	void OnDropFile(const std::list<std::wstring> &PastedFileList, const POINT *ppt) override;
 
 	ULONG				m_RefCount;
 	IExplorerplusplus	*m_pexpp;

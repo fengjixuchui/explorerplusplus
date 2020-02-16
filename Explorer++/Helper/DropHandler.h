@@ -4,10 +4,8 @@
 
 #pragma once
 
-#include <list>
-#include "Helper.h"
-#include "FileOperations.h"
 #include "ReferenceCount.h"
+#include <list>
 
 enum class DragType
 {

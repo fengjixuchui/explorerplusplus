@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "CustomizeColorsDialog.h"
 #include "ColorRuleDialog.h"
+#include "CoreInterface.h"
 #include "Explorer++_internal.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
@@ -22,14 +23,14 @@ CustomizeColorsDialog::CustomizeColorsDialog(HINSTANCE hInstance, HWND hParent,
 	m_expp(expp),
 	m_pColorRuleList(pColorRuleList)
 {
-	m_pccdps = &CustomizeColorsDialogPersistentSettings::GetInstance();
+	m_persistentSettings = &CustomizeColorsDialogPersistentSettings::GetInstance();
 }
 
 INT_PTR CustomizeColorsDialog::OnInitDialog()
 {
 	HWND hListView = GetDlgItem(m_hDlg,IDC_LISTVIEW_COLORRULES);
 
-	SetWindowTheme(hListView,L"Explorer",NULL);
+	SetWindowTheme(hListView,L"Explorer", nullptr);
 
 	ListView_SetExtendedListViewStyleEx(hListView,
 		LVS_EX_DOUBLEBUFFER|LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES,
@@ -71,7 +72,7 @@ INT_PTR CustomizeColorsDialog::OnInitDialog()
 
 	SetFocus(hListView);
 
-	m_pccdps->RestoreDialogPosition(m_hDlg,true);
+	m_persistentSettings->RestoreDialogPosition(m_hDlg,true);
 
 	return 0;
 }
@@ -224,9 +225,9 @@ INT_PTR CustomizeColorsDialog::OnClose()
 
 void CustomizeColorsDialog::SaveState()
 {
-	m_pccdps->SaveDialogPosition(m_hDlg);
+	m_persistentSettings->SaveDialogPosition(m_hDlg);
 
-	m_pccdps->m_bStateSaved = TRUE;
+	m_persistentSettings->m_bStateSaved = TRUE;
 }
 
 void CustomizeColorsDialog::OnNew()

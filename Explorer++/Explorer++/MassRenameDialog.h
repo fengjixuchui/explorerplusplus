@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "CoreInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/FileActionHandler.h"
 #include "../Helper/ResizableDialog.h"
 
+__interface IExplorerplusplus;
 class MassRenameDialog;
 
 class MassRenameDialogPersistentSettings : public DialogSettings
@@ -34,11 +34,11 @@ private:
 	MassRenameDialogPersistentSettings(const MassRenameDialogPersistentSettings &);
 	MassRenameDialogPersistentSettings & operator=(const MassRenameDialogPersistentSettings &);
 
-	void SaveExtraRegistrySettings(HKEY hKey);
-	void LoadExtraRegistrySettings(HKEY hKey);
+	void SaveExtraRegistrySettings(HKEY hKey) override;
+	void LoadExtraRegistrySettings(HKEY hKey) override;
 
-	void SaveExtraXMLSettings(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode);
-	void LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue);
+	void SaveExtraXMLSettings(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode) override;
+	void LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue) override;
 
 	int	m_iColumnWidth1;
 	int	m_iColumnWidth2;
@@ -49,20 +49,20 @@ class MassRenameDialog : public BaseDialog
 public:
 
 	MassRenameDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
-		std::list<std::wstring> FullFilenameList, FileActionHandler *pFileActionHandler);
+		const std::list<std::wstring> &FullFilenameList, FileActionHandler *pFileActionHandler);
 
 protected:
 
-	INT_PTR	OnInitDialog();
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam);
-	INT_PTR	OnClose();
+	INT_PTR	OnInitDialog() override;
+	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR	OnClose() override;
 
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const override;
 
 private:
 
-	void	GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList);
-	void	SaveState();
+	void	GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList) override;
+	void	SaveState() override;
 
 	void	OnOk();
 	void	OnCancel();
@@ -74,5 +74,5 @@ private:
 	wil::unique_hicon m_moreIcon;
 	FileActionHandler *m_pFileActionHandler;
 
-	MassRenameDialogPersistentSettings *m_pmrdps;
+	MassRenameDialogPersistentSettings *m_persistentSettings;
 };

@@ -192,7 +192,7 @@ void ColorRuleDialog::OnChangeColor()
 		if(!m_bEdit)
 			m_pcrdps->m_cfInitialColor = cc.rgbResult;
 
-		InvalidateRect(GetDlgItem(m_hDlg,IDC_STATIC_COLOR),NULL,TRUE);
+		InvalidateRect(GetDlgItem(m_hDlg,IDC_STATIC_COLOR), nullptr,TRUE);
 	}
 }
 
@@ -222,7 +222,6 @@ LRESULT CALLBACK ColorRuleDialog::StaticColorProc(HWND hwnd,UINT Msg,WPARAM wPar
 
 			return 1;
 		}
-		break;
 	}
 
 	return DefSubclassProc(hwnd,Msg,wParam,lParam);
@@ -259,11 +258,11 @@ void ColorRuleDialogPersistentSettings::SaveExtraRegistrySettings(HKEY hKey)
 void ColorRuleDialogPersistentSettings::LoadExtraRegistrySettings(HKEY hKey)
 {
 	DWORD dwSize = sizeof(m_cfInitialColor);
-	RegQueryValueEx(hKey,SETTING_INITIAL_COLOR,NULL,NULL,
+	RegQueryValueEx(hKey,SETTING_INITIAL_COLOR, nullptr, nullptr,
 		reinterpret_cast<LPBYTE>(&m_cfInitialColor),&dwSize);
 
 	dwSize = sizeof(m_cfCustomColors);
-	RegQueryValueEx(hKey,SETTING_CUSTOM_COLORS,NULL,NULL,
+	RegQueryValueEx(hKey,SETTING_CUSTOM_COLORS, nullptr, nullptr,
 		reinterpret_cast<LPBYTE>(&m_cfCustomColors),&dwSize);
 }
 
@@ -329,8 +328,8 @@ void ColorRuleDialogPersistentSettings::LoadExtraXMLSettings(BSTR bstrName,BSTR 
 		if(lstrcmpi(_T("InitialColor_r"),bstrName) == 0)
 			m_cfInitialColor = RGB(c,GetGValue(m_cfInitialColor),GetBValue(m_cfInitialColor));
 		else if(lstrcmpi(_T("InitialColor_g"),bstrName) == 0)
-			m_cfInitialColor = RGB(c,GetGValue(m_cfInitialColor),GetBValue(m_cfInitialColor));
+			m_cfInitialColor = RGB(GetRValue(m_cfInitialColor),c,GetBValue(m_cfInitialColor));
 		else if(lstrcmpi(_T("InitialColor_b"),bstrName) == 0)
-			m_cfInitialColor = RGB(c,GetGValue(m_cfInitialColor),GetBValue(m_cfInitialColor));
+			m_cfInitialColor = RGB(GetRValue(m_cfInitialColor),GetGValue(m_cfInitialColor),c);
 	}
 }

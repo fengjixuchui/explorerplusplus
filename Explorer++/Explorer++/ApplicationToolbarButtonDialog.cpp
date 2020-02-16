@@ -95,22 +95,22 @@ void ApplicationToolbarButtonDialog::OnChooseFile()
 	ofn.lStructSize			= sizeof(ofn);
 	ofn.hwndOwner			= m_hDlg;
 	ofn.lpstrFilter			= Filter;
-	ofn.lpstrCustomFilter	= NULL;
+	ofn.lpstrCustomFilter	= nullptr;
 	ofn.nMaxCustFilter		= 0;
 	ofn.nFilterIndex		= 0;
 	ofn.lpstrFile			= FullFileName;
 	ofn.nMaxFile			= SIZEOF_ARRAY(FullFileName);
-	ofn.lpstrFileTitle		= NULL;
+	ofn.lpstrFileTitle		= nullptr;
 	ofn.nMaxFileTitle		= 0;
-	ofn.lpstrInitialDir		= NULL;
-	ofn.lpstrTitle			= NULL;
+	ofn.lpstrInitialDir		= nullptr;
+	ofn.lpstrTitle			= nullptr;
 	ofn.Flags				= OFN_ENABLESIZING|OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST;
 	ofn.lpstrDefExt			= _T("exe");
 	ofn.lCustData			= NULL;
-	ofn.lpfnHook			= NULL;
-	ofn.pvReserved			= NULL;
-	ofn.dwReserved			= NULL;
-	ofn.FlagsEx				= NULL;
+	ofn.lpfnHook			= nullptr;
+	ofn.pvReserved			= nullptr;
+	ofn.dwReserved			= 0;
+	ofn.FlagsEx				= 0;
 
 	BOOL bRet = GetOpenFileName(&ofn);
 

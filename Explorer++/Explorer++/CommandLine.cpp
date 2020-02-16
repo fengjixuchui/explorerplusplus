@@ -30,13 +30,13 @@ struct CommandLineSettings
 	std::vector<std::string> directories;
 };
 
-boost::optional<CommandLine::ExitInfo> ProcessCommandLineSettings(const CommandLineSettings& commandLineSettings);
+std::optional<CommandLine::ExitInfo> ProcessCommandLineSettings(const CommandLineSettings& commandLineSettings);
 void OnClearRegistrySettings();
 void OnRemoveAsDefault();
 void OnSetAsDefault();
 void OnJumplistNewTab();
 
-boost::optional<CommandLine::ExitInfo> CommandLine::ProcessCommandLine()
+std::optional<CommandLine::ExitInfo> CommandLine::ProcessCommandLine()
 {
 	CLI::App app("Explorer++");
 
@@ -114,7 +114,7 @@ boost::optional<CommandLine::ExitInfo> CommandLine::ProcessCommandLine()
 	return ProcessCommandLineSettings(commandLineSettings);
 }
 
-boost::optional<CommandLine::ExitInfo> ProcessCommandLineSettings(const CommandLineSettings& commandLineSettings)
+std::optional<CommandLine::ExitInfo> ProcessCommandLineSettings(const CommandLineSettings& commandLineSettings)
 {
 	if (commandLineSettings.jumplistNewTab)
 	{
@@ -164,10 +164,10 @@ boost::optional<CommandLine::ExitInfo> ProcessCommandLineSettings(const CommandL
 		TCHAR szParsingPath[MAX_PATH];
 		DecodePath(strToWstr(directory).c_str(), processDirectoryPath.wstring().c_str(), szParsingPath, SIZEOF_ARRAY(szParsingPath));
 
-		g_commandLineDirectories.push_back(szParsingPath);
+		g_commandLineDirectories.emplace_back(szParsingPath);
 	}
 
-	return boost::none;
+	return std::nullopt;
 }
 
 void OnClearRegistrySettings()
@@ -177,9 +177,9 @@ void OnClearRegistrySettings()
 	lStatus = SHDeleteKey(HKEY_CURRENT_USER, NExplorerplusplus::REG_MAIN_KEY);
 
 	if (lStatus == ERROR_SUCCESS)
-		MessageBox(NULL, _T("Settings cleared successfully."), NExplorerplusplus::APP_NAME, MB_OK);
+		MessageBox(nullptr, _T("Settings cleared successfully."), NExplorerplusplus::APP_NAME, MB_OK);
 	else
-		MessageBox(NULL, _T("Settings could not be cleared."), NExplorerplusplus::APP_NAME, MB_ICONWARNING);
+		MessageBox(nullptr, _T("Settings could not be cleared."), NExplorerplusplus::APP_NAME, MB_ICONWARNING);
 }
 
 void OnRemoveAsDefault()
@@ -191,31 +191,31 @@ void OnRemoveAsDefault()
 	a hardcoded success/error message. */
 	if (bSuccess)
 	{
-		MessageBox(NULL, _T("Explorer++ successfully removed as default file manager."),
+		MessageBox(nullptr, _T("Explorer++ successfully removed as default file manager."),
 			NExplorerplusplus::APP_NAME, MB_OK);
 	}
 	else
 	{
-		MessageBox(NULL, _T("Could not remove Explorer++ as default file manager. Please \
+		MessageBox(nullptr, _T("Could not remove Explorer++ as default file manager. Please \
 ensure you have administrator privileges."), NExplorerplusplus::APP_NAME, MB_ICONWARNING | MB_OK);
 	}
 }
 
 void OnSetAsDefault()
 {
-	std::wstring menuText = ResourceHelper::LoadString(GetModuleHandle(0), IDS_OPEN_IN_EXPLORERPLUSPLUS);
+	std::wstring menuText = ResourceHelper::LoadString(GetModuleHandle(nullptr), IDS_OPEN_IN_EXPLORERPLUSPLUS);
 
 	BOOL bSuccess = NDefaultFileManager::SetAsDefaultFileManagerFileSystem(
 		SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText.c_str());
 
 	if (bSuccess)
 	{
-		MessageBox(NULL, _T("Explorer++ successfully set as default file manager."),
+		MessageBox(nullptr, _T("Explorer++ successfully set as default file manager."),
 			NExplorerplusplus::APP_NAME, MB_OK);
 	}
 	else
 	{
-		MessageBox(NULL, _T("Could not set Explorer++ as default file manager. Please \
+		MessageBox(nullptr, _T("Could not set Explorer++ as default file manager. Please \
 ensure you have administrator privileges."), NExplorerplusplus::APP_NAME, MB_ICONWARNING | MB_OK);
 	}
 }
@@ -228,20 +228,20 @@ void OnJumplistNewTab()
 	and tell it to open a new tab. */
 	HANDLE hMutex;
 
-	hMutex = CreateMutex(NULL, TRUE, _T("Explorer++"));
+	hMutex = CreateMutex(nullptr, TRUE, _T("Explorer++"));
 
 	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
 		HWND hPrev;
 
-		hPrev = FindWindow(NExplorerplusplus::CLASS_NAME, NULL);
+		hPrev = FindWindow(NExplorerplusplus::CLASS_NAME, nullptr);
 
-		if (hPrev != NULL)
+		if (hPrev != nullptr)
 		{
 			COPYDATASTRUCT cds;
 
 			cds.cbData = 0;
-			cds.lpData = NULL;
+			cds.lpData = nullptr;
 			SendMessage(hPrev, WM_COPYDATA, NULL, (LPARAM)& cds);
 
 			SetForegroundWindow(hPrev);
@@ -249,7 +249,7 @@ void OnJumplistNewTab()
 		}
 	}
 
-	if (hMutex != NULL)
+	if (hMutex != nullptr)
 	{
 		CloseHandle(hMutex);
 	}

@@ -4,7 +4,10 @@
 
 #include "stdafx.h"
 #include "Navigation.h"
-#include "../Helper/ProcessHelper.h"
+#include "CoreInterface.h"
+#include "ShellBrowser/NavigationController.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "TabContainer.h"
 #include "../Helper/ShellHelper.h"
 
 Navigation::Navigation(IExplorerplusplus *expp) :
@@ -35,7 +38,7 @@ void Navigation::OnNavigateUp()
 
 		if (SUCCEEDED(hr))
 		{
-			hr = m_tabContainer->CreateNewTab(pidlParent.get(), TabSettings(_selected = true), nullptr, boost::none, &resultingTabId);
+			hr = m_tabContainer->CreateNewTab(pidlParent.get(), TabSettings(_selected = true), nullptr, std::nullopt, &resultingTabId);
 		}
 	}
 

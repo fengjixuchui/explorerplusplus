@@ -11,12 +11,6 @@
 
 #include "..\targetver.h"
 
-#ifdef UNICODE
-#define _itot_s _itow_s
-#else
-#define _itot_s _itoa_s
-#endif
-
 #define STRICT
 
 #define ISOLATION_AWARE_ENABLED	1
@@ -61,6 +55,33 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/join.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/functional/hash.hpp>
+#include <boost/log/common.hpp>
+#include <boost/log/sources/global_logger_storage.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/parameter.hpp>
+#include <boost/signals2.hpp>
+#include <wil/resource.h>
+
+#include "../ThirdParty/cereal/archives/binary.hpp"
+#include "../ThirdParty/cereal/types/memory.hpp"
+#include "../ThirdParty/cereal/types/string.hpp"
+#include "../ThirdParty/cereal/types/vector.hpp"
+
+#include "../ThirdParty/CTPL/cpl_stl.h"
+
+#include "../ThirdParty/Sol/sol.hpp"

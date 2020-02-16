@@ -4,7 +4,6 @@
 
 #include "stdafx.h"
 #include "AcceleratorUpdater.h"
-#include "AcceleratorMappings.h"
 
 AcceleratorUpdater::AcceleratorUpdater(HACCEL *acceleratorTable) :
 	m_acceleratorTable(acceleratorTable)
@@ -12,7 +11,7 @@ AcceleratorUpdater::AcceleratorUpdater(HACCEL *acceleratorTable) :
 
 }
 
-void AcceleratorUpdater::update(std::vector<ShortcutKey> shortcutKeys)
+void AcceleratorUpdater::update(const std::vector<ShortcutKey> &shortcutKeys)
 {
 	int numAccelerators = CopyAcceleratorTable(*m_acceleratorTable, nullptr, 0);
 

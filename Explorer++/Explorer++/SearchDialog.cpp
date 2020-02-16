@@ -4,11 +4,13 @@
 
 #include "stdafx.h"
 #include "SearchDialog.h"
+#include "CoreInterface.h"
 #include "DialogHelper.h"
-#include "Explorer++_internal.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
+#include "ShellBrowser/ShellBrowser.h"
+#include "TabContainer.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/ComboBox.h"
 #include "../Helper/Controls.h"
@@ -64,12 +66,12 @@ SearchDialog::SearchDialog(HINSTANCE hInstance, HWND hParent, std::wstring_view 
 	m_iPreviousSelectedColumn(-1),
 	m_pSearch(nullptr)
 {
-	m_sdps = &SearchDialogPersistentSettings::GetInstance();
+	m_persistentSettings = &SearchDialogPersistentSettings::GetInstance();
 }
 
 SearchDialog::~SearchDialog()
 {
-	if(m_pSearch != NULL)
+	if(m_pSearch != nullptr)
 	{
 		m_pSearch->StopSearching();
 		m_pSearch->Release();
@@ -89,14 +91,14 @@ INT_PTR SearchDialog::OnInitDialog()
 		LVS_EX_GRIDLINES|LVS_EX_DOUBLEBUFFER);
 
 	HIMAGELIST himlSmall;
-	Shell_GetImageLists(NULL,&himlSmall);
+	Shell_GetImageLists(nullptr,&himlSmall);
 	ListView_SetImageList(hListView,himlSmall,LVSIL_SMALL);
 
-	SetWindowTheme(hListView,L"Explorer",NULL);
+	SetWindowTheme(hListView,L"Explorer", nullptr);
 
 	int i = 0;
 
-	for(const auto &ci : m_sdps->m_Columns)
+	for(const auto &ci : m_persistentSettings->m_Columns)
 	{
 		TCHAR szTemp[128];
 		LoadString(GetInstance(),ci.uStringID,szTemp,SIZEOF_ARRAY(szTemp));
@@ -117,44 +119,44 @@ INT_PTR SearchDialog::OnInitDialog()
 
 	UpdateListViewHeader();
 
-	lCheckDlgButton(m_hDlg,IDC_CHECK_ARCHIVE,m_sdps->m_bArchive);
-	lCheckDlgButton(m_hDlg,IDC_CHECK_HIDDEN,m_sdps->m_bHidden);
-	lCheckDlgButton(m_hDlg,IDC_CHECK_READONLY,m_sdps->m_bReadOnly);
-	lCheckDlgButton(m_hDlg,IDC_CHECK_SYSTEM,m_sdps->m_bSystem);
-	lCheckDlgButton(m_hDlg,IDC_CHECK_SEARCHSUBFOLDERS,m_sdps->m_bSearchSubFolders);
-	lCheckDlgButton(m_hDlg,IDC_CHECK_CASEINSENSITIVE,m_sdps->m_bCaseInsensitive);
-	lCheckDlgButton(m_hDlg,IDC_CHECK_USEREGULAREXPRESSIONS,m_sdps->m_bUseRegularExpressions);
+	lCheckDlgButton(m_hDlg,IDC_CHECK_ARCHIVE,m_persistentSettings->m_bArchive);
+	lCheckDlgButton(m_hDlg,IDC_CHECK_HIDDEN,m_persistentSettings->m_bHidden);
+	lCheckDlgButton(m_hDlg,IDC_CHECK_READONLY,m_persistentSettings->m_bReadOnly);
+	lCheckDlgButton(m_hDlg,IDC_CHECK_SYSTEM,m_persistentSettings->m_bSystem);
+	lCheckDlgButton(m_hDlg,IDC_CHECK_SEARCHSUBFOLDERS,m_persistentSettings->m_bSearchSubFolders);
+	lCheckDlgButton(m_hDlg,IDC_CHECK_CASEINSENSITIVE,m_persistentSettings->m_bCaseInsensitive);
+	lCheckDlgButton(m_hDlg,IDC_CHECK_USEREGULAREXPRESSIONS,m_persistentSettings->m_bUseRegularExpressions);
 
-	for(const auto &strDirectory : m_sdps->m_searchDirectories)
+	for(const auto &strDirectory : m_persistentSettings->m_searchDirectories)
 	{
 		SendDlgItemMessage(m_hDlg,IDC_COMBO_DIRECTORY,CB_INSERTSTRING,static_cast<WPARAM>(-1),
 			reinterpret_cast<LPARAM>(strDirectory.c_str()));
 	}
 
-	for(const auto strPattern : m_sdps->m_searchPatterns)
+	for(const auto strPattern : m_persistentSettings->m_searchPatterns)
 	{
 		SendDlgItemMessage(m_hDlg,IDC_COMBO_NAME,CB_INSERTSTRING,static_cast<WPARAM>(-1),
 			reinterpret_cast<LPARAM>(strPattern.c_str()));
 	}
 
-	SetDlgItemText(m_hDlg,IDC_COMBO_NAME,m_sdps->m_szSearchPattern);
+	SetDlgItemText(m_hDlg,IDC_COMBO_NAME,m_persistentSettings->m_szSearchPattern);
 	SetDlgItemText(m_hDlg,IDC_COMBO_DIRECTORY,m_searchDirectory.c_str());
 
 	ComboBox::CreateNew(GetDlgItem(m_hDlg,IDC_COMBO_NAME));
 	ComboBox::CreateNew(GetDlgItem(m_hDlg,IDC_COMBO_DIRECTORY));
 
-	if(m_sdps->m_bStateSaved)
+	if(m_persistentSettings->m_bStateSaved)
 	{
 		/* These dummy values will be in use if these values
 		have not previously been saved. */
-		if(m_sdps->m_iColumnWidth1 != -1 && m_sdps->m_iColumnWidth2 != -1)
+		if(m_persistentSettings->m_iColumnWidth1 != -1 && m_persistentSettings->m_iColumnWidth2 != -1)
 		{
-			ListView_SetColumnWidth(hListView,0,m_sdps->m_iColumnWidth1);
-			ListView_SetColumnWidth(hListView,1,m_sdps->m_iColumnWidth2);
+			ListView_SetColumnWidth(hListView,0,m_persistentSettings->m_iColumnWidth1);
+			ListView_SetColumnWidth(hListView,1,m_persistentSettings->m_iColumnWidth2);
 		}
 	}
 
-	m_sdps->RestoreDialogPosition(m_hDlg,true);
+	m_persistentSettings->RestoreDialogPosition(m_hDlg,true);
 
 	SetFocus(GetDlgItem(m_hDlg,IDC_COMBO_NAME));
 
@@ -267,7 +269,7 @@ INT_PTR SearchDialog::OnCommand(WPARAM wParam,LPARAM lParam)
 			GetDlgItemText(m_hDlg,IDC_COMBO_DIRECTORY,szDirectory,SIZEOF_ARRAY(szDirectory));
 
 			bi.hwndOwner		= m_hDlg;
-			bi.pidlRoot			= NULL;
+			bi.pidlRoot			= nullptr;
 			bi.pszDisplayName	= szDisplayName;
 			bi.lpszTitle		= szTitle;
 			bi.ulFlags			= BIF_RETURNONLYFSDIRS|BIF_NEWDIALOGSTYLE;
@@ -275,7 +277,7 @@ INT_PTR SearchDialog::OnCommand(WPARAM wParam,LPARAM lParam)
 			bi.lParam			= reinterpret_cast<LPARAM>(szDirectory);
 			unique_pidl_absolute pidl(SHBrowseForFolder(&bi));
 
-			if(pidl != NULL)
+			if(pidl != nullptr)
 			{
 				GetDisplayName(pidl.get(),szParsingPath,SIZEOF_ARRAY(szParsingPath),SHGDN_FORPARSING);
 				SetDlgItemText(m_hDlg,IDC_COMBO_DIRECTORY,szParsingPath);
@@ -395,28 +397,28 @@ void SearchDialog::StartSearching()
 	the same as the most recent entry). */
 	BOOL bSaveEntry = FALSE;
 
-	if(m_sdps->m_searchDirectories.empty() ||
-		lstrcmp(szBaseDirectory, m_sdps->m_searchDirectories.begin()->c_str()) != 0)
+	if(m_persistentSettings->m_searchDirectories.empty() ||
+		lstrcmp(szBaseDirectory, m_persistentSettings->m_searchDirectories.begin()->c_str()) != 0)
 	{
 		bSaveEntry = TRUE;
 	}
 
 	if(bSaveEntry)
 	{
-		SaveEntry(IDC_COMBO_DIRECTORY, m_sdps->m_searchDirectories);
+		SaveEntry(IDC_COMBO_DIRECTORY, m_persistentSettings->m_searchDirectories);
 	}
 
 	bSaveEntry = FALSE;
 
-	if(m_sdps->m_searchPatterns.empty() ||
-		lstrcmp(szSearchPattern, m_sdps->m_searchPatterns.begin()->c_str()) != 0)
+	if(m_persistentSettings->m_searchPatterns.empty() ||
+		lstrcmp(szSearchPattern, m_persistentSettings->m_searchPatterns.begin()->c_str()) != 0)
 	{
 		bSaveEntry = TRUE;
 	}
 
 	if(bSaveEntry)
 	{
-		SaveEntry(IDC_COMBO_NAME, m_sdps->m_searchPatterns);
+		SaveEntry(IDC_COMBO_NAME, m_persistentSettings->m_searchPatterns);
 	}
 
 	GetDlgItemText(m_hDlg, IDSEARCH, m_szSearchButton, SIZEOF_ARRAY(m_szSearchButton));
@@ -429,8 +431,8 @@ void SearchDialog::StartSearching()
 	m_bSearching = TRUE;
 
 	/* Create a background thread, and search using it... */
-	HANDLE hThread = CreateThread(NULL, 0, NSearchDialog::SearchThread,
-		reinterpret_cast<LPVOID>(m_pSearch), 0, NULL);
+	HANDLE hThread = CreateThread(nullptr, 0, NSearchDialog::SearchThread,
+		reinterpret_cast<LPVOID>(m_pSearch), 0, nullptr);
 	CloseHandle(hThread);
 }
 
@@ -441,7 +443,7 @@ void SearchDialog::SaveEntry(int comboBoxId, boost::circular_buffer<std::wstring
 
 	std::wstring strEntry(entry);
 	auto itr = std::find_if(buffer.begin(), buffer.end(),
-		[strEntry] (const std::wstring Pattern)
+		[strEntry] (const std::wstring &Pattern)
 	{
 		return Pattern.compare(strEntry) == 0;
 	});
@@ -475,7 +477,7 @@ void SearchDialog::StopSearching()
 {
 	m_bStopSearching = TRUE;
 
-	if(m_pSearch != NULL)
+	if(m_pSearch != nullptr)
 	{
 		/* Note that m_pSearch does not need to be
 		released here. Once the search object finishes,
@@ -513,9 +515,9 @@ void SearchDialog::UpdateListViewHeader()
 
 	int iColumn = 0;
 
-	for(const auto &ci : m_sdps->m_Columns)
+	for(const auto &ci : m_persistentSettings->m_Columns)
 	{
-		if(ci.SortMode == m_sdps->m_SortMode)
+		if(ci.SortMode == m_persistentSettings->m_SortMode)
 		{
 			break;
 		}
@@ -526,7 +528,7 @@ void SearchDialog::UpdateListViewHeader()
 	hdItem.mask	= HDI_FORMAT;
 	Header_GetItem(hHeader,iColumn,&hdItem);
 
-	if(m_sdps->m_bSortAscending)
+	if(m_persistentSettings->m_bSortAscending)
 	{
 		hdItem.fmt |= HDF_SORTUP;
 	}
@@ -553,7 +555,7 @@ int CALLBACK SearchDialog::SortResults(LPARAM lParam1,LPARAM lParam2)
 {
 	int iRes = 0;
 
-	switch(m_sdps->m_SortMode)
+	switch(m_persistentSettings->m_SortMode)
 	{
 	case SearchDialogPersistentSettings::SORT_NAME:
 		iRes = SortResultsByName(lParam1,lParam2);
@@ -564,7 +566,7 @@ int CALLBACK SearchDialog::SortResults(LPARAM lParam1,LPARAM lParam2)
 		break;
 	}
 
-	if(!m_sdps->m_bSortAscending)
+	if(!m_persistentSettings->m_bSortAscending)
 	{
 		iRes = -iRes;
 	}
@@ -719,8 +721,8 @@ INT_PTR SearchDialog::OnNotify(NMHDR *pnmhdr)
 			{
 				PNMLINK pnmlink = reinterpret_cast<PNMLINK>(pnmhdr);
 
-				ShellExecute(NULL,L"open",pnmlink->item.szUrl,
-					NULL,NULL,SW_SHOW);
+				ShellExecute(nullptr,L"open",pnmlink->item.szUrl,
+					nullptr, nullptr,SW_SHOW);
 			}
 		}
 		break;
@@ -781,14 +783,14 @@ INT_PTR SearchDialog::OnNotify(NMHDR *pnmhdr)
 
 			/* If the column clicked matches the current sort mode,
 			flip the sort direction, else switch to that sort mode. */
-			if(m_sdps->m_Columns[pnmlv->iSubItem].SortMode == m_sdps->m_SortMode)
+			if(m_persistentSettings->m_Columns[pnmlv->iSubItem].SortMode == m_persistentSettings->m_SortMode)
 			{
-				m_sdps->m_bSortAscending = !m_sdps->m_bSortAscending;
+				m_persistentSettings->m_bSortAscending = !m_persistentSettings->m_bSortAscending;
 			}
 			else
 			{
-				m_sdps->m_SortMode = m_sdps->m_Columns[pnmlv->iSubItem].SortMode;
-				m_sdps->m_bSortAscending = m_sdps->m_Columns[pnmlv->iSubItem].bSortAscending;
+				m_persistentSettings->m_SortMode = m_persistentSettings->m_Columns[pnmlv->iSubItem].SortMode;
+				m_persistentSettings->m_bSortAscending = m_persistentSettings->m_Columns[pnmlv->iSubItem].bSortAscending;
 			}
 
 			ListView_SortItems(GetDlgItem(m_hDlg,IDC_LISTVIEW_SEARCHRESULTS),
@@ -817,7 +819,7 @@ INT_PTR SearchDialog::OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 				if(m_bSetSearchTimer)
 				{
 					SetTimer(m_hDlg,SEARCH_PROCESSITEMS_TIMER_ID,
-						SEARCH_PROCESSITEMS_TIMER_ELAPSED,NULL);
+						SEARCH_PROCESSITEMS_TIMER_ELAPSED, nullptr);
 
 					m_bSetSearchTimer = FALSE;
 				}
@@ -848,10 +850,10 @@ INT_PTR SearchDialog::OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 					SetDlgItemText(m_hDlg,IDC_STATIC_STATUS,szTemp);
 				}
 
-				assert(m_pSearch != NULL);
+				assert(m_pSearch != nullptr);
 
 				m_pSearch->Release();
-				m_pSearch = NULL;
+				m_pSearch = nullptr;
 
 				m_bSearching = FALSE;
 				m_bStopSearching = FALSE;
@@ -862,7 +864,7 @@ INT_PTR SearchDialog::OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 		case NSearchDialog::WM_APP_SEARCHCHANGEDDIRECTORY:
 			{
 				TCHAR szStatus[512];
-				TCHAR *pszDirectory = NULL;
+				TCHAR *pszDirectory = nullptr;
 
 				pszDirectory = reinterpret_cast<TCHAR *>(wParam);
 
@@ -890,10 +892,10 @@ INT_PTR SearchDialog::OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 					szTemp,SIZEOF_ARRAY(szTemp));
 				SetDlgItemText(m_hDlg,IDC_LINK_STATUS,szTemp);
 
-				assert(m_pSearch != NULL);
+				assert(m_pSearch != nullptr);
 
 				m_pSearch->Release();
-				m_pSearch = NULL;
+				m_pSearch = nullptr;
 
 				m_bSearching = FALSE;
 				m_bStopSearching = FALSE;
@@ -981,7 +983,7 @@ INT_PTR SearchDialog::OnNcDestroy()
 
 DWORD WINAPI NSearchDialog::SearchThread(LPVOID pParam)
 {
-	assert(pParam != NULL);
+	assert(pParam != nullptr);
 
 	Search *pSearch = reinterpret_cast<Search *>(pParam);
 	pSearch->StartSearching();
@@ -1085,8 +1087,8 @@ void Search::SearchDirectory(const TCHAR *szDirectory)
 void Search::SearchDirectoryInternal(const TCHAR *szSearchDirectory,
 	std::list<std::wstring> *pSubFolderList)
 {
-	assert(szSearchDirectory != NULL);
-	assert(pSubFolderList != NULL);
+	assert(szSearchDirectory != nullptr);
+	assert(pSubFolderList != nullptr);
 
 	WIN32_FIND_DATA wfd;
 	TCHAR szSearchTerm[MAX_PATH];
@@ -1198,38 +1200,38 @@ void SearchDialog::SaveState()
 {
 	HWND hListView;
 
-	m_sdps->SaveDialogPosition(m_hDlg);
+	m_persistentSettings->SaveDialogPosition(m_hDlg);
 
-	m_sdps->m_bCaseInsensitive = IsDlgButtonChecked(m_hDlg,
+	m_persistentSettings->m_bCaseInsensitive = IsDlgButtonChecked(m_hDlg,
 		IDC_CHECK_CASEINSENSITIVE) == BST_CHECKED;
 
-	m_sdps->m_bUseRegularExpressions = IsDlgButtonChecked(m_hDlg,
+	m_persistentSettings->m_bUseRegularExpressions = IsDlgButtonChecked(m_hDlg,
 		IDC_CHECK_USEREGULAREXPRESSIONS) == BST_CHECKED;
 
-	m_sdps->m_bSearchSubFolders = IsDlgButtonChecked(m_hDlg,
+	m_persistentSettings->m_bSearchSubFolders = IsDlgButtonChecked(m_hDlg,
 		IDC_CHECK_SEARCHSUBFOLDERS) == BST_CHECKED;
 
-	m_sdps->m_bArchive = IsDlgButtonChecked(m_hDlg,
+	m_persistentSettings->m_bArchive = IsDlgButtonChecked(m_hDlg,
 		IDC_CHECK_ARCHIVE) == BST_CHECKED;
 
-	m_sdps->m_bHidden = IsDlgButtonChecked(m_hDlg,
+	m_persistentSettings->m_bHidden = IsDlgButtonChecked(m_hDlg,
 		IDC_CHECK_HIDDEN) == BST_CHECKED;
 
-	m_sdps->m_bReadOnly = IsDlgButtonChecked(m_hDlg,
+	m_persistentSettings->m_bReadOnly = IsDlgButtonChecked(m_hDlg,
 		IDC_CHECK_READONLY) == BST_CHECKED;
 
-	m_sdps->m_bSystem = IsDlgButtonChecked(m_hDlg,
+	m_persistentSettings->m_bSystem = IsDlgButtonChecked(m_hDlg,
 		IDC_CHECK_SYSTEM) == BST_CHECKED;
 
 	hListView = GetDlgItem(m_hDlg,IDC_LISTVIEW_SEARCHRESULTS);
 
-	m_sdps->m_iColumnWidth1 = ListView_GetColumnWidth(hListView,0);
-	m_sdps->m_iColumnWidth2 = ListView_GetColumnWidth(hListView,1);
+	m_persistentSettings->m_iColumnWidth1 = ListView_GetColumnWidth(hListView,0);
+	m_persistentSettings->m_iColumnWidth2 = ListView_GetColumnWidth(hListView,1);
 
-	GetDlgItemText(m_hDlg,IDC_COMBO_NAME,m_sdps->m_szSearchPattern,
-		SIZEOF_ARRAY(m_sdps->m_szSearchPattern));
+	GetDlgItemText(m_hDlg,IDC_COMBO_NAME,m_persistentSettings->m_szSearchPattern,
+		SIZEOF_ARRAY(m_persistentSettings->m_szSearchPattern));
 
-	m_sdps->m_bStateSaved = TRUE;
+	m_persistentSettings->m_bStateSaved = TRUE;
 }
 
 SearchDialogPersistentSettings::SearchDialogPersistentSettings() :

@@ -5,12 +5,13 @@
 #pragma once
 
 #include "BookmarkMenuBuilder.h"
-#include "BookmarkTree.h"
-#include "CoreInterface.h"
 #include "MenuHelper.h"
 #include "../Helper/DpiCompatibility.h"
 #include <boost/signals2.hpp>
 #include <wil/resource.h>
+
+class BookmarkTree;
+__interface IExplorerplusplus;
 
 class BookmarksMainMenu
 {
@@ -26,9 +27,9 @@ private:
 
 	void OnMainMenuPreShow(HMENU mainMenu);
 	wil::unique_hmenu BuildMainBookmarksMenu(std::vector<wil::unique_hbitmap> &menuImages,
-		BookmarkMenuBuilder::ItemMap &menuItemMappings);
-	void AddBookmarkItemsToMenu(HMENU menu, int position, BookmarkMenuBuilder::ItemMap &menuItemMappings);
-	void AddOtherBookmarksToMenu(HMENU menu, int position, BookmarkMenuBuilder::ItemMap &menuItemMappings);
+		BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings);
+	void AddBookmarkItemsToMenu(HMENU menu, int position, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings);
+	void AddOtherBookmarksToMenu(HMENU menu, int position, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings);
 
 	IExplorerplusplus *m_expp;
 	BookmarkTree *m_bookmarkTree;
@@ -40,7 +41,7 @@ private:
 	DpiCompatibility m_dpiCompat;
 	std::vector<wil::unique_hbitmap> m_menuImages;
 
-	BookmarkMenuBuilder::ItemMap m_menuItemMappings;
+	BookmarkMenuBuilder::ItemIdMap m_menuItemIdMappings;
 
 	std::vector<boost::signals2::scoped_connection> m_connections;
 };

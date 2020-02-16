@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "ShellBrowser.h"
 #include "Config.h"
+#include "ItemData.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
 #include "SortModes.h"
@@ -22,9 +23,9 @@
 
 namespace
 {
-	static const UINT KBYTE = 1024;
-	static const UINT MBYTE = 1024 * 1024;
-	static const UINT GBYTE = 1024 * 1024 *1024;
+	const UINT KBYTE = 1024;
+	const UINT MBYTE = 1024 * 1024;
+	const UINT GBYTE = 1024 * 1024 *1024;
 }
 
 BOOL ShellBrowser::GetShowInGroups(void) const
@@ -455,8 +456,8 @@ std::wstring ShellBrowser::DetermineItemSizeGroup(const BasicItemInfo_t &itemInf
 /* TODO: These groups have changed as of Windows Vista. */
 std::wstring ShellBrowser::DetermineItemTotalSizeGroup(const BasicItemInfo_t &itemInfo) const
 {
-	IShellFolder *pShellFolder	= NULL;
-	PCITEMID_CHILD pidlRelative	= NULL;
+	IShellFolder *pShellFolder	= nullptr;
+	PCITEMID_CHILD pidlRelative	= nullptr;
 	TCHAR *SizeGroups[] = {_T("Unspecified"),_T("Small"),_T("Medium"),_T("Huge"),_T("Gigantic")};
 	TCHAR szItem[MAX_PATH];
 	STRRET str;
@@ -484,7 +485,7 @@ std::wstring ShellBrowser::DetermineItemTotalSizeGroup(const BasicItemInfo_t &it
 
 	if(bRoot)
 	{
-		bRes = GetDiskFreeSpaceEx(szItem,NULL,&nTotalBytes,&nFreeBytes);
+		bRes = GetDiskFreeSpaceEx(szItem, nullptr,&nTotalBytes,&nFreeBytes);
 
 		pShellFolder->Release();
 
@@ -641,8 +642,8 @@ std::wstring ShellBrowser::DetermineItemSummaryGroup(const BasicItemInfo_t &item
 std::wstring ShellBrowser::DetermineItemFreeSpaceGroup(const BasicItemInfo_t &itemInfo) const
 {
 	TCHAR szFreeSpace[MAX_PATH];
-	IShellFolder *pShellFolder	= NULL;
-	PCITEMID_CHILD pidlRelative	= NULL;
+	IShellFolder *pShellFolder	= nullptr;
+	PCITEMID_CHILD pidlRelative	= nullptr;
 	STRRET str;
 	TCHAR szItem[MAX_PATH];
 	ULARGE_INTEGER nTotalBytes;
@@ -662,7 +663,7 @@ std::wstring ShellBrowser::DetermineItemFreeSpaceGroup(const BasicItemInfo_t &it
 
 	if(bRoot)
 	{
-		bRes = GetDiskFreeSpaceEx(szItem,NULL,&nTotalBytes,&nFreeBytes);
+		bRes = GetDiskFreeSpaceEx(szItem, nullptr,&nTotalBytes,&nFreeBytes);
 
 		LARGE_INTEGER lDiv1;
 		LARGE_INTEGER lDiv2;
@@ -762,8 +763,8 @@ std::wstring ShellBrowser::DetermineItemExtensionGroup(const BasicItemInfo_t &it
 
 std::wstring ShellBrowser::DetermineItemFileSystemGroup(const BasicItemInfo_t &itemInfo) const
 {
-	IShellFolder *pShellFolder	= NULL;
-	PCITEMID_CHILD pidlRelative	= NULL;
+	IShellFolder *pShellFolder	= nullptr;
+	PCITEMID_CHILD pidlRelative	= nullptr;
 	TCHAR szFileSystemName[MAX_PATH];
 	TCHAR szItem[MAX_PATH];
 	STRRET str;
@@ -780,7 +781,7 @@ std::wstring ShellBrowser::DetermineItemFileSystemGroup(const BasicItemInfo_t &i
 
 	if(bRoot)
 	{
-		bRes = GetVolumeInformation(szItem,NULL,0,NULL,NULL,NULL,szFileSystemName,
+		bRes = GetVolumeInformation(szItem, nullptr,0, nullptr, nullptr, nullptr,szFileSystemName,
 			SIZEOF_ARRAY(szFileSystemName));
 
 		if(!bRes || *szFileSystemName == '\0')
@@ -807,15 +808,15 @@ std::wstring ShellBrowser::DetermineItemNetworkStatus(const BasicItemInfo_t &ite
 	UNREFERENCED_PARAMETER(itemInfo);
 
 	TCHAR szStatus[32] = EMPTY_STRING;
-	IP_ADAPTER_ADDRESSES *pAdapterAddresses = NULL;
+	IP_ADAPTER_ADDRESSES *pAdapterAddresses = nullptr;
 	UINT uStatusID = 0;
 	ULONG ulOutBufLen = 0;
 
-	GetAdaptersAddresses(AF_UNSPEC,0,NULL,NULL,&ulOutBufLen);
+	GetAdaptersAddresses(AF_UNSPEC,0, nullptr, nullptr,&ulOutBufLen);
 
 	pAdapterAddresses = (IP_ADAPTER_ADDRESSES *)malloc(ulOutBufLen);
 
-	GetAdaptersAddresses(AF_UNSPEC,0,NULL,pAdapterAddresses,&ulOutBufLen);
+	GetAdaptersAddresses(AF_UNSPEC,0, nullptr,pAdapterAddresses,&ulOutBufLen);
 
 	/* TODO: These strings need to be setup correctly. */
 	/*switch(pAdapterAddresses->OperStatus)

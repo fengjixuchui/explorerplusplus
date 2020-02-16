@@ -4,13 +4,11 @@
 
 #include "stdafx.h"
 #include "FilterDialog.h"
-#include "Explorer++_internal.h"
+#include "CoreInterface.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
 #include "ShellBrowser/ShellBrowser.h"
-#include "../Helper/Helper.h"
-#include "../Helper/Macros.h"
 #include "../Helper/RegistrySettings.h"
 #include "../Helper/XMLSettings.h"
 #include <list>
@@ -24,7 +22,7 @@ FilterDialog::FilterDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus 
 {
 	m_pexpp = pexpp;
 
-	m_pfdps = &FilterDialogPersistentSettings::GetInstance();
+	m_persistentSettings = &FilterDialogPersistentSettings::GetInstance();
 }
 
 INT_PTR FilterDialog::OnInitDialog()
@@ -33,7 +31,7 @@ INT_PTR FilterDialog::OnInitDialog()
 
 	SetFocus(hComboBox);
 
-	for(const auto &strFilter : m_pfdps->m_FilterList)
+	for(const auto &strFilter : m_persistentSettings->m_FilterList)
 	{
 		SendMessage(hComboBox,CB_ADDSTRING,static_cast<WPARAM>(-1),
 			reinterpret_cast<LPARAM>(strFilter.c_str()));
@@ -48,7 +46,7 @@ INT_PTR FilterDialog::OnInitDialog()
 	if (m_pexpp->GetActiveShellBrowser()->GetFilterCaseSensitive())
 		CheckDlgButton(m_hDlg,IDC_FILTERS_CASESENSITIVE,BST_CHECKED);
 
-	m_pfdps->RestoreDialogPosition(m_hDlg,true);
+	m_persistentSettings->RestoreDialogPosition(m_hDlg,true);
 
 	return 0;
 }
@@ -126,11 +124,11 @@ void FilterDialog::OnOk()
 	/* If the entry already exists in the list,
 	simply move the existing entry to the start.
 	Otherwise, insert it at the start. */
-	for(auto itr = m_pfdps->m_FilterList.begin();itr != m_pfdps->m_FilterList.end();itr++)
+	for(auto itr = m_persistentSettings->m_FilterList.begin();itr != m_persistentSettings->m_FilterList.end();itr++)
 	{
 		if(lstrcmp(filter.get(),itr->c_str()) == 0)
 		{
-			std::iter_swap(itr,m_pfdps->m_FilterList.begin());
+			std::iter_swap(itr,m_persistentSettings->m_FilterList.begin());
 
 			bFound = true;
 			break;
@@ -139,7 +137,7 @@ void FilterDialog::OnOk()
 
 	if(!bFound)
 	{
-		m_pfdps->m_FilterList.push_front(filter.get());
+		m_persistentSettings->m_FilterList.push_front(filter.get());
 	}
 
 	m_pexpp->GetActiveShellBrowser()->SetFilterCaseSensitive(IsDlgButtonChecked(
@@ -160,9 +158,9 @@ void FilterDialog::OnCancel()
 
 void FilterDialog::SaveState()
 {
-	m_pfdps->SaveDialogPosition(m_hDlg);
+	m_persistentSettings->SaveDialogPosition(m_hDlg);
 
-	m_pfdps->m_bStateSaved = TRUE;
+	m_persistentSettings->m_bStateSaved = TRUE;
 }
 
 FilterDialogPersistentSettings::FilterDialogPersistentSettings() :
@@ -198,6 +196,6 @@ void FilterDialogPersistentSettings::LoadExtraXMLSettings(BSTR bstrName,BSTR bst
 	if(CompareString(LOCALE_INVARIANT, NORM_IGNORECASE, bstrName, lstrlen(SETTING_FILTER_LIST),
 		SETTING_FILTER_LIST, lstrlen(SETTING_FILTER_LIST)) == CSTR_EQUAL)
 	{
-		m_FilterList.push_back(bstrValue);
+		m_FilterList.emplace_back(bstrValue);
 	}
 }

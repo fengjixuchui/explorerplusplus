@@ -4,13 +4,14 @@
 
 #include "stdafx.h"
 #include "DrivesToolbar.h"
-#include "Explorer++_internal.h"
+#include "CoreInterface.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
 #include "TabContainer.h"
 #include "../Helper/Controls.h"
 #include "../Helper/DriveInfo.h"
 #include "../Helper/FileContextMenuManager.h"
+#include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
 
@@ -54,7 +55,7 @@ void DrivesToolbar::Initialize(HWND hParent)
 	SendMessage(m_hwnd,TB_BUTTONSTRUCTSIZE,sizeof(TBBUTTON),0);
 
 	HIMAGELIST himlSmall;
-	Shell_GetImageLists(NULL,&himlSmall);
+	Shell_GetImageLists(nullptr,&himlSmall);
 
 	int iconWidth;
 	int iconHeight;
@@ -63,8 +64,8 @@ void DrivesToolbar::Initialize(HWND hParent)
 
 	SendMessage(m_hwnd,TB_SETIMAGELIST,0,reinterpret_cast<LPARAM>(himlSmall));
 
-	m_windowSubclasses.push_back(WindowSubclassWrapper(hParent, DrivesToolbarParentProcStub,
-		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(hParent, DrivesToolbarParentProcStub,
+		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
 
 	InsertDrives();
 }
@@ -229,7 +230,6 @@ LRESULT CALLBACK DrivesToolbar::DrivesToolbarParentProc(HWND hwnd,UINT uMsg,WPAR
 
 					return 0;
 				}
-				break;
 			}
 		}
 		break;
@@ -240,7 +240,7 @@ LRESULT CALLBACK DrivesToolbar::DrivesToolbarParentProc(HWND hwnd,UINT uMsg,WPAR
 
 void DrivesToolbar::InsertDrives()
 {
-	DWORD dwSize = GetLogicalDriveStrings(0,NULL);
+	DWORD dwSize = GetLogicalDriveStrings(0, nullptr);
 
 	auto driveStrings = std::make_unique<TCHAR[]>(dwSize);
 	dwSize = GetLogicalDriveStrings(dwSize,driveStrings.get());

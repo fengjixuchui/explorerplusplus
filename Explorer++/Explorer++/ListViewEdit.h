@@ -4,8 +4,9 @@
 
 #pragma once
 
-#include "CoreInterface.h"
 #include "../Helper/BaseWindow.h"
+
+__interface IExplorerplusplus;
 
 class ListViewEdit : BaseWindow
 {
@@ -15,9 +16,9 @@ public:
 
 protected:
 
-	void				OnEMSetSel(WPARAM &wParam,LPARAM &lParam);
+	void				OnEMSetSel(WPARAM &wParam,LPARAM &lParam) override;
 
-	INT_PTR				OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR				OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 private:
 

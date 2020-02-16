@@ -14,13 +14,13 @@ Plugins::MenuApi::MenuApi(PluginMenuManager *pluginMenuManager) :
 
 Plugins::MenuApi::~MenuApi()
 {
-	for (auto item : m_pluginMenuItems)
+	for (const auto &item : m_pluginMenuItems)
 	{
 		m_pluginMenuManager->RemoveItemFromMainMenu(item.first);
 	}
 }
 
-boost::optional<int> Plugins::MenuApi::create(const std::wstring &text, sol::protected_function callback)
+std::optional<int> Plugins::MenuApi::create(const std::wstring &text, sol::protected_function callback)
 {
 	auto menuItemId = m_pluginMenuManager->AddItemToMainMenu(text);
 

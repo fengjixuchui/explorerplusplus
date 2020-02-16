@@ -5,6 +5,8 @@
 #include "stdafx.h"
 #include "BookmarkTreeView.h"
 #include "BookmarkDataExchange.h"
+#include "BookmarkTree.h"
+#include "CoreInterface.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
 #include "../Helper/iDropSource.h"
@@ -12,7 +14,6 @@
 #include "../Helper/MenuHelper.h"
 #include "../Helper/WindowHelper.h"
 #include <boost/range/adaptor/filtered.hpp>
-#include <stack>
 
 BookmarkTreeView::BookmarkTreeView(HWND hTreeView, HINSTANCE hInstance, IExplorerplusplus *expp,
 	BookmarkTree *bookmarkTree, const std::unordered_set<std::wstring> &setExpansion,
@@ -23,12 +24,12 @@ BookmarkTreeView::BookmarkTreeView(HWND hTreeView, HINSTANCE hInstance, IExplore
 	m_bookmarkTree(bookmarkTree),
 	m_bNewFolderCreated(false)
 {
-	m_windowSubclasses.push_back(WindowSubclassWrapper(hTreeView, BookmarkTreeViewProcStub,
-		SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
-	m_windowSubclasses.push_back(WindowSubclassWrapper(GetParent(hTreeView), BookmarkTreeViewParentProcStub,
-		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.emplace_back(hTreeView, BookmarkTreeViewProcStub,
+		SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.emplace_back(GetParent(hTreeView), BookmarkTreeViewParentProcStub,
+		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
 
-	SetWindowTheme(hTreeView, L"Explorer", NULL);
+	SetWindowTheme(hTreeView, L"Explorer", nullptr);
 
 	UINT dpi = m_dpiCompat.GetDpiForWindow(hTreeView);
 	int iconWidth = m_dpiCompat.GetSystemMetricsForDpi(SM_CXSMICON, dpi);
@@ -111,11 +112,9 @@ LRESULT CALLBACK BookmarkTreeView::TreeViewParentProc(HWND hwnd, UINT Msg, WPARA
 
 		case TVN_BEGINLABELEDIT:
 			return OnBeginLabelEdit(reinterpret_cast<NMTVDISPINFO *>(lParam));
-			break;
 
 		case TVN_ENDLABELEDIT:
 			return OnEndLabelEdit(reinterpret_cast<NMTVDISPINFO *>(lParam));
-			break;
 
 		case TVN_SELCHANGED:
 			OnSelChanged(reinterpret_cast<NMTREEVIEW *>(lParam));
@@ -155,7 +154,6 @@ LRESULT CALLBACK BookmarkTreeView::TreeViewEditProc(HWND hwnd, UINT Msg, WPARAM 
 		case VK_ESCAPE:
 		case VK_RETURN:
 			return DLGC_WANTALLKEYS;
-			break;
 		}
 		break;
 	}
@@ -249,7 +247,7 @@ HTREEITEM BookmarkTreeView::InsertFolderIntoTreeView(HTREEITEM hParent, Bookmark
 			/* Only bookmark folders are inserted into the
 			treeview, so it's possible that the specified position
 			will be after the last child in the treeview. */
-			if (hNextSibling == NULL)
+			if (hNextSibling == nullptr)
 			{
 				break;
 			}
@@ -446,7 +444,7 @@ BOOL BookmarkTreeView::OnEndLabelEdit(const NMTVDISPINFO *dispInfo)
 	HWND hEdit = TreeView_GetEditControl(m_hTreeView);
 	RemoveWindowSubclass(hEdit, TreeViewEditProcStub, 0);
 
-	if (dispInfo->item.pszText != NULL &&
+	if (dispInfo->item.pszText != nullptr &&
 		lstrlen(dispInfo->item.pszText) > 0)
 	{
 		auto bookmarkFolder = GetBookmarkFolderFromTreeView(dispInfo->item.hItem);
@@ -482,7 +480,7 @@ void BookmarkTreeView::OnBeginDrag(const NMTREEVIEW *treeView)
 	}
 
 	auto &ownedPtr = bookmarkFolder->GetParent()->GetChildOwnedPtr(bookmarkFolder);
-	auto dataObject = BookmarkDataExchange::CreateDataObject(ownedPtr);
+	auto dataObject = BookmarkDataExchange::CreateDataObject({ ownedPtr });
 
 	wil::com_ptr<IDragSourceHelper> dragSourceHelper;
 	hr = CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_ALL,
@@ -537,7 +535,7 @@ void BookmarkTreeView::OnRClick(const NMHDR *pnmhdr)
 	lEnableMenuItem(menu.get(), IDM_BOOKMARK_TREEVIEW_RLICK_RENAME, !m_bookmarkTree->IsPermanentNode(bookmarkFolder));
 	lEnableMenuItem(menu.get(), IDM_BOOKMARK_TREEVIEW_RLICK_DELETE, !m_bookmarkTree->IsPermanentNode(bookmarkFolder));
 
-	TrackPopupMenu(GetSubMenu(menu.get(), 0), TPM_LEFTALIGN, ptCursor.x, ptCursor.y, 0, m_hTreeView, NULL);
+	TrackPopupMenu(GetSubMenu(menu.get(), 0), TPM_LEFTALIGN, ptCursor.x, ptCursor.y, 0, m_hTreeView, nullptr);
 }
 
 void BookmarkTreeView::CreateNewFolder()
@@ -550,7 +548,7 @@ void BookmarkTreeView::CreateNewFolder()
 
 	HTREEITEM hSelectedItem = TreeView_GetSelection(m_hTreeView);
 
-	assert(hSelectedItem != NULL);
+	assert(hSelectedItem != nullptr);
 
 	auto bookmarkFolder = GetBookmarkFolderFromTreeView(hSelectedItem);
 	m_bookmarkTree->AddBookmarkItem(bookmarkFolder, std::move(newBookmarkFolder), bookmarkFolder->GetChildren().size());

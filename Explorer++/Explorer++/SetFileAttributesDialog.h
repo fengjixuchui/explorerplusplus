@@ -42,16 +42,16 @@ class SetFileAttributesDialog : public BaseDialog
 public:
 
 	SetFileAttributesDialog(HINSTANCE hInstance, HWND hParent,
-		std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> sfaiList);
+		const std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> &sfaiList);
 
 protected:
 
-	INT_PTR	OnInitDialog();
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam);
-	INT_PTR	OnNotify(NMHDR *pnmhdr);
-	INT_PTR	OnClose();
+	INT_PTR	OnInitDialog() override;
+	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR	OnNotify(NMHDR *pnmhdr) override;
+	INT_PTR	OnClose() override;
 
-	void	SaveState();
+	void	SaveState() override;
 
 private:
 

@@ -6,22 +6,12 @@
 #include "Explorer++.h"
 #include "Config.h"
 #include "LoadSaveInterface.h"
-#include "MainResource.h"
 #include "MenuRanges.h"
 #include "RenameTabDialog.h"
 #include "ShellBrowser/ShellBrowser.h"
-#include "ShellBrowser/SortModes.h"
 #include "TabContainer.h"
-#include "../Helper/Helper.h"
-#include "../Helper/iDirectoryMonitor.h"
-#include "../Helper/ListViewHelper.h"
+#include "TabRestorerUI.h"
 #include "../Helper/Macros.h"
-#include "../Helper/MenuHelper.h"
-#include "../Helper/ShellHelper.h"
-#include "../Helper/TabHelper.h"
-#include <boost/algorithm/string.hpp>
-#include <boost/range/adaptor/map.hpp>
-#include <algorithm>
 #include <list>
 
 static const UINT TAB_WINDOW_HEIGHT_96DPI = 24;
@@ -33,7 +23,8 @@ void Explorerplusplus::InitializeTabs()
 	/* The tab backing will hold the tab window. */
 	CreateTabBacking();
 
-	m_tabContainer = TabContainer::Create(m_hTabBacking, this, m_navigation.get(), this, &m_cachedIcons, m_hLanguageModule, m_config);
+	m_tabContainer = TabContainer::Create(m_hTabBacking, this, this, &m_cachedIcons,
+		&m_bookmarkTree, m_hLanguageModule, m_config);
 	m_tabContainer->tabCreatedSignal.AddObserver(boost::bind(&Explorerplusplus::OnTabCreated, this, _1, _2), boost::signals2::at_front);
 	m_tabContainer->tabNavigationCompletedSignal.AddObserver(boost::bind(&Explorerplusplus::OnNavigationCompleted, this, _1), boost::signals2::at_front);
 	m_tabContainer->tabSelectedSignal.AddObserver(boost::bind(&Explorerplusplus::OnTabSelected, this, _1), boost::signals2::at_front);
@@ -103,14 +94,7 @@ HRESULT Explorerplusplus::OnNewTab()
 
 	/* Either no items are selected, or the focused + selected item was not a
 	 * folder; open the default tab directory. */
-	HRESULT hr = m_tabContainer->CreateNewTab(m_config->defaultTabDirectory.c_str(), TabSettings(_selected = true));
-
-	if (FAILED(hr))
-	{
-		hr = m_tabContainer->CreateNewTab(m_config->defaultTabDirectoryStatic.c_str(), TabSettings(_selected = true));
-	}
-
-	return hr;
+	return m_tabContainer->CreateNewTabInDefaultDirectory(TabSettings(_selected = true));
 }
 
 HRESULT Explorerplusplus::RestoreTabs(ILoadSave *pLoadSave)
@@ -151,10 +135,7 @@ HRESULT Explorerplusplus::RestoreTabs(ILoadSave *pLoadSave)
 
 	if(nTabsCreated == 0)
 	{
-		hr = m_tabContainer->CreateNewTab(m_config->defaultTabDirectory.c_str(), TabSettings(_selected = true));
-
-		if(FAILED(hr))
-			hr = m_tabContainer->CreateNewTab(m_config->defaultTabDirectoryStatic.c_str(), TabSettings(_selected = true));
+		hr = m_tabContainer->CreateNewTabInDefaultDirectory(TabSettings(_selected = true));
 
 		if(hr == S_OK)
 		{

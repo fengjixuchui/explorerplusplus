@@ -4,14 +4,8 @@
 
 #include "stdafx.h"
 #include "BookmarkClipboard.h"
-#include "BookmarkDataExchange.h"
 #include "../Helper/BulkClipboardWriter.h"
-#include "../Helper/StringHelper.h"
-
-BookmarkClipboard::BookmarkClipboard()
-{
-
-}
+#include <boost/algorithm/string/join.hpp>
 
 UINT BookmarkClipboard::GetClipboardFormat()
 {
@@ -19,35 +13,39 @@ UINT BookmarkClipboard::GetClipboardFormat()
 	return clipboardFormat;
 }
 
-std::unique_ptr<BookmarkItem> BookmarkClipboard::ReadBookmark()
+BookmarkItems BookmarkClipboard::ReadBookmarks()
 {
 	Clipboard clipboard;
 	auto data = clipboard.ReadCustomData(GetClipboardFormat());
 
 	if (!data)
 	{
-		return nullptr;
+		return {};
 	}
 
-	return BookmarkDataExchange::DeserializeBookmarkItem(*data);
+	return BookmarkDataExchange::DeserializeBookmarkItems(*data);
 }
 
-bool BookmarkClipboard::WriteBookmark(const std::unique_ptr<BookmarkItem> &bookmarkItem)
+bool BookmarkClipboard::WriteBookmarks(const OwnedRefBookmarkItems &bookmarkItems)
 {
 	BulkClipboardWriter clipboardWriter;
-	bool textWritten;
+	std::vector<std::wstring> lines;
 
-	if (bookmarkItem->IsFolder())
+	for (auto &bookmarkItem : bookmarkItems)
 	{
-		textWritten = clipboardWriter.WriteText(bookmarkItem->GetName());
-	}
-	else
-	{
-		textWritten = clipboardWriter.WriteText(bookmarkItem->GetLocation());
+		if (bookmarkItem.get()->IsFolder())
+		{
+			lines.push_back(bookmarkItem.get()->GetName());
+		}
+		else
+		{
+			lines.push_back(bookmarkItem.get()->GetLocation());
+		}
 	}
 
-	std::string data = BookmarkDataExchange::SerializeBookmarkItem(bookmarkItem);
-	bool bookmarkWritten = clipboardWriter.WriteCustomData(GetClipboardFormat(), data);
+	std::wstring text = boost::algorithm::join(lines, L"\n");
+	clipboardWriter.WriteText(text);
 
-	return textWritten && bookmarkWritten;
+	std::string data = BookmarkDataExchange::SerializeBookmarkItems(bookmarkItems);
+	return clipboardWriter.WriteCustomData(GetClipboardFormat(), data);
 }

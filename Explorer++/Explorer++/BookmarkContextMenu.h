@@ -4,9 +4,12 @@
 
 #pragma once
 
+#include "BookmarkContextMenuController.h"
+#include "BookmarkHelper.h"
 #include "BookmarkItem.h"
-#include "BookmarkTree.h"
-#include "CoreInterface.h"
+
+class BookmarkTree;
+__interface IExplorerplusplus;
 
 class BookmarkContextMenu
 {
@@ -14,19 +17,16 @@ public:
 
 	BookmarkContextMenu(BookmarkTree *bookmarkTree, HMODULE resourceModule, IExplorerplusplus *expp);
 
-	BOOL ShowMenu(HWND parentWindow, BookmarkItem *bookmarkItem, const POINT &pt, bool recursive = false);
+	BOOL ShowMenu(HWND parentWindow, BookmarkItem *parentFolder, const RawBookmarkItems &bookmarkItems,
+		const POINT &ptScreen, bool recursive = false);
 	bool IsShowingMenu() const;
 
 private:
 
-	void OnMenuItemSelected(int menuItemId, BookmarkItem *bookmarkItem, HWND parentWindow);
-	void OnNewBookmarkItem(BookmarkItem::Type type, HWND parentWindow);
-	void OnCopy(BookmarkItem *bookmarkItem, bool cut);
-	void OnPaste(BookmarkItem *selectedBookmarkItem);
-	void OnEditBookmarkItem(BookmarkItem *bookmarkItem, HWND parentWindow);
+	void SetUpMenu(HMENU menu, const RawBookmarkItems &bookmarkItems);
+	void SetMenuItemStates(HMENU menu);
 
-	BookmarkTree *m_bookmarkTree;
 	HMODULE m_resourceModule;
-	IExplorerplusplus *m_expp;
+	BookmarkContextMenuController m_controller;
 	bool m_showingMenu;
 };

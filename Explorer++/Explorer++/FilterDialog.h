@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "CoreInterface.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
@@ -12,6 +11,7 @@
 #include <objbase.h>
 
 class FilterDialog;
+__interface IExplorerplusplus;
 
 class FilterDialogPersistentSettings : public DialogSettings
 {
@@ -32,11 +32,11 @@ private:
 	FilterDialogPersistentSettings(const FilterDialogPersistentSettings &);
 	FilterDialogPersistentSettings & operator=(const FilterDialogPersistentSettings &);
 
-	void SaveExtraRegistrySettings(HKEY hKey);
-	void LoadExtraRegistrySettings(HKEY hKey);
+	void SaveExtraRegistrySettings(HKEY hKey) override;
+	void LoadExtraRegistrySettings(HKEY hKey) override;
 
-	void SaveExtraXMLSettings(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode);
-	void LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue);
+	void SaveExtraXMLSettings(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode) override;
+	void LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue) override;
 
 	std::list<std::wstring>	m_FilterList;
 };
@@ -49,21 +49,21 @@ public:
 
 protected:
 
-	INT_PTR				OnInitDialog();
-	INT_PTR				OnCommand(WPARAM wParam,LPARAM lParam);
-	INT_PTR				OnClose();
+	INT_PTR				OnInitDialog() override;
+	INT_PTR				OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR				OnClose() override;
 
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const override;
 
 private:
 
-	void				GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList);
-	void				SaveState();
+	void				GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList) override;
+	void				SaveState() override;
 
 	void				OnOk();
 	void				OnCancel();
 
 	IExplorerplusplus *m_pexpp;
 
-	FilterDialogPersistentSettings *m_pfdps;
+	FilterDialogPersistentSettings *m_persistentSettings;
 };

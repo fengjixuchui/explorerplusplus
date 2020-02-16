@@ -6,7 +6,6 @@
 
 #include "ApplicationToolbar.h"
 #include "../Helper/BaseDialog.h"
-#include "../Helper/DialogSettings.h"
 
 class ApplicationToolbarButtonDialog : public BaseDialog
 {
@@ -16,9 +15,9 @@ public:
 
 protected:
 
-	INT_PTR	OnInitDialog();
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam);
-	INT_PTR	OnClose();
+	INT_PTR	OnInitDialog() override;
+	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR	OnClose() override;
 
 private:
 

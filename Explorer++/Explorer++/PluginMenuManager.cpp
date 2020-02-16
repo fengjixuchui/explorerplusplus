@@ -5,7 +5,6 @@
 #include "stdafx.h"
 #include "PluginMenuManager.h"
 #include "MainResource.h"
-#include "../Helper/Macros.h"
 #include <boost/iterator/counting_iterator.hpp>
 
 Plugins::PluginMenuManager::PluginMenuManager(HWND mainWindow, int startId, int endId) :
@@ -17,13 +16,13 @@ Plugins::PluginMenuManager::PluginMenuManager(HWND mainWindow, int startId, int 
 	m_freeMenuItemIds.insert(boost::counting_iterator<int>(startId), boost::counting_iterator<int>(endId));
 }
 
-boost::optional<int> Plugins::PluginMenuManager::AddItemToMainMenu(const std::wstring &text)
+std::optional<int> Plugins::PluginMenuManager::AddItemToMainMenu(const std::wstring &text)
 {
 	HMENU menu = GetMenu(m_mainWindow);
 
 	if (menu == nullptr)
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	auto id = GeneratePluginMenuItemId();
@@ -48,7 +47,7 @@ boost::optional<int> Plugins::PluginMenuManager::AddItemToMainMenu(const std::ws
 
 	if (!res)
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	return *id;
@@ -73,11 +72,11 @@ void Plugins::PluginMenuManager::RemoveItemFromMainMenu(int menuItemId)
 	ReleasePluginMenuItemId(menuItemId);
 }
 
-boost::optional<int> Plugins::PluginMenuManager::GeneratePluginMenuItemId()
+std::optional<int> Plugins::PluginMenuManager::GeneratePluginMenuItemId()
 {
 	if (m_freeMenuItemIds.empty())
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	auto first = m_freeMenuItemIds.begin();

@@ -4,26 +4,22 @@
 
 #include "stdafx.h"
 #include "Explorer++.h"
-#include "BookmarkHelper.h"
+#include "BookmarksMainMenu.h"
 #include "Config.h"
-#include "CustomizeColorsDialog.h"
+#include "DisplayWindow/DisplayWindow.h"
 #include "Explorer++_internal.h"
 #include "LoadSaveInterface.h"
 #include "MainResource.h"
 #include "MainWindow.h"
+#include "MenuHelper.h"
 #include "MenuRanges.h"
-#include "ResourceHelper.h"
 #include "ShellBrowser/ViewModes.h"
 #include "TaskbarThumbnails.h"
+#include "UiTheming.h"
 #include "ViewModeHelper.h"
-#include "../DisplayWindow/DisplayWindow.h"
-#include "../Helper/Controls.h"
-#include "../Helper/FileOperations.h"
-#include "../Helper/Helper.h"
 #include "../Helper/iDirectoryMonitor.h"
 #include "../Helper/ImageHelper.h"
 #include "../Helper/Macros.h"
-#include <list>
 
 /*
 * Main window creation.
@@ -36,7 +32,7 @@ void Explorerplusplus::OnCreate()
 {
 	InitializeMainToolbars();
 
-	ILoadSave *pLoadSave = NULL;
+	ILoadSave *pLoadSave = nullptr;
 	LoadAllSettings(&pLoadSave);
 	ApplyToolbarSettings();
 
@@ -79,7 +75,7 @@ void Explorerplusplus::OnCreate()
 	// been created.
 	SHChangeNotifyEntry shcne;
 	shcne.fRecursive = TRUE;
-	shcne.pidl = NULL;
+	shcne.pidl = nullptr;
 	m_SHChangeNotifyID = SHChangeNotifyRegister(m_hContainer, SHCNRF_ShellLevel,
 		SHCNE_ASSOCCHANGED, WM_APP_ASSOCCHANGED, 1, &shcne);
 
@@ -106,7 +102,7 @@ void Explorerplusplus::InitializeDisplayWindow()
 	InitialSettings.SurroundColor	= m_config->displayWindowSurroundColor;
 	InitialSettings.TextColor		= m_config->displayWindowTextColor;
 	InitialSettings.hFont			= m_config->displayWindowFont;
-	InitialSettings.hIcon			= (HICON)LoadImage(GetModuleHandle(0),
+	InitialSettings.hIcon			= (HICON)LoadImage(GetModuleHandle(nullptr),
 		MAKEINTRESOURCE(IDI_DISPLAYWINDOW),IMAGE_ICON,
 		0,0,LR_CREATEDIBSECTION);
 

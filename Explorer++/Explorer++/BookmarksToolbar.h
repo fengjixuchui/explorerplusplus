@@ -5,20 +5,22 @@
 #pragma once
 
 #include "BookmarkContextMenu.h"
-#include "BookmarkDropInfo.h"
 #include "BookmarkDropTargetWindow.h"
 #include "BookmarkItem.h"
 #include "BookmarkMenu.h"
-#include "BookmarkTree.h"
-#include "CoreInterface.h"
 #include "Navigation.h"
 #include "ResourceHelper.h"
 #include "../Helper/DpiCompatibility.h"
+#include "../Helper/DropHandler.h"
+#include "../Helper/IconFetcher.h"
 #include "../Helper/WindowSubclassWrapper.h"
 #include <boost/signals2.hpp>
 #include <wil/com.h>
 #include <wil/resource.h>
 #include <optional>
+
+class BookmarkTree;
+__interface IExplorerplusplus;
 
 class BookmarksToolbar : private BookmarkDropTargetWindow
 {
@@ -30,6 +32,8 @@ public:
 private:
 
 	BookmarksToolbar & operator = (const BookmarksToolbar &bt);
+
+	using SystemIconImageListMapping = std::unordered_map<int, int>;
 
 	static inline const UINT_PTR SUBCLASS_ID = 0;
 	static inline const UINT_PTR PARENT_SUBCLASS_ID = 0;
@@ -54,6 +58,7 @@ private:
 	LRESULT CALLBACK	BookmarksToolbarParentProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 	void	InitializeToolbar();
+	void	SetUpToolbarImageList();
 
 	void	InsertBookmarkItems();
 	void	InsertBookmarkItem(BookmarkItem *bookmarkItem, int position);
@@ -79,6 +84,7 @@ private:
 	void	OnToolbarContextMenuPreShow(HMENU menu, HWND sourceWindow, const POINT &pt);
 
 	std::optional<int>	GetBookmarkItemIndex(const BookmarkItem *bookmarkItem) const;
+	std::optional<int>	GetBookmarkItemIndexUsingGuid(std::wstring_view guid) const;
 
 	BookmarkItem	*GetBookmarkItemFromToolbarIndex(int index);
 
@@ -95,10 +101,19 @@ private:
 	void RemoveInsertionMark();
 	void RemoveDropHighlight();
 
+	int GetIconForBookmark(const BookmarkItem *bookmark);
+	void ProcessIconResult(std::wstring_view guid, int iconIndex);
+	int AddSystemIconToImageList(int iconIndex);
+
 	HWND m_hToolbar;
 	DpiCompatibility m_dpiCompat;
 	wil::unique_himagelist m_imageList;
-	IconImageListMapping m_imageListMappings;
+	SystemIconImageListMapping m_imageListMappings;
+	wil::com_ptr<IImageList> m_systemImageList;
+	int m_defaultFolderIconSystemImageListIndex;
+	int m_defaultFolderIconIndex;
+	int m_bookmarkFolderIconIndex;
+	IconFetcher m_iconFetcher;
 
 	HINSTANCE m_instance;
 

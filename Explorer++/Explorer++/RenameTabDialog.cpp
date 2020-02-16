@@ -3,13 +3,10 @@
 // See LICENSE in the top level directory
 
 #include "stdafx.h"
-#include "Explorer++_internal.h"
 #include "RenameTabDialog.h"
 #include "MainResource.h"
-#include "../Helper/Helper.h"
-#include "../Helper/ShellHelper.h"
+#include "TabContainer.h"
 #include "../Helper/Macros.h"
-
 
 const TCHAR RenameTabDialogPersistentSettings::SETTINGS_KEY[] = _T("RenameTab");
 

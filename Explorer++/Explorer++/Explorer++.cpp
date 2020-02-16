@@ -4,20 +4,16 @@
 
 #include "stdafx.h"
 #include "Explorer++.h"
+#include "BookmarksMainMenu.h"
 #include "BookmarksToolbar.h"
 #include "ColorRuleHelper.h"
 #include "Config.h"
-#include "DefaultColumns.h"
 #include "Explorer++_internal.h"
-#include "IconResourceLoader.h"
-#include "iServiceProvider.h"
-#include "MainResource.h"
 #include "MenuRanges.h"
 #include "PluginManager.h"
-#include "ResourceHelper.h"
-#include "ShellBrowser/ViewModes.h"
+#include "TabRestorerUI.h"
+#include "UiTheming.h"
 #include "../Helper/iDirectoryMonitor.h"
-#include "../Helper/ShellHelper.h"
 
 /* These entries correspond to shell
 extensions that are known to be
@@ -53,18 +49,18 @@ Explorerplusplus::Explorerplusplus(HWND hwnd) :
 	m_bDragCancelled				= FALSE;
 	m_bDragAllowed					= FALSE;
 	m_bShowTabBar					= TRUE;
-	m_pActiveShellBrowser			= NULL;
-	m_hMainRebar					= NULL;
-	m_hStatusBar					= NULL;
-	m_hHolder						= NULL;
-	m_hTabBacking					= NULL;
-	m_hTabWindowToolbar				= NULL;
-	m_hDisplayWindow				= NULL;
-	m_hTreeView						= NULL;
-	m_hFoldersToolbar				= NULL;
-	m_hLastActiveWindow				= NULL;
-	m_hActiveListView				= NULL;
-	m_hNextClipboardViewer			= NULL;
+	m_pActiveShellBrowser			= nullptr;
+	m_hMainRebar					= nullptr;
+	m_hStatusBar					= nullptr;
+	m_hHolder						= nullptr;
+	m_hTabBacking					= nullptr;
+	m_hTabWindowToolbar				= nullptr;
+	m_hDisplayWindow				= nullptr;
+	m_hTreeView						= nullptr;
+	m_hFoldersToolbar				= nullptr;
+	m_hLastActiveWindow				= nullptr;
+	m_hActiveListView				= nullptr;
+	m_hNextClipboardViewer			= nullptr;
 	m_zDeltaTotal					= 0;
 	m_InitializationFinished.set(false);
 
@@ -74,9 +70,9 @@ Explorerplusplus::Explorerplusplus(HWND hwnd) :
 
 	m_iDWFolderSizeUniqueId = 0;
 
-	m_pClipboardDataObject	= NULL;
+	m_pClipboardDataObject	= nullptr;
 	m_iCutTabInternal		= 0;
-	m_hCutTreeViewItem		= NULL;
+	m_hCutTreeViewItem		= nullptr;
 }
 
 Explorerplusplus::~Explorerplusplus()

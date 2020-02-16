@@ -4,30 +4,25 @@
 
 #pragma once
 
-#include "BookmarksMainMenu.h"
+#include "AcceleratorUpdater.h"
 #include "BookmarkTree.h"
 #include "CoreInterface.h"
-#include "IconResourceLoader.h"
+#include "Navigation.h"
 #include "PluginCommandManager.h"
 #include "PluginInterface.h"
 #include "PluginMenuManager.h"
-#include "ShellBrowser/ShellBrowser.h"
+#include "ShellBrowser/Columns.h"
 #include "ShellBrowser/SortModes.h"
-#include "ShellBrowser/ViewModes.h"
 #include "Tab.h"
 #include "TabNavigationInterface.h"
-#include "TabRestorer.h"
-#include "TabRestorerUI.h"
-#include "UiTheming.h"
 #include "ValueWrapper.h"
 #include "../Helper/CachedIcons.h"
 #include "../Helper/DpiCompatibility.h"
+#include "../Helper/DropHandler.h"
 #include "../Helper/FileActionHandler.h"
 #include "../Helper/FileContextMenuManager.h"
-#include <boost/optional.hpp>
 #include <boost/signals2.hpp>
 #include <wil/resource.h>
-#include <unordered_map>
 
 /* Sent when a folder size calculation has finished. */
 #define WM_APP_FOLDERSIZECOMPLETED	WM_APP + 3
@@ -39,35 +34,36 @@
 // Forward declarations.
 class AddressBar;
 class ApplicationToolbar;
+class BookmarksMainMenu;
 class BookmarksToolbar;
+struct ColumnWidth_t;
+struct Config;
+class DrivesToolbar;
+class IconResourceLoader;
+__interface IDirectoryMonitor;
+class ILoadSave;
+class LoadSaveRegistry;
+class LoadSaveXML;
+class MainToolbar;
+class MainWindow;
+class ShellBrowser;
+class ShellTreeView;
+class TabContainer;
+class TabRestorer;
+class TabRestorerUI;
+struct TabSettings;
+class TaskbarThumbnails;
+class UiTheming;
 
 namespace NColorRuleHelper
 {
 	struct ColorRule_t;
 }
 
-class DrivesToolbar;
-struct Config;
-struct ColumnWidth_t;
-class ILoadSave;
-class LoadSaveRegistry;
-class LoadSaveXML;
-class MainToolbar;
-class MainWindow;
-class Navigation;
-
 namespace Plugins
 {
 	class PluginManager;
 }
-
-class ShellBrowser;
-class TabContainer;
-class TaskbarThumbnails;
-
-__interface IDirectoryMonitor;
-
-class MyTreeView;
 
 class Explorerplusplus : public IExplorerplusplus, public TabNavigationInterface,
 	public IFileContextMenuExternal, public PluginInterface
@@ -289,27 +285,27 @@ private:
 
 	/* Tabs. */
 	void					InitializeTabs();
-	boost::signals2::connection	AddTabsInitializedObserver(const TabsInitializedSignal::slot_type &observer);
+	boost::signals2::connection	AddTabsInitializedObserver(const TabsInitializedSignal::slot_type &observer) override;
 	void					OnTabCreated(int tabId, BOOL switchToNewTab);
 	void					OnTabSelected(const Tab &tab);
-	void					ShowTabBar();
-	void					HideTabBar();
+	void					ShowTabBar() override;
+	void					HideTabBar() override;
 	HRESULT					RestoreTabs(ILoadSave *pLoadSave);
 	void					OnTabListViewSelectionChanged(const Tab &tab);
 
 	/* TabNavigationInterface methods. */
-	HRESULT					CreateNewTab(PCIDLIST_ABSOLUTE pidlDirectory, bool selected);
+	HRESULT					CreateNewTab(PCIDLIST_ABSOLUTE pidlDirectory, bool selected) override;
 
 	void					OnNavigationCompleted(const Tab &tab);
 
 	/* PluginInterface. */
-	IExplorerplusplus		*GetCoreInterface();
-	TabContainer			*GetTabContainer();
-	Navigation				*GetNavigation();
-	Plugins::PluginMenuManager	*GetPluginMenuManager();
-	UiTheming				*GetUiTheming();
-	AcceleratorUpdater		*GetAccleratorUpdater();
-	Plugins::PluginCommandManager	*GetPluginCommandManager();
+	IExplorerplusplus		*GetCoreInterface() override;
+	TabContainer			*GetTabContainer() override;
+	Navigation				*GetNavigation() override;
+	Plugins::PluginMenuManager	*GetPluginMenuManager() override;
+	UiTheming				*GetUiTheming() override;
+	AcceleratorUpdater		*GetAccleratorUpdater() override;
+	Plugins::PluginCommandManager	*GetPluginCommandManager() override;
 
 	/* Plugins. */
 	void					InitializePlugins();
@@ -319,7 +315,6 @@ private:
 	void					SetProgramMenuItemStates(HMENU hProgramMenu);
 
 	/* Control creation. */
-	HWND					CreateMainListView(HWND hParent);
 	void					CreateMainControls(void);
 	void					CreateFolderControls(void);
 	void					CreateAddressBar();
@@ -327,18 +322,18 @@ private:
 	void					CreateBookmarksToolbar(void);
 	void					CreateDrivesToolbar(void);
 	void					CreateApplicationToolbar();
-	HWND					CreateTabToolbar(HWND hParent,int idCommand,TCHAR *szTip);
+	HWND					CreateTabToolbar(HWND hParent, int idCommand, const std::wstring &tip);
 
 	/* Main toolbars. */
 	void					InitializeMainToolbars(void);
 	void					OnUseLargeToolbarIconsUpdated(BOOL newValue);
-	boost::signals2::connection	AddToolbarContextMenuObserver(const ToolbarContextMenuSignal::slot_type &observer);
+	boost::signals2::connection	AddToolbarContextMenuObserver(const ToolbarContextMenuSignal::slot_type &observer) override;
 
 	/* Main toolbar private message handlers. */
 	void					OnToolbarRClick(HWND sourceWindow);
 
 	/* Settings. */
-	void					SaveAllSettings();
+	void					SaveAllSettings() override;
 	void					LoadAllSettings(ILoadSave **pLoadSave);
 	void					ValidateLoadedSettings();
 	void					ValidateColumns(FolderColumns &folderColumns);
@@ -374,7 +369,7 @@ private:
 	void					SaveTabSettingsToXMLnternal(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pe);
 	int						LoadColumnFromXML(IXMLDOMNode *pNode, std::vector<Column_t> &outputColumns);
 	void					SaveColumnToXML(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pColumnsNode, const std::vector<Column_t> &columns, const TCHAR *szColumnSet, int iIndent);
-	int						LoadBookmarksFromXML(IXMLDOMDocument *pXMLDom);
+	void					LoadBookmarksFromXML(IXMLDOMDocument *pXMLDom);
 	void					SaveBookmarksToXML(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pRoot);
 	int						LoadDefaultColumnsFromXML(IXMLDOMDocument *pXMLDom);
 	void					SaveDefaultColumnsToXML(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pRoot);
@@ -396,7 +391,7 @@ private:
 	void					UpdateTreeViewSelection();
 	void					SetStatusBarParts(int width);
 	void					ResizeWindows(void);
-	void					SetListViewInitialPosition(HWND hListView);
+	void					SetListViewInitialPosition(HWND hListView) override;
 	void					AdjustFolderPanePosition(void);
 	HRESULT					UpdateStatusBarText(const Tab &tab);
 	void					ToggleFolders(void);
@@ -416,26 +411,26 @@ private:
 	void					CopyToFolder(bool move);
 	void					OpenAllSelectedItems(BOOL bOpenInNewTab);
 	void					OpenListViewItem(int iItem,BOOL bOpenInNewTab,BOOL bOpenInNewWindow);
-	void					OpenItem(const TCHAR *szItem,BOOL bOpenInNewTab,BOOL bOpenInNewWindow);
-	void					OpenItem(PCIDLIST_ABSOLUTE pidlItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow);
+	void					OpenItem(const TCHAR *szItem,BOOL bOpenInNewTab,BOOL bOpenInNewWindow) override;
+	void					OpenItem(PCIDLIST_ABSOLUTE pidlItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow) override;
 	void					OpenFolderItem(PCIDLIST_ABSOLUTE pidlItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow);
-	void					OpenFileItem(PCIDLIST_ABSOLUTE pidlItem,const TCHAR *szParameters);
+	void					OpenFileItem(PCIDLIST_ABSOLUTE pidlItem,const TCHAR *szParameters) override;
 	HRESULT					OnListViewCopy(BOOL bCopy);
 
 	/* File context menu. */
-	void					AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, HMENU hMenu);
-	BOOL					HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd);
-	void					HandleCustomMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, int iCmd);
+	void					AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, HMENU hMenu) override;
+	BOOL					HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd) override;
+	void					HandleCustomMenuItem(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems, int iCmd) override;
 
 	/* File selection tests. */
 	BOOL					AnyItemsSelected() const;
-	bool					CanCreate() const;
-	BOOL					CanCut() const;
-	BOOL					CanCopy() const;
-	BOOL					CanRename() const;
-	BOOL					CanDelete() const;
-	BOOL					CanShowFileProperties() const;
-	BOOL					CanPaste() const;
+	bool					CanCreate() const override;
+	BOOL					CanCut() const override;
+	BOOL					CanCopy() const override;
+	BOOL					CanRename() const override;
+	BOOL					CanDelete() const override;
+	BOOL					CanShowFileProperties() const override;
+	BOOL					CanPaste() const override;
 	BOOL					TestItemAttributes(SFGAOF attributes) const;
 	HRESULT					GetSelectionAttributes(SFGAOF *pItemAttributes) const;
 
@@ -463,25 +458,26 @@ private:
 	void					ToggleFilterStatus();
 
 	/* IExplorerplusplus methods. */
-	Config					*GetConfig() const;
-	HMODULE					GetLanguageModule() const;
-	HWND					GetMainWindow() const;
-	HWND					GetActiveListView() const;
-	ShellBrowser			*GetActiveShellBrowser() const;
-	TabContainer			*GetTabContainer() const;
-	HWND					GetTreeView() const;
-	IDirectoryMonitor		*GetDirectoryMonitor() const;
-	IconResourceLoader		*GetIconResourceLoader() const;
-	CachedIcons				*GetCachedIcons();
-	BOOL					GetSavePreferencesToXmlFile() const;
-	void					SetSavePreferencesToXmlFile(BOOL savePreferencesToXmlFile);
+	Config					*GetConfig() const override;
+	HMODULE					GetLanguageModule() const override;
+	HWND					GetMainWindow() const override;
+	HWND					GetActiveListView() const override;
+	ShellBrowser			*GetActiveShellBrowser() const override;
+	TabContainer			*GetTabContainer() const override;
+	TabRestorer				*GetTabRestorer() const override;
+	HWND					GetTreeView() const override;
+	IDirectoryMonitor		*GetDirectoryMonitor() const override;
+	IconResourceLoader		*GetIconResourceLoader() const override;
+	CachedIcons				*GetCachedIcons() override;
+	BOOL					GetSavePreferencesToXmlFile() const override;
+	void					SetSavePreferencesToXmlFile(BOOL savePreferencesToXmlFile) override;
 
 	/* Menus. */
 	void					InitializeMainMenu();
 	void					SetGoMenuName(HMENU hMenu, UINT uMenuID, UINT csidl);
 	void					SetMainMenuImages();
-	boost::signals2::connection	AddMainMenuPreShowObserver(const MainMenuPreShowSignal::slot_type &observer);
-	HMENU					BuildViewsMenu();
+	boost::signals2::connection	AddMainMenuPreShowObserver(const MainMenuPreShowSignal::slot_type &observer) override;
+	HMENU					BuildViewsMenu() override;
 	void					AddViewModesToMenu(HMENU menu);
 
 	/* Miscellaneous. */
@@ -489,10 +485,10 @@ private:
 	void					InitializeDisplayWindow();
 	int						CreateDriveFreeSpaceString(const TCHAR *szPath, TCHAR *szBuffer, int nBuffer);
 	void					ShowMainRebarBand(HWND hwnd,BOOL bShow);
-	BOOL					OnMouseWheel(MousewheelSource_t MousewheelSource,WPARAM wParam,LPARAM lParam);
+	BOOL					OnMouseWheel(MousewheelSource_t MousewheelSource,WPARAM wParam,LPARAM lParam) override;
 	void					CycleViewState(BOOL bCycleForward);
 	HMENU					CreateRebarHistoryMenu(BOOL bBack);
-	StatusBar				*GetStatusBar();
+	StatusBar				*GetStatusBar() override;
 	void					HandleDirectoryMonitoring(int iTabId);
 	int						DetermineListViewObjectIndex(HWND hListView);
 
@@ -511,7 +507,7 @@ private:
 	HWND					m_hBookmarksToolbar;
 
 	IDirectoryMonitor *		m_pDirMon;
-	MyTreeView *			m_pMyTreeView;
+	ShellTreeView *			m_shellTreeView;
 	StatusBar *			m_pStatusBar;
 
 	HMODULE					m_hLanguageModule;

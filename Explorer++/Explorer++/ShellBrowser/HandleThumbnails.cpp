@@ -4,11 +4,8 @@
 
 #include "stdafx.h"
 #include "ShellBrowser.h"
+#include "ItemData.h"
 #include "ViewModes.h"
-#include "../Helper/Controls.h"
-#include "../Helper/FileOperations.h"
-#include "../Helper/FolderSize.h"
-#include "../Helper/Helper.h"
 #include "../Helper/ShellHelper.h"
 #include <boost/scope_exit.hpp>
 #include <list>
@@ -27,7 +24,7 @@ void ShellBrowser::SetupThumbnailsView(void)
 
 	nItems = ListView_GetItemCount(m_hListView);
 
-	IImageList *pImageList = NULL;
+	IImageList *pImageList = nullptr;
 
 	/* Need to get the normal (32x32) image list for thumbnails, so that
 	the regular size icon is shown for items with a thumbnail that hasn't
@@ -108,7 +105,7 @@ void ShellBrowser::QueueThumbnailTask(int internalIndex)
 	m_thumbnailResults.insert({ thumbnailResultID, std::move(result) });
 }
 
-boost::optional<ShellBrowser::ThumbnailResult_t> ShellBrowser::FindThumbnailAsync(HWND listView,
+std::optional<ShellBrowser::ThumbnailResult_t> ShellBrowser::FindThumbnailAsync(HWND listView,
 	int thumbnailResultId, int internalIndex, const BasicItemInfo_t &basicItemInfo)
 {
 	IShellFolder *pShellFolder = nullptr;
@@ -116,7 +113,7 @@ boost::optional<ShellBrowser::ThumbnailResult_t> ShellBrowser::FindThumbnailAsyn
 
 	if (FAILED(hr))
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	BOOST_SCOPE_EXIT(pShellFolder) {
@@ -125,11 +122,11 @@ boost::optional<ShellBrowser::ThumbnailResult_t> ShellBrowser::FindThumbnailAsyn
 
 	IExtractImage *pExtractImage = nullptr;
 	auto pridl = basicItemInfo.pridl.get();
-	hr = GetUIObjectOf(pShellFolder, NULL, 1, const_cast<PCUITEMID_CHILD *>(&pridl), IID_PPV_ARGS(&pExtractImage));
+	hr = GetUIObjectOf(pShellFolder, nullptr, 1, const_cast<PCUITEMID_CHILD *>(&pridl), IID_PPV_ARGS(&pExtractImage));
 
 	if (FAILED(hr))
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	BOOST_SCOPE_EXIT(pExtractImage) {
@@ -150,7 +147,7 @@ boost::optional<ShellBrowser::ThumbnailResult_t> ShellBrowser::FindThumbnailAsyn
 
 	if (FAILED(hr))
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	wil::unique_hbitmap thumbnailBitmap;
@@ -158,7 +155,7 @@ boost::optional<ShellBrowser::ThumbnailResult_t> ShellBrowser::FindThumbnailAsyn
 
 	if (FAILED(hr))
 	{
-		return boost::none;
+		return std::nullopt;
 	}
 
 	PostMessage(listView, WM_APP_THUMBNAIL_RESULT_READY, thumbnailResultId, 0);
@@ -213,7 +210,7 @@ void ShellBrowser::ProcessThumbnailResult(int thumbnailResultId)
 int ShellBrowser::GetIconThumbnail(int iInternalIndex) const
 {
 	return GetThumbnailInternal(THUMBNAIL_TYPE_ICON,iInternalIndex,
-		NULL);
+		nullptr);
 }
 
 /* Draws an items extracted thumbnail. */
@@ -262,7 +259,7 @@ int iInternalIndex,HBITMAP hThumbnailBitmap) const
 
 	/* Add the new bitmap to the imagelist. */
 	himl = ListView_GetImageList(m_hListView,LVSIL_NORMAL);
-	iImage = ImageList_Add(himl,hBackingBitmap,NULL);
+	iImage = ImageList_Add(himl,hBackingBitmap, nullptr);
 
 	/* Now delete the backing bitmap. */
 	DeleteObject(hBackingBitmap);
@@ -286,7 +283,7 @@ void ShellBrowser::DrawIconThumbnailInternal(HDC hdcBacking,int iInternalIndex) 
 
 	DrawIconEx(hdcBacking,(THUMBNAIL_ITEM_WIDTH - iIconWidth) / 2,
 		(THUMBNAIL_ITEM_HEIGHT - iIconHeight) / 2,hIcon,0,0,
-		NULL,NULL,DI_NORMAL);
+		0, nullptr,DI_NORMAL);
 	DestroyIcon(hIcon);
 }
 

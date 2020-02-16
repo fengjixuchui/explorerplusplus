@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // See LICENSE in the top level directory
 
-#include "pch.h"
 #include "../Explorer++/AcceleratorParser.h"
+#include <gtest/gtest.h>
 
-TEST(AcceleratorTest, TestValidCases) {
+TEST(AcceleratorParserTest, TestValidCases) {
 	auto res = Plugins::parseAccelerator(L"Ctrl+S");
 
 	EXPECT_TRUE(res);
@@ -35,7 +35,7 @@ TEST(AcceleratorTest, TestValidCases) {
 	EXPECT_EQ(res->key, 'P');
 }
 
-TEST(AcceleratorTest, TestInvalidCases) {
+TEST(AcceleratorParserTest, TestInvalidCases) {
 	auto res = Plugins::parseAccelerator(L"");
 
 	EXPECT_FALSE(res);

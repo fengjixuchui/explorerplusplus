@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include "IconResourceLoader.h"
-#include "../Helper/StatusBar.h"
 #include <boost/signals2.hpp>
 
 typedef boost::signals2::signal<void()> TabsInitializedSignal;
@@ -21,9 +19,12 @@ enum MousewheelSource_t
 
 class CachedIcons;
 struct Config;
-class ShellBrowser;
+class IconResourceLoader;
 __interface IDirectoryMonitor;
+class ShellBrowser;
+class StatusBar;
 class TabContainer;
+class TabRestorer;
 
 /* Basic interface between Explorerplusplus
 and some of the other components (such as the
@@ -39,6 +40,7 @@ __interface IExplorerplusplus
 	ShellBrowser	*GetActiveShellBrowser() const;
 
 	TabContainer	*GetTabContainer() const;
+	TabRestorer		*GetTabRestorer() const;
 	IDirectoryMonitor	*GetDirectoryMonitor() const;
 
 	IconResourceLoader	*GetIconResourceLoader() const;

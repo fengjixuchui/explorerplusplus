@@ -4,15 +4,14 @@
 
 #pragma once
 
-#include "CoreInterface.h"
-#include "PreservedTab.h"
 #include "TabRestorer.h"
 #include "../Helper/Macros.h"
 #include <boost/signals2.hpp>
 #include <wil/com.h>
 #include <wil/resource.h>
-#include <tuple>
 #include <unordered_map>
+
+__interface IExplorerplusplus;
 
 class TabRestorerUI
 {

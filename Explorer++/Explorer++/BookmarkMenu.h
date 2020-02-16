@@ -7,11 +7,11 @@
 #include "BookmarkContextMenu.h"
 #include "BookmarkItem.h"
 #include "BookmarkMenuBuilder.h"
-#include "BookmarkTree.h"
-#include "CoreInterface.h"
 #include "../Helper/WindowSubclassWrapper.h"
-#include <wil/resource.h>
 #include <functional>
+
+class BookmarkTree;
+__interface IExplorerplusplus;
 
 // Although it's not necessary, this class is effectively designed to be held
 // for the lifetime of its parent class. Doing so is more efficient, as the
@@ -34,20 +34,20 @@ private:
 
 	static const UINT_PTR SUBCLASS_ID = 0;
 
-	static LRESULT CALLBACK ParentWindowSubclassStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+	static LRESULT CALLBACK ParentWindowSubclassStub(HWND hwnd, UINT uMsg, WPARAM wParam,
+		LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 	LRESULT CALLBACK ParentWindowSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	void OnMenuRightButtonUp(HMENU menu, int index, const POINT &pt);
-	void OnMenuItemSelected(int menuItemId, BookmarkMenuBuilder::ItemMap &menuItemMappings,
+	void OnMenuItemSelected(int menuItemId, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings,
 		MenuCallback callback);
 
 	HWND m_parentWindow;
-	HINSTANCE m_instance;
 	BookmarkMenuBuilder m_menuBuilder;
 	BookmarkContextMenu m_bookmarkContextMenu;
 
 	bool m_showingMenu;
-	BookmarkMenuBuilder::ItemMap *m_menuItemMappings;
+	BookmarkMenuBuilder::ItemPositionMap *m_menuItemPositionMappings;
 
 	std::vector<WindowSubclassWrapper> m_windowSubclasses;
 };
