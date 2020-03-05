@@ -6,8 +6,8 @@
 #include "AddressBar.h"
 #include "CoreInterface.h"
 #include "MainToolbar.h"
-#include "ShellBrowser/NavigationController.h"
 #include "ShellBrowser/ShellBrowser.h"
+#include "ShellBrowser/ShellNavigationController.h"
 #include "Tab.h"
 #include "TabContainer.h"
 #include "../Helper/Controls.h"
@@ -90,7 +90,7 @@ LRESULT CALLBACK AddressBar::EditSubclass(HWND hwnd, UINT msg, WPARAM wParam, LP
 		break;
 
 	case WM_MOUSEWHEEL:
-		if (m_expp->OnMouseWheel(MOUSEWHEEL_SOURCE_OTHER, wParam, lParam))
+		if (m_expp->OnMouseWheel(MousewheelSource::Other, wParam, lParam))
 		{
 			return 0;
 		}

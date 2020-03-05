@@ -69,6 +69,9 @@ Bug fixes:
   year/month boundaries weren't being taken into account. This
   meant that a date would only be shown as "Yesterday" if it was
   in the same month/year as the current date. Fixed.
+- When adding or removing a column via the listview header
+  context menu, the sort by/group by menus wouldn't be updated.
+  Fixed.
 - When opening the set file attributes dialog, the creation date
   shown was incorrect. Fixed.
 - The set file attributes dialog wasn't correctly handling the
@@ -102,6 +105,10 @@ Misc:
   Explorer++ from the command line with the --help flag. Each of
   the available options is listed and briefly described. The
   names of some of the options have also been updated.
+- Starting a command prompt via the file menu opens a command
+  prompt in the current directory. Starting an admin command
+  prompt now does the same thing (rather than opening in the
+  default directory).
 - The format used to display dates has been updated. Previously,
   the date and time were separated by a comma. Now, they're
   separated by a space.

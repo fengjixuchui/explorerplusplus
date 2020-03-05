@@ -4,10 +4,11 @@
 
 #include "stdafx.h"
 #include "Explorer++.h"
-#include "AddBookmarkDialog.h"
 #include "AddressBar.h"
 #include "ApplicationToolbar.h"
-#include "BookmarksMainMenu.h"
+#include "Bookmarks/UI/AddBookmarkDialog.h"
+#include "Bookmarks/UI/BookmarksMainMenu.h"
+#include "Bookmarks/UI/ManageBookmarksDialog.h"
 #include "Config.h"
 #include "DisplayWindow/DisplayWindow.h"
 #include "DrivesToolbar.h"
@@ -16,7 +17,6 @@
 #include "IModelessDialogNotification.h"
 #include "MainResource.h"
 #include "MainToolbar.h"
-#include "ManageBookmarksDialog.h"
 #include "MenuRanges.h"
 #include "ModelessDialogs.h"
 #include "Navigation.h"
@@ -351,11 +351,11 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 
 	case ToolbarButton::OpenCommandPrompt:
 	case IDM_FILE_OPENCOMMANDPROMPT:
-		StartCommandPrompt(m_CurrentDirectory.c_str(), false);
+		StartCommandPrompt(m_CurrentDirectory, false);
 		break;
 
 	case IDM_FILE_OPENCOMMANDPROMPTADMINISTRATOR:
-		StartCommandPrompt(m_CurrentDirectory.c_str(), true);
+		StartCommandPrompt(m_CurrentDirectory, true);
 		break;
 
 	case IDM_FILE_COPYFOLDERPATH:
@@ -1247,7 +1247,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 	case ToolbarButton::AddBookmark:
 	case IDM_BOOKMARKS_BOOKMARKTHISTAB:
 		BookmarkHelper::AddBookmarkItem(&m_bookmarkTree, BookmarkItem::Type::Bookmark,
-			nullptr, m_hLanguageModule, hwnd, m_tabContainer, this);
+			nullptr, std::nullopt, hwnd, this);
 		break;
 
 	case IDM_BOOKMARKS_BOOKMARK_ALL_TABS:
@@ -1377,11 +1377,6 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 
 	case ToolbarButton::Views:
 		OnToolbarViews();
-		break;
-
-		/* Listview column header context menu. */
-	case IDM_HEADER_MORE:
-		OnSelectColumns();
 		break;
 
 		/* Display window menus. */

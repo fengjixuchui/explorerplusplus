@@ -8,8 +8,8 @@
 #include "CoreInterface.h"
 #include "PreservedTab.h"
 #include "ShellBrowser/FolderSettings.h"
-#include "ShellBrowser/NavigationController.h"
 #include "ShellBrowser/ShellBrowser.h"
+#include "ShellBrowser/ShellNavigationController.h"
 #include <wil/resource.h>
 
 int Tab::idCounter = 1;
@@ -32,8 +32,8 @@ Tab::Tab(IExplorerplusplus *expp, TabNavigationInterface *tabNavigation,
 	}
 
 	m_shellBrowser = ShellBrowser::CreateNew(m_id, expp->GetLanguageModule(),
-		expp->GetMainWindow(), expp->GetCachedIcons(), expp->GetConfig(), tabNavigation,
-		folderSettingsFinal, initialColumns);
+		expp->GetMainWindow(), expp->GetCachedIcons(), expp->GetIconResourceLoader(),
+		expp->GetConfig(), tabNavigation, folderSettingsFinal, initialColumns);
 }
 
 Tab::Tab(const PreservedTab &preservedTab, IExplorerplusplus *expp, TabNavigationInterface *tabNavigation) :
@@ -43,8 +43,8 @@ Tab::Tab(const PreservedTab &preservedTab, IExplorerplusplus *expp, TabNavigatio
 	m_lockState(preservedTab.lockState)
 {
 	m_shellBrowser = ShellBrowser::CreateFromPreserved(m_id, expp->GetLanguageModule(),
-		expp->GetMainWindow(), expp->GetCachedIcons(), expp->GetConfig(),
-		tabNavigation, preservedTab.history, preservedTab.currentEntry,
+		expp->GetMainWindow(), expp->GetCachedIcons(), expp->GetIconResourceLoader(),
+		expp->GetConfig(), tabNavigation, preservedTab.history, preservedTab.currentEntry,
 		preservedTab.preservedFolderState);
 }
 
@@ -118,12 +118,12 @@ void Tab::SetLockState(LockState lockState)
 	switch (lockState)
 	{
 	case Tab::LockState::NotLocked:
-		m_shellBrowser->GetNavigationController()->SetNavigationMode(NavigationController::NavigationMode::Normal);
+		m_shellBrowser->GetNavigationController()->SetNavigationMode(ShellNavigationController::NavigationMode::Normal);
 		break;
 
 	case Tab::LockState::Locked:
 	case Tab::LockState::AddressLocked:
-		m_shellBrowser->GetNavigationController()->SetNavigationMode(NavigationController::NavigationMode::ForceNewTab);
+		m_shellBrowser->GetNavigationController()->SetNavigationMode(ShellNavigationController::NavigationMode::ForceNewTab);
 		break;
 	}
 

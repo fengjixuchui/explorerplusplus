@@ -4,7 +4,7 @@
 
 #include "stdafx.h"
 #include "TabContainer.h"
-#include "BookmarkHelper.h"
+#include "Bookmarks/BookmarkHelper.h"
 #include "Config.h"
 #include "CoreInterface.h"
 #include "Icon.h"
@@ -13,8 +13,8 @@
 #include "PreservedTab.h"
 #include "RenameTabDialog.h"
 #include "ResourceHelper.h"
-#include "ShellBrowser/NavigationController.h"
 #include "ShellBrowser/ShellBrowser.h"
+#include "ShellBrowser/ShellNavigationController.h"
 #include "TabBacking.h"
 #include "TabDropHandler.h"
 #include "TabRestorer.h"
@@ -986,6 +986,10 @@ HRESULT TabContainer::SetUpNewTab(Tab &tab, PCIDLIST_ABSOLUTE pidlDirectory,
 
 	tab.GetShellBrowser()->listViewSelectionChanged.AddObserver([this, &tab] () {
 		tabListViewSelectionChanged.m_signal(tab);
+	});
+
+	tab.GetShellBrowser()->columnsChanged.AddObserver([this, &tab]() {
+		tabColumnsChanged.m_signal(tab);
 	});
 
 	HRESULT hr = tab.GetShellBrowser()->GetNavigationController()->BrowseFolder(pidlDirectory, addHistoryEntry);

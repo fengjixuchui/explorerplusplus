@@ -15,8 +15,8 @@
 #include "Navigation.h"
 #include "SetFileAttributesDialog.h"
 #include "ShellBrowser/Columns.h"
-#include "ShellBrowser/NavigationController.h"
 #include "ShellBrowser/ShellBrowser.h"
+#include "ShellBrowser/ShellNavigationController.h"
 #include "ShellBrowser/ViewModes.h"
 #include "TabContainer.h"
 #include "ViewModeHelper.h"
@@ -190,7 +190,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(HWND ListView, UINT msg,
 			break;
 
 		case WM_MOUSEWHEEL:
-			if(OnMouseWheel(MOUSEWHEEL_SOURCE_LISTVIEW,wParam,lParam))
+			if(OnMouseWheel(MousewheelSource::ListView,wParam,lParam))
 			{
 				return 0;
 			}

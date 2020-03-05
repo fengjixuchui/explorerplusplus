@@ -10,8 +10,8 @@
 #include "MainToolbar.h"
 #include "ResourceHelper.h"
 #include "SetFileAttributesDialog.h"
-#include "ShellBrowser/NavigationController.h"
 #include "ShellBrowser/ShellBrowser.h"
+#include "ShellBrowser/ShellNavigationController.h"
 #include "ShellTreeView/ShellTreeView.h"
 #include "TabContainer.h"
 #include "../Helper/BulkClipboardWriter.h"
@@ -160,7 +160,7 @@ WPARAM wParam,LPARAM lParam)
 		break;
 
 	case WM_MOUSEWHEEL:
-		if(OnMouseWheel(MOUSEWHEEL_SOURCE_TREEVIEW,wParam,lParam))
+		if(OnMouseWheel(MousewheelSource::TreeView,wParam,lParam))
 		{
 			return 0;
 		}
