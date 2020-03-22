@@ -18,7 +18,7 @@
 
 #define HOLDER_CLASS_NAME	_T("Holder")
 
-ATOM				RegisterHolderWindowClass(void);
+ATOM				RegisterHolderWindowClass();
 LRESULT CALLBACK	HolderWndProcStub(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 HolderWindow::HolderWindow(HWND hHolder)
@@ -27,7 +27,7 @@ HolderWindow::HolderWindow(HWND hHolder)
 	m_bHolderResizing	= FALSE;
 }
 
-ATOM RegisterHolderWindowClass(void)
+ATOM RegisterHolderWindowClass()
 {
 	WNDCLASS wc;
 
@@ -59,7 +59,7 @@ HWND CreateHolderWindow(HWND hParent,TCHAR *szWindowName,UINT uStyle)
 
 LRESULT CALLBACK HolderWndProcStub(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
-	HolderWindow *pHolderWindow = (HolderWindow *)GetWindowLongPtr(hwnd,GWLP_USERDATA);
+	auto *pHolderWindow = (HolderWindow *)GetWindowLongPtr(hwnd,GWLP_USERDATA);
 
 	switch(msg)
 	{
@@ -140,13 +140,13 @@ void HolderWindow::OnHolderWindowPaint(HWND hwnd)
 
 void HolderWindow::OnHolderWindowLButtonDown(LPARAM lParam)
 {
-	POINTS CursorPos;
+	POINTS cursorPos;
 	RECT rc;
 
-	CursorPos = MAKEPOINTS(lParam);
+	cursorPos = MAKEPOINTS(lParam);
 	GetClientRect(m_hHolder,&rc);
 
-	if(CursorPos.x >= (rc.right - 10))
+	if(cursorPos.x >= (rc.right - 10))
 	{
 		SetCursor(LoadCursor(nullptr,IDC_SIZEWE));
 
@@ -157,7 +157,7 @@ void HolderWindow::OnHolderWindowLButtonDown(LPARAM lParam)
 	}
 }
 
-void HolderWindow::OnHolderWindowLButtonUp(void)
+void HolderWindow::OnHolderWindowLButtonUp()
 {
 	m_bHolderResizing = FALSE;
 

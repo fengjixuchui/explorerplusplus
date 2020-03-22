@@ -51,7 +51,7 @@ LRESULT CALLBACK ShellBrowser::ListViewProcStub(HWND hwnd, UINT uMsg, WPARAM wPa
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	ShellBrowser *shellBrowser = reinterpret_cast<ShellBrowser *>(dwRefData);
+	auto *shellBrowser = reinterpret_cast<ShellBrowser *>(dwRefData);
 	return shellBrowser->ListViewProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -95,7 +95,7 @@ LRESULT CALLBACK ShellBrowser::ListViewParentProcStub(HWND hwnd, UINT uMsg, WPAR
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	ShellBrowser *shellBrowser = reinterpret_cast<ShellBrowser *>(dwRefData);
+	auto *shellBrowser = reinterpret_cast<ShellBrowser *>(dwRefData);
 	return shellBrowser->ListViewParentProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -477,20 +477,20 @@ void ShellBrowser::OnListViewItemChanged(const NMLISTVIEW *changeData)
 	listViewSelectionChanged.m_signal();
 }
 
-void ShellBrowser::UpdateFileSelectionInfo(int internalIndex, BOOL Selected)
+void ShellBrowser::UpdateFileSelectionInfo(int internalIndex, BOOL selected)
 {
 	ULARGE_INTEGER	ulFileSize;
-	BOOL			IsFolder;
+	BOOL			isFolder;
 
-	IsFolder = (m_itemInfoMap.at(internalIndex).wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+	isFolder = (m_itemInfoMap.at(internalIndex).wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 		== FILE_ATTRIBUTE_DIRECTORY;
 
 	ulFileSize.LowPart = m_itemInfoMap.at(internalIndex).wfd.nFileSizeLow;
 	ulFileSize.HighPart = m_itemInfoMap.at(internalIndex).wfd.nFileSizeHigh;
 
-	if (Selected)
+	if (selected)
 	{
-		if (IsFolder)
+		if (isFolder)
 			m_NumFoldersSelected++;
 		else
 			m_NumFilesSelected++;
@@ -499,7 +499,7 @@ void ShellBrowser::UpdateFileSelectionInfo(int internalIndex, BOOL Selected)
 	}
 	else
 	{
-		if (IsFolder)
+		if (isFolder)
 			m_NumFoldersSelected--;
 		else
 			m_NumFilesSelected--;

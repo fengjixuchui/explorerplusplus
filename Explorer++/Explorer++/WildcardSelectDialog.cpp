@@ -6,6 +6,7 @@
 #include "WildcardSelectDialog.h"
 #include "CoreInterface.h"
 #include "MainResource.h"
+#include "ResourceHelper.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "../Helper/BaseDialog.h"
 #include "../Helper/ListViewHelper.h"
@@ -44,10 +45,8 @@ INT_PTR WildcardSelectDialog::OnInitDialog()
 
 	if(!m_bSelect)
 	{
-		TCHAR szTemp[64];
-		LoadString(GetInstance(),IDS_WILDCARDDESELECTION,
-			szTemp,SIZEOF_ARRAY(szTemp));
-		SetWindowText(m_hDlg,szTemp);
+		std::wstring deselectTitle = ResourceHelper::LoadString(GetInstance(),IDS_WILDCARDDESELECTION);
+		SetWindowText(m_hDlg,deselectTitle.c_str());
 	}
 
 	SetFocus(hComboBox);
@@ -58,31 +57,31 @@ INT_PTR WildcardSelectDialog::OnInitDialog()
 }
 
 void WildcardSelectDialog::GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc,
-	std::list<ResizableDialog::Control_t> &ControlList)
+	std::list<ResizableDialog::Control_t> &controlList)
 {
 	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_X;
 
-	ResizableDialog::Control_t Control;
+	ResizableDialog::Control_t control;
 
-	Control.iID = IDC_SELECTGROUP_COMBOBOX;
-	Control.Type = ResizableDialog::TYPE_RESIZE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_X;
-	ControlList.push_back(Control);
+	control.iID = IDC_SELECTGROUP_COMBOBOX;
+	control.Type = ResizableDialog::TYPE_RESIZE;
+	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	controlList.push_back(control);
 
-	Control.iID = IDOK;
-	Control.Type = ResizableDialog::TYPE_MOVE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(Control);
+	control.iID = IDOK;
+	control.Type = ResizableDialog::TYPE_MOVE;
+	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	controlList.push_back(control);
 
-	Control.iID = IDCANCEL;
-	Control.Type = ResizableDialog::TYPE_MOVE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(Control);
+	control.iID = IDCANCEL;
+	control.Type = ResizableDialog::TYPE_MOVE;
+	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	controlList.push_back(control);
 
-	Control.iID = IDC_GRIPPER;
-	Control.Type = ResizableDialog::TYPE_MOVE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(Control);
+	control.iID = IDC_GRIPPER;
+	control.Type = ResizableDialog::TYPE_MOVE;
+	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	controlList.push_back(control);
 }
 
 INT_PTR WildcardSelectDialog::OnCommand(WPARAM wParam,LPARAM lParam)

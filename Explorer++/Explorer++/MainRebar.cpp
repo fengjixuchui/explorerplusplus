@@ -36,7 +36,7 @@ DWORD RebarStyles = WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS |
 WS_BORDER | CCS_NODIVIDER | CCS_TOP | CCS_NOPARENTALIGN |
 RBS_BANDBORDERS | RBS_VARHEIGHT;
 
-void Explorerplusplus::InitializeMainToolbars(void)
+void Explorerplusplus::InitializeMainToolbars()
 {
 	/* Initialize the main toolbar styles and settings here. The visibility and gripper
 	styles will be set after the settings have been loaded (needed to keep compatibility
@@ -92,11 +92,11 @@ void Explorerplusplus::InitializeMainToolbars(void)
 	m_ToolbarInformation[4].lpText = nullptr;
 }
 
-void Explorerplusplus::CreateMainControls(void)
+void Explorerplusplus::CreateMainControls()
 {
 	SIZE	sz;
 	RECT	rc;
-	DWORD	ToolbarSize;
+	DWORD	toolbarSize;
 	TCHAR	szBandText[32];
 	int		i = 0;
 
@@ -116,10 +116,10 @@ void Explorerplusplus::CreateMainControls(void)
 		{
 		case ID_MAINTOOLBAR:
 			CreateMainToolbar();
-			ToolbarSize = (DWORD)SendMessage(m_mainToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0);
-			m_ToolbarInformation[i].cyMinChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyMaxChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyChild = HIWORD(ToolbarSize);
+			toolbarSize = (DWORD)SendMessage(m_mainToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0);
+			m_ToolbarInformation[i].cyMinChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyMaxChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyChild = HIWORD(toolbarSize);
 			SendMessage(m_mainToolbar->GetHWND(), TB_GETMAXSIZE, 0, (LPARAM)&sz);
 
 			if (m_ToolbarInformation[i].cx == 0)
@@ -140,10 +140,10 @@ void Explorerplusplus::CreateMainControls(void)
 
 		case ID_BOOKMARKSTOOLBAR:
 			CreateBookmarksToolbar();
-			ToolbarSize = (DWORD)SendMessage(m_hBookmarksToolbar, TB_GETBUTTONSIZE, 0, 0);
-			m_ToolbarInformation[i].cyMinChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyMaxChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyChild = HIWORD(ToolbarSize);
+			toolbarSize = (DWORD)SendMessage(m_hBookmarksToolbar, TB_GETBUTTONSIZE, 0, 0);
+			m_ToolbarInformation[i].cyMinChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyMaxChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyChild = HIWORD(toolbarSize);
 			SendMessage(m_hBookmarksToolbar, TB_GETMAXSIZE, 0, (LPARAM)&sz);
 
 			if (m_ToolbarInformation[i].cx == 0)
@@ -155,10 +155,10 @@ void Explorerplusplus::CreateMainControls(void)
 
 		case ID_DRIVESTOOLBAR:
 			CreateDrivesToolbar();
-			ToolbarSize = (DWORD)SendMessage(m_pDrivesToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0);
-			m_ToolbarInformation[i].cyMinChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyMaxChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyChild = HIWORD(ToolbarSize);
+			toolbarSize = (DWORD)SendMessage(m_pDrivesToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0);
+			m_ToolbarInformation[i].cyMinChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyMaxChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyChild = HIWORD(toolbarSize);
 			SendMessage(m_pDrivesToolbar->GetHWND(), TB_GETMAXSIZE, 0, (LPARAM)&sz);
 
 			if (m_ToolbarInformation[i].cx == 0)
@@ -170,10 +170,10 @@ void Explorerplusplus::CreateMainControls(void)
 
 		case ID_APPLICATIONSTOOLBAR:
 			CreateApplicationToolbar();
-			ToolbarSize = (DWORD)SendMessage(m_pApplicationToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0);
-			m_ToolbarInformation[i].cyMinChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyMaxChild = HIWORD(ToolbarSize);
-			m_ToolbarInformation[i].cyChild = HIWORD(ToolbarSize);
+			toolbarSize = (DWORD)SendMessage(m_pApplicationToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0);
+			m_ToolbarInformation[i].cyMinChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyMaxChild = HIWORD(toolbarSize);
+			m_ToolbarInformation[i].cyChild = HIWORD(toolbarSize);
 			SendMessage(m_pApplicationToolbar->GetHWND(), TB_GETMAXSIZE, 0, (LPARAM)&sz);
 
 			if (m_ToolbarInformation[i].cx == 0)
@@ -194,7 +194,7 @@ LRESULT CALLBACK RebarSubclassStub(HWND hwnd, UINT uMsg,
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	Explorerplusplus *pContainer = (Explorerplusplus *)dwRefData;
+	auto *pContainer = (Explorerplusplus *)dwRefData;
 
 	return pContainer->RebarSubclass(hwnd, uMsg, wParam, lParam);
 }
@@ -216,7 +216,7 @@ LRESULT CALLBACK Explorerplusplus::RebarSubclass(HWND hwnd, UINT msg, WPARAM wPa
 		{
 		case NM_RCLICK:
 		{
-			LPNMMOUSE pnmm = reinterpret_cast<LPNMMOUSE>(lParam);
+			auto pnmm = reinterpret_cast<LPNMMOUSE>(lParam);
 			OnToolbarRClick(pnmm->hdr.hwndFrom);
 		}
 		return TRUE;
@@ -238,12 +238,12 @@ void Explorerplusplus::OnToolbarRClick(HWND sourceWindow)
 
 	HMENU menu = GetSubMenu(parentMenu.get(), 0);
 
-	lCheckMenuItem(menu, IDM_TOOLBARS_ADDRESSBAR, m_config->showAddressBar);
-	lCheckMenuItem(menu, IDM_TOOLBARS_MAINTOOLBAR, m_config->showMainToolbar);
-	lCheckMenuItem(menu, IDM_TOOLBARS_BOOKMARKSTOOLBAR, m_config->showBookmarksToolbar);
-	lCheckMenuItem(menu, IDM_TOOLBARS_DRIVES, m_config->showDrivesToolbar);
-	lCheckMenuItem(menu, IDM_TOOLBARS_APPLICATIONTOOLBAR, m_config->showApplicationToolbar);
-	lCheckMenuItem(menu, IDM_TOOLBARS_LOCKTOOLBARS, m_config->lockToolbars);
+	MenuHelper::CheckItem(menu, IDM_TOOLBARS_ADDRESSBAR, m_config->showAddressBar);
+	MenuHelper::CheckItem(menu, IDM_TOOLBARS_MAINTOOLBAR, m_config->showMainToolbar);
+	MenuHelper::CheckItem(menu, IDM_TOOLBARS_BOOKMARKSTOOLBAR, m_config->showBookmarksToolbar);
+	MenuHelper::CheckItem(menu, IDM_TOOLBARS_DRIVES, m_config->showDrivesToolbar);
+	MenuHelper::CheckItem(menu, IDM_TOOLBARS_APPLICATIONTOOLBAR, m_config->showApplicationToolbar);
+	MenuHelper::CheckItem(menu, IDM_TOOLBARS_LOCKTOOLBARS, m_config->lockToolbars);
 
 	DWORD dwPos = GetMessagePos();
 
@@ -310,7 +310,7 @@ void Explorerplusplus::CreateMainToolbar()
 		boost::bind(&Explorerplusplus::OnUseLargeToolbarIconsUpdated, this, _1), boost::signals2::at_back));
 }
 
-void Explorerplusplus::CreateBookmarksToolbar(void)
+void Explorerplusplus::CreateBookmarksToolbar()
 {
 	m_hBookmarksToolbar = CreateToolbar(m_hMainRebar, BookmarkToolbarStyles,
 		TBSTYLE_EX_MIXEDBUTTONS | TBSTYLE_EX_DRAWDDARROWS |
@@ -320,7 +320,7 @@ void Explorerplusplus::CreateBookmarksToolbar(void)
 		m_navigation.get(), &m_bookmarkTree, TOOLBAR_BOOKMARK_START, TOOLBAR_BOOKMARK_END);
 }
 
-void Explorerplusplus::CreateDrivesToolbar(void)
+void Explorerplusplus::CreateDrivesToolbar()
 {
 	m_pDrivesToolbar = DrivesToolbar::Create(m_hMainRebar, TOOLBAR_DRIVES_ID_START,
 		TOOLBAR_DRIVES_ID_END, m_hLanguageModule, this, m_navigation.get());
@@ -336,7 +336,7 @@ void Explorerplusplus::OnUseLargeToolbarIconsUpdated(BOOL newValue)
 {
 	UNREFERENCED_PARAMETER(newValue);
 
-	DWORD buttonSize = static_cast<DWORD>(SendMessage(m_mainToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0));
+	auto buttonSize = static_cast<DWORD>(SendMessage(m_mainToolbar->GetHWND(), TB_GETBUTTONSIZE, 0, 0));
 
 	REBARBANDINFO bandInfo;
 	bandInfo.cbSize = sizeof(bandInfo);

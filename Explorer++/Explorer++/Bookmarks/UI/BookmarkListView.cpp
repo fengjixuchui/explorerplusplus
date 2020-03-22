@@ -14,6 +14,7 @@
 #include "TabContainer.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
+#include "../Helper/MenuHelper.h"
 #include "../Helper/WindowHelper.h"
 #include "../Helper/iDropSource.h"
 #include <boost/range/adaptor/filtered.hpp>
@@ -152,7 +153,7 @@ LRESULT CALLBACK BookmarkListView::ParentWndProcStub(
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	BookmarkListView *listView = reinterpret_cast<BookmarkListView *>(dwRefData);
+	auto *listView = reinterpret_cast<BookmarkListView *>(dwRefData);
 	return listView->ParentWndProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -287,7 +288,7 @@ void BookmarkListView::SortItems()
 
 int CALLBACK BookmarkListView::SortBookmarksStub(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort)
 {
-	BookmarkListView *listView = reinterpret_cast<BookmarkListView *>(lParamSort);
+	auto *listView = reinterpret_cast<BookmarkListView *>(lParamSort);
 
 	return listView->SortBookmarks(lParam1, lParam2);
 }
@@ -691,12 +692,15 @@ void BookmarkListView::DeleteSelection()
 
 void BookmarkListView::OnHeaderRClick(const POINT &pt)
 {
-	auto menu = BuildHeaderContextMenu();
+	auto menu = BuildColumnsMenu();
 
 	if (!menu)
 	{
 		return;
 	}
+
+	/* The name column cannot be removed. */
+	MenuHelper::EnableItem(menu.get(), static_cast<UINT>(ColumnType::Name), FALSE);
 
 	int cmd = TrackPopupMenu(
 		menu.get(), TPM_LEFTALIGN | TPM_RETURNCMD, pt.x, pt.y, 0, m_hListView, nullptr);
@@ -707,7 +711,7 @@ void BookmarkListView::OnHeaderRClick(const POINT &pt)
 	}
 }
 
-wil::unique_hmenu BookmarkListView::BuildHeaderContextMenu()
+wil::unique_hmenu BookmarkListView::BuildColumnsMenu()
 {
 	wil::unique_hmenu menu(CreatePopupMenu());
 
@@ -734,12 +738,6 @@ wil::unique_hmenu BookmarkListView::BuildHeaderContextMenu()
 			mii.fState |= MFS_CHECKED;
 		}
 
-		/* The name column cannot be removed. */
-		if (column.columnType == ColumnType::Name)
-		{
-			mii.fState |= MFS_DISABLED;
-		}
-
 		InsertMenuItem(menu.get(), index++, TRUE, &mii);
 	}
 
@@ -748,7 +746,12 @@ wil::unique_hmenu BookmarkListView::BuildHeaderContextMenu()
 
 void BookmarkListView::OnHeaderContextMenuItemSelected(int menuItemId)
 {
-	ColumnType columnType = static_cast<ColumnType>(menuItemId);
+	auto columnType = static_cast<ColumnType>(menuItemId);
+	ToggleColumn(columnType);
+}
+
+void BookmarkListView::ToggleColumn(ColumnType columnType)
+{
 	Column &column = GetColumnByType(columnType);
 	int columnIndex = GetColumnIndexByType(columnType);
 

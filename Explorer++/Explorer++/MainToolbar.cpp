@@ -218,7 +218,7 @@ LRESULT CALLBACK MainToolbar::ParentWndProcStub(HWND hwnd, UINT uMsg, WPARAM wPa
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	MainToolbar *mainToolbar = reinterpret_cast<MainToolbar *>(dwRefData);
+	auto *mainToolbar = reinterpret_cast<MainToolbar *>(dwRefData);
 	return mainToolbar->ParentWndProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -300,7 +300,7 @@ TBBUTTON MainToolbar::GetToolbarButtonDetails(ToolbarButton button) const
 	else
 	{
 		/* Standard style that all toolbar buttons will have. */
-		BYTE StandardStyle = BTNS_BUTTON | BTNS_AUTOSIZE;
+		BYTE standardStyle = BTNS_BUTTON | BTNS_AUTOSIZE;
 
 		auto stringIndex = m_toolbarStringMap.at(button);
 
@@ -318,7 +318,7 @@ TBBUTTON MainToolbar::GetToolbarButtonDetails(ToolbarButton button) const
 		tbButton.iBitmap = imagePosition;
 		tbButton.idCommand = button;
 		tbButton.fsState = TBSTATE_ENABLED;
-		tbButton.fsStyle = StandardStyle | LookupToolbarButtonExtraStyles(button);
+		tbButton.fsStyle = standardStyle | LookupToolbarButtonExtraStyles(button);
 		tbButton.dwData = 0;
 		tbButton.iString = stringIndex;
 	}
@@ -530,7 +530,7 @@ sent for each button, and the iString parameter must be set to a valid string or
 index. */
 BOOL MainToolbar::OnTBGetButtonInfo(LPARAM lParam)
 {
-	NMTOOLBAR *pnmtb = reinterpret_cast<NMTOOLBAR *>(lParam);
+	auto *pnmtb = reinterpret_cast<NMTOOLBAR *>(lParam);
 
 	if ((pnmtb->iItem >= 0) && (static_cast<std::size_t>(pnmtb->iItem) < (ToolbarButton::_size() - 1)))
 	{
@@ -604,7 +604,7 @@ void MainToolbar::OnTBChange()
 
 void MainToolbar::OnTBGetInfoTip(LPARAM lParam)
 {
-	NMTBGETINFOTIP *ptbgit = reinterpret_cast<NMTBGETINFOTIP *>(lParam);
+	auto *ptbgit = reinterpret_cast<NMTBGETINFOTIP *>(lParam);
 
 	StringCchCopy(ptbgit->pszText, ptbgit->cchTextMax, EMPTY_STRING);
 
@@ -778,9 +778,9 @@ void MainToolbar::CreateViewsMenu(POINT *ptOrigin)
 
 	HMENU viewsMenu = m_pexpp->BuildViewsMenu();
 
-	int ItemToCheck = GetViewModeMenuId(viewMode);
+	int itemToCheck = GetViewModeMenuId(viewMode);
 	CheckMenuRadioItem(viewsMenu, IDM_VIEW_THUMBNAILS, IDM_VIEW_EXTRALARGEICONS,
-		ItemToCheck, MF_BYCOMMAND);
+		itemToCheck, MF_BYCOMMAND);
 
 	TrackPopupMenu(viewsMenu, TPM_LEFTALIGN, ptOrigin->x, ptOrigin->y,
 		0, m_hwnd, nullptr);

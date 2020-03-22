@@ -322,7 +322,7 @@ void ShellBrowser::HandleDragSelection(const POINT *ppt)
 	}
 }
 
-HRESULT _stdcall ShellBrowser::DragLeave(void)
+HRESULT _stdcall ShellBrowser::DragLeave()
 {
 	m_pDropTargetHelper->DragLeave();
 
@@ -341,9 +341,9 @@ HRESULT _stdcall ShellBrowser::DragLeave(void)
 
 void ShellBrowser::OnDropFile(const std::list<std::wstring> &PastedFileList, const POINT *ppt)
 {
-	DroppedFile_t DroppedFile;
+	DroppedFile_t droppedFile;
 	POINT ptOrigin;
-	POINT LocalDropPoint;
+	POINT localDropPoint;
 
 	/* Don't reposition the file if it was dropped
 	in a subfolder. */
@@ -351,21 +351,21 @@ void ShellBrowser::OnDropFile(const std::list<std::wstring> &PastedFileList, con
 	{
 		ListView_GetOrigin(m_hListView,&ptOrigin);
 
-		LocalDropPoint = *ppt;
+		localDropPoint = *ppt;
 
-		ScreenToClient(m_hListView,(LPPOINT)&LocalDropPoint);
+		ScreenToClient(m_hListView,(LPPOINT)&localDropPoint);
 
 		/* The location of each of the dropped items will be the same. */
-		DroppedFile.DropPoint.x = ptOrigin.x + LocalDropPoint.x;
-		DroppedFile.DropPoint.y = ptOrigin.y + LocalDropPoint.y;
+		droppedFile.DropPoint.x = ptOrigin.x + localDropPoint.x;
+		droppedFile.DropPoint.y = ptOrigin.y + localDropPoint.y;
 
 		for(const auto &strFilename : PastedFileList)
 		{
-			StringCchCopy(DroppedFile.szFileName,
-				SIZEOF_ARRAY(DroppedFile.szFileName),strFilename.c_str());
-			PathStripPath(DroppedFile.szFileName);
+			StringCchCopy(droppedFile.szFileName,
+				SIZEOF_ARRAY(droppedFile.szFileName),strFilename.c_str());
+			PathStripPath(droppedFile.szFileName);
 
-			m_DroppedFileNameList.push_back(DroppedFile);
+			m_DroppedFileNameList.push_back(droppedFile);
 		}
 	}
 }
@@ -513,7 +513,7 @@ DWORD grfKeyState,POINTL ptl,DWORD *pdwEffect)
 /* TODO: This isn't declared. */
 int CALLBACK SortTemporaryStub(LPARAM lParam1,LPARAM lParam2,LPARAM lParamSort)
 {
-	ShellBrowser *pShellBrowser = reinterpret_cast<ShellBrowser *>(lParamSort);
+	auto *pShellBrowser = reinterpret_cast<ShellBrowser *>(lParamSort);
 	return pShellBrowser->SortTemporary(lParam1,lParam2);
 }
 

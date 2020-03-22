@@ -40,9 +40,9 @@ HWND AddressBar::CreateAddressBar(HWND parent)
 
 void AddressBar::Initialize(HWND parent)
 {
-	HIMAGELIST SmallIcons;
-	Shell_GetImageLists(nullptr, &SmallIcons);
-	SendMessage(m_hwnd, CBEM_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(SmallIcons));
+	HIMAGELIST smallIcons;
+	Shell_GetImageLists(nullptr, &smallIcons);
+	SendMessage(m_hwnd, CBEM_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(smallIcons));
 
 	HWND hEdit = reinterpret_cast<HWND>(SendMessage(m_hwnd, CBEM_GETEDITCONTROL, 0, 0));
 	m_windowSubclasses.emplace_back(hEdit, EditSubclassStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
@@ -67,7 +67,7 @@ LRESULT CALLBACK AddressBar::EditSubclassStub(HWND hwnd, UINT uMsg,
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	AddressBar *addressBar = reinterpret_cast<AddressBar *>(dwRefData);
+	auto *addressBar = reinterpret_cast<AddressBar *>(dwRefData);
 
 	return addressBar->EditSubclass(hwnd, uMsg, wParam, lParam);
 }
@@ -104,7 +104,7 @@ LRESULT CALLBACK AddressBar::ParentWndProcStub(HWND hwnd, UINT uMsg, WPARAM wPar
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	AddressBar *addressBar = reinterpret_cast<AddressBar *>(dwRefData);
+	auto *addressBar = reinterpret_cast<AddressBar *>(dwRefData);
 	return addressBar->ParentWndProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -183,11 +183,11 @@ void AddressBar::OnBeginDrag()
 
 			HGLOBAL hglb = GlobalAlloc(GMEM_MOVEABLE, 1000);
 
-			FILEGROUPDESCRIPTOR *pfgd = static_cast<FILEGROUPDESCRIPTOR *>(GlobalLock(hglb));
+			auto *pfgd = static_cast<FILEGROUPDESCRIPTOR *>(GlobalLock(hglb));
 
 			pfgd->cItems = 1;
 
-			FILEDESCRIPTOR *pfd = (FILEDESCRIPTOR *)((LPBYTE)pfgd + sizeof(UINT));
+			auto *pfd = (FILEDESCRIPTOR *)((LPBYTE)pfgd + sizeof(UINT));
 
 			/* File information (name, size, date created, etc). */
 			pfd[0].dwFlags = FD_ATTRIBUTES | FD_FILESIZE;

@@ -189,42 +189,42 @@ void AddBookmarkDialog::GetResizableControlInformation(
 {
 	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
 
-	ResizableDialog::Control_t Control;
+	ResizableDialog::Control_t control;
 
-	Control.iID = IDC_BOOKMARK_NAME;
-	Control.Type = ResizableDialog::TYPE_RESIZE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_X;
-	ControlList.push_back(Control);
+	control.iID = IDC_BOOKMARK_NAME;
+	control.Type = ResizableDialog::TYPE_RESIZE;
+	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	ControlList.push_back(control);
 
-	Control.iID = IDC_BOOKMARK_LOCATION;
-	Control.Type = ResizableDialog::TYPE_RESIZE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_X;
-	ControlList.push_back(Control);
+	control.iID = IDC_BOOKMARK_LOCATION;
+	control.Type = ResizableDialog::TYPE_RESIZE;
+	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	ControlList.push_back(control);
 
-	Control.iID = IDC_BOOKMARK_TREEVIEW;
-	Control.Type = ResizableDialog::TYPE_RESIZE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(Control);
+	control.iID = IDC_BOOKMARK_TREEVIEW;
+	control.Type = ResizableDialog::TYPE_RESIZE;
+	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	ControlList.push_back(control);
 
-	Control.iID = IDC_BOOKMARK_NEWFOLDER;
-	Control.Type = ResizableDialog::TYPE_MOVE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_Y;
-	ControlList.push_back(Control);
+	control.iID = IDC_BOOKMARK_NEWFOLDER;
+	control.Type = ResizableDialog::TYPE_MOVE;
+	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	ControlList.push_back(control);
 
-	Control.iID = IDOK;
-	Control.Type = ResizableDialog::TYPE_MOVE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(Control);
+	control.iID = IDOK;
+	control.Type = ResizableDialog::TYPE_MOVE;
+	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	ControlList.push_back(control);
 
-	Control.iID = IDCANCEL;
-	Control.Type = ResizableDialog::TYPE_MOVE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(Control);
+	control.iID = IDCANCEL;
+	control.Type = ResizableDialog::TYPE_MOVE;
+	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	ControlList.push_back(control);
 
-	Control.iID = IDC_GRIPPER;
-	Control.Type = ResizableDialog::TYPE_MOVE;
-	Control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(Control);
+	control.iID = IDC_GRIPPER;
+	control.Type = ResizableDialog::TYPE_MOVE;
+	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	ControlList.push_back(control);
 }
 
 INT_PTR AddBookmarkDialog::OnCtlColorEdit(HWND hwnd, HDC hdc)
@@ -307,7 +307,7 @@ void AddBookmarkDialog::OnOk()
 	}
 
 	HWND hTreeView = GetDlgItem(m_hDlg, IDC_BOOKMARK_TREEVIEW);
-	HTREEITEM hSelected = TreeView_GetSelection(hTreeView);
+	auto hSelected = TreeView_GetSelection(hTreeView);
 	*m_selectedParentFolder = m_pBookmarkTreeView->GetBookmarkFolderFromTreeView(hSelected);
 
 	m_bookmarkItem->SetName(name);
@@ -338,7 +338,7 @@ void AddBookmarkDialog::SaveTreeViewState()
 {
 	HWND hTreeView = GetDlgItem(m_hDlg, IDC_BOOKMARK_TREEVIEW);
 
-	HTREEITEM hSelected = TreeView_GetSelection(hTreeView);
+	auto hSelected = TreeView_GetSelection(hTreeView);
 	const auto bookmarkFolder = m_pBookmarkTreeView->GetBookmarkFolderFromTreeView(hSelected);
 	m_persistentSettings->m_guidSelected = bookmarkFolder->GetGUID();
 
@@ -355,7 +355,7 @@ void AddBookmarkDialog::SaveTreeViewExpansionState(HWND hTreeView, HTREEITEM hIt
 		const auto bookmarkFolder = m_pBookmarkTreeView->GetBookmarkFolderFromTreeView(hItem);
 		m_persistentSettings->m_setExpansion.insert(bookmarkFolder->GetGUID());
 
-		HTREEITEM hChild = TreeView_GetChild(hTreeView, hItem);
+		auto hChild = TreeView_GetChild(hTreeView, hItem);
 		SaveTreeViewExpansionState(hTreeView, hChild);
 
 		while ((hChild = TreeView_GetNextSibling(hTreeView, hChild)) != nullptr)

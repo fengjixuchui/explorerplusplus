@@ -92,6 +92,7 @@ private:
 	static const int MIN_SHELL_MENU_ID = 1;
 	static const int MAX_SHELL_MENU_ID = 1000;
 
+	static const UINT MINIMUM_DISPLAYWINDOW_WIDTH = 70;
 	static const UINT MINIMUM_DISPLAYWINDOW_HEIGHT = 70;
 
 	/* The number of toolbars that appear in the
@@ -116,12 +117,6 @@ private:
 	// Represents the maximum number of icons that can be cached. This cache is
 	// shared between various components in the application.
 	static const int MAX_CACHED_ICONS = 1000;
-
-	struct SortMenuItem
-	{
-		UINT SortById;
-		UINT GroupById;
-	};
 
 	struct FileContextMenuInfo_t
 	{
@@ -177,7 +172,6 @@ private:
 	void OnSetFocus();
 	LRESULT OnDeviceChange(WPARAM wParam, LPARAM lParam);
 	LRESULT StatusBarMenuSelect(WPARAM wParam, LPARAM lParam);
-	void OnDisplayWindowResized(WPARAM wParam);
 	void OnStartedBrowsing(int iTabId, const TCHAR *szPath);
 	void OnPreviousWindow();
 	void OnNextWindow();
@@ -186,8 +180,6 @@ private:
 	void OnDirectoryModified(int iTabId);
 	void OnIdaRClick();
 	void OnAssocChanged();
-	void OnNdwRClick(POINT *pt);
-	void OnNdwIconRClick(POINT *pt);
 	LRESULT OnCustomDraw(LPARAM lParam);
 	void OnSelectTabByIndex(int iTab);
 
@@ -253,31 +245,29 @@ private:
 	void OnListViewRClick(POINT *pCursorPos);
 	void OnListViewBackgroundRClick(POINT *pCursorPos);
 	void OnListViewItemRClick(POINT *pCursorPos);
-	void OnListViewCopyItemPath(void) const;
-	void OnListViewCopyUniversalPaths(void) const;
+	void OnListViewCopyItemPath() const;
+	void OnListViewCopyUniversalPaths() const;
 	void OnListViewSetFileAttributes() const;
-	void OnListViewPaste(void);
+	void OnListViewPaste();
 
 	/* TreeView private message handlers. */
-	void OnTreeViewFileRename(void);
 	void OnTreeViewFileDelete(BOOL bPermanent);
 	void OnTreeViewRightClick(WPARAM wParam, LPARAM lParam);
-	void OnTreeViewShowFileProperties(void) const;
 	void OnTreeViewSelChanged(LPARAM lParam);
 	int OnTreeViewBeginLabelEdit(LPARAM lParam);
 	int OnTreeViewEndLabelEdit(LPARAM lParam);
 	LRESULT OnTreeViewKeyDown(LPARAM lParam);
-	void OnTreeViewCopyItemPath(void) const;
+	void OnTreeViewCopyItemPath() const;
 	void OnTreeViewCopy(BOOL bCopy);
-	void OnTreeViewSetFileAttributes(void) const;
-	void OnTreeViewCopyUniversalPaths(void) const;
-	void OnTreeViewPaste(void);
+	void OnTreeViewSetFileAttributes() const;
+	void OnTreeViewCopyUniversalPaths() const;
+	void OnTreeViewPaste();
 
 	/* Holder window private message handlers. */
 	LRESULT CALLBACK TreeViewHolderWindowCommandHandler(WPARAM wParam);
 	LRESULT CALLBACK TreeViewHolderWindowNotifyHandler(
 		HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-	void OnTreeViewHolderWindowTimer(void);
+	void OnTreeViewHolderWindowTimer();
 
 	/* Tab backing. */
 	void CreateTabBacking();
@@ -295,7 +285,6 @@ private:
 	void HideTabBar() override;
 	HRESULT RestoreTabs(ILoadSave *pLoadSave);
 	void OnTabListViewSelectionChanged(const Tab &tab);
-	void OnTabColumnsChanged(const Tab &tab);
 
 	/* TabNavigationInterface methods. */
 	HRESULT CreateNewTab(PCIDLIST_ABSOLUTE pidlDirectory, bool selected) override;
@@ -315,21 +304,21 @@ private:
 	void InitializePlugins();
 
 	/* Menus. */
-	HMENU InitializeRightClickMenu(void);
+	wil::unique_hmenu InitializeRightClickMenu();
 	void SetProgramMenuItemStates(HMENU hProgramMenu);
 
 	/* Control creation. */
-	void CreateMainControls(void);
-	void CreateFolderControls(void);
+	void CreateMainControls();
+	void CreateFolderControls();
 	void CreateAddressBar();
 	void CreateMainToolbar();
-	void CreateBookmarksToolbar(void);
-	void CreateDrivesToolbar(void);
+	void CreateBookmarksToolbar();
+	void CreateDrivesToolbar();
 	void CreateApplicationToolbar();
 	HWND CreateTabToolbar(HWND hParent, int idCommand, const std::wstring &tip);
 
 	/* Main toolbars. */
-	void InitializeMainToolbars(void);
+	void InitializeMainToolbars();
 	void OnUseLargeToolbarIconsUpdated(BOOL newValue);
 	boost::signals2::connection AddToolbarContextMenuObserver(
 		const ToolbarContextMenuSignal::slot_type &observer) override;
@@ -343,13 +332,14 @@ private:
 	void ValidateLoadedSettings();
 	void ValidateColumns(FolderColumns &folderColumns);
 	void ValidateSingleColumnSet(int iColumnSet, std::vector<Column_t> &columns);
-	void ApplyToolbarSettings(void);
-	void TestConfigFile(void);
+	void ApplyDisplayWindowPosition();
+	void ApplyToolbarSettings();
+	void TestConfigFile();
 
 	/* Registry settings. */
 	LONG LoadGenericSettingsFromRegistry();
 	LONG SaveGenericSettingsToRegistry();
-	void SaveTabSettingsToRegistry(void);
+	void SaveTabSettingsToRegistry();
 	int LoadTabSettingsFromRegistry();
 	std::vector<Column_t> LoadColumnFromRegistry(HKEY hColumnsKey, const TCHAR *szKeyName);
 	void SaveColumnToRegistry(
@@ -364,10 +354,10 @@ private:
 	void LoadBookmarksFromRegistry();
 	void LoadApplicationToolbarFromRegistry();
 	void SaveApplicationToolbarToRegistry();
-	void SaveToolbarInformationToRegistry(void);
-	void LoadToolbarInformationFromRegistry(void);
-	void SaveDialogStatesToRegistry(void);
-	void LoadDialogStatesFromRegistry(void);
+	void SaveToolbarInformationToRegistry();
+	void LoadToolbarInformationFromRegistry();
+	void SaveDialogStatesToRegistry();
+	void LoadDialogStatesFromRegistry();
 
 	/* XML Settings. */
 	void LoadGenericSettingsFromXML(IXMLDOMDocument *pXMLDom);
@@ -400,22 +390,16 @@ private:
 	void UpdateWindowStates(const Tab &tab);
 	void UpdateTreeViewSelection();
 	void SetStatusBarParts(int width);
-	void ResizeWindows(void);
+	void ResizeWindows();
 	void SetListViewInitialPosition(HWND hListView) override;
-	void AdjustFolderPanePosition(void);
+	void AdjustFolderPanePosition();
 	HRESULT UpdateStatusBarText(const Tab &tab);
-	void ToggleFolders(void);
+	void ToggleFolders();
 	void UpdateLayout();
 
 	/* Languages. */
 	void SetLanguageModule();
 	BOOL VerifyLanguageVersion(const TCHAR *szLanguageModule) const;
-
-	/* Sort menu. */
-	void UpdateSortMenuItems(const Tab &tab);
-	void InsertSortMenuItems();
-	void DeleteSortMenuItems();
-	void SetSortMenuItemStates(const Tab &tab);
 
 	/* File operations. */
 	void CopyToFolder(bool move);
@@ -455,14 +439,17 @@ private:
 
 	HRESULT GetTreeViewSelectionAttributes(SFGAOF *pItemAttributes) const;
 
-	/* Display window file information. */
+	/* Display window. */
+	void OnDisplayWindowResized(WPARAM wParam);
+	void OnDisplayWindowIconRClick(POINT *ptClient);
+	void OnDisplayWindowRClick(POINT *ptClient);
 	void UpdateDisplayWindow(const Tab &tab);
 	void UpdateDisplayWindowForZeroFiles(const Tab &tab);
 	void UpdateDisplayWindowForOneFile(const Tab &tab);
 	void UpdateDisplayWindowForMultipleFiles(const Tab &tab);
 
 	/* Columns. */
-	void CopyColumnInfoToClipboard(void);
+	void CopyColumnInfoToClipboard();
 
 	/* Bookmark handling. */
 	HRESULT ExpandAndBrowsePath(const TCHAR *szPath);
@@ -496,12 +483,11 @@ private:
 	void AddViewModesToMenu(HMENU menu);
 
 	/* Miscellaneous. */
-	void CreateStatusBar(void);
+	void CreateStatusBar();
 	void InitializeDisplayWindow();
 	int CreateDriveFreeSpaceString(const TCHAR *szPath, TCHAR *szBuffer, int nBuffer);
 	void ShowMainRebarBand(HWND hwnd, BOOL bShow);
 	BOOL OnMouseWheel(MousewheelSource mousewheelSource, WPARAM wParam, LPARAM lParam) override;
-	void CycleViewState(BOOL bCycleForward);
 	HMENU CreateRebarHistoryMenu(BOOL bBack);
 	StatusBar *GetStatusBar() override;
 	void HandleDirectoryMonitoring(int iTabId);
@@ -626,11 +612,6 @@ private:
 
 	/* Menu images. */
 	std::vector<wil::unique_hbitmap> m_menuImages;
-
-	/* Sort menu. */
-	HMENU m_hSortSubMenu;
-	HMENU m_hGroupBySubMenu;
-	std::vector<SortMenuItem> m_sortMenuItems;
 
 	/* Mousewheel. */
 	int m_zDeltaTotal;

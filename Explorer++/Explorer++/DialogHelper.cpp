@@ -55,12 +55,12 @@ namespace
 	};
 }
 
-void Explorerplusplus::LoadDialogStatesFromRegistry(void)
+void Explorerplusplus::LoadDialogStatesFromRegistry()
 {
 	HKEY hKey;
-	LONG ReturnValue = RegOpenKeyEx(HKEY_CURRENT_USER,DIALOGS_REGISTRY_KEY,0,KEY_READ,&hKey);
+	LONG returnValue = RegOpenKeyEx(HKEY_CURRENT_USER,DIALOGS_REGISTRY_KEY,0,KEY_READ,&hKey);
 
-	if(ReturnValue == ERROR_SUCCESS)
+	if(returnValue == ERROR_SUCCESS)
 	{
 		for(DialogSettings *ds : DIALOG_SETTINGS)
 		{
@@ -71,13 +71,13 @@ void Explorerplusplus::LoadDialogStatesFromRegistry(void)
 	}
 }
 
-void Explorerplusplus::SaveDialogStatesToRegistry(void)
+void Explorerplusplus::SaveDialogStatesToRegistry()
 {
 	HKEY hKey;
-	LONG ReturnValue = RegCreateKeyEx(HKEY_CURRENT_USER,DIALOGS_REGISTRY_KEY,
+	LONG returnValue = RegCreateKeyEx(HKEY_CURRENT_USER,DIALOGS_REGISTRY_KEY,
 		0, nullptr,REG_OPTION_NON_VOLATILE,KEY_WRITE, nullptr,&hKey, nullptr);
 
-	if(ReturnValue == ERROR_SUCCESS)
+	if(returnValue == ERROR_SUCCESS)
 	{
 		for(DialogSettings *ds : DIALOG_SETTINGS)
 		{

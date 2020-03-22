@@ -20,7 +20,7 @@ void StatusBar::SetPartText(int iPart, const TCHAR *szText)
 		reinterpret_cast<LPARAM>(szText));
 }
 
-void StatusBar::HandleStatusBarMenuOpen(void)
+void StatusBar::HandleStatusBarMenuOpen()
 {
 	if(!m_bAlteredStatusBarParts)
 	{
@@ -41,7 +41,7 @@ void StatusBar::HandleStatusBarMenuOpen(void)
 		{
 			SendMessage(m_hwnd,SB_GETTEXT,i,reinterpret_cast<LPARAM>(szPartText));
 
-			m_TextList.push_back(szPartText);
+			m_TextList.emplace_back(szPartText);
 		}
 
 		m_nParts = nParts;
@@ -57,7 +57,7 @@ void StatusBar::HandleStatusBarMenuOpen(void)
 	}
 }
 
-void StatusBar::HandleStatusBarMenuClose(void)
+void StatusBar::HandleStatusBarMenuClose()
 {
 	int i = 0;
 

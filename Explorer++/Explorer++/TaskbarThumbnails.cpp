@@ -13,6 +13,7 @@
 #include "CoreInterface.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
+#include "ResourceHelper.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "TabContainer.h"
 #include "../Helper/Macros.h"
@@ -75,7 +76,7 @@ LRESULT CALLBACK TaskbarThumbnails::MainWndProcStub(HWND hwnd, UINT uMsg,
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	TaskbarThumbnails *taskbarThumbnails = reinterpret_cast<TaskbarThumbnails *>(dwRefData);
+	auto *taskbarThumbnails = reinterpret_cast<TaskbarThumbnails *>(dwRefData);
 
 	return taskbarThumbnails->MainWndProc(hwnd, uMsg, wParam, lParam);
 }
@@ -124,21 +125,20 @@ void TaskbarThumbnails::SetupJumplistTasks()
 	TCHAR szCurrentProcess[MAX_PATH];
 	GetProcessImageName(GetCurrentProcessId(),szCurrentProcess,SIZEOF_ARRAY(szCurrentProcess));
 
-	TCHAR szName[256];
-	LoadString(m_instance,IDS_TASKS_NEWTAB,szName,SIZEOF_ARRAY(szName));
+	std::wstring name = ResourceHelper::LoadString(m_instance,IDS_TASKS_NEWTAB);
 
 	/* New tab task. */
 	JumpListTaskInformation jlti;
-	jlti.pszName		= szName;
+	jlti.pszName		= name.c_str();
 	jlti.pszPath		= szCurrentProcess;
 	jlti.pszArguments	= NExplorerplusplus::JUMPLIST_TASK_NEWTAB_ARGUMENT;
 	jlti.pszIconPath	= szCurrentProcess;
 	jlti.iIcon			= 1;
 
-	std::list<JumpListTaskInformation> TaskList;
-	TaskList.push_back(jlti);
+	std::list<JumpListTaskInformation> taskList;
+	taskList.push_back(jlti);
 
-	AddJumpListTasks(TaskList);
+	AddJumpListTasks(taskList);
 }
 
 ATOM TaskbarThumbnails::RegisterTabProxyClass(const TCHAR *szClassName)
@@ -235,7 +235,7 @@ void TaskbarThumbnails::RemoveTabProxy(int iTabId)
 			{
 				m_pTaskbarList->UnregisterTab(itr->hProxy);
 
-				TabProxy_t *ptp = reinterpret_cast<TabProxy_t *>(GetWindowLongPtr(itr->hProxy,GWLP_USERDATA));
+				auto *ptp = reinterpret_cast<TabProxy_t *>(GetWindowLongPtr(itr->hProxy,GWLP_USERDATA));
 				DestroyWindow(itr->hProxy);
 				free(ptp);
 
@@ -277,7 +277,7 @@ void TaskbarThumbnails::RegisterTab(HWND hTabProxy, const TCHAR *szDisplayName, 
 
 LRESULT CALLBACK TaskbarThumbnails::TabProxyWndProcStub(HWND hwnd,UINT Msg,WPARAM wParam,LPARAM lParam)
 {
-	TabProxy_t *ptp = (TabProxy_t *)GetWindowLongPtr(hwnd,GWLP_USERDATA);
+	auto *ptp = (TabProxy_t *)GetWindowLongPtr(hwnd,GWLP_USERDATA);
 
 	switch(Msg)
 	{

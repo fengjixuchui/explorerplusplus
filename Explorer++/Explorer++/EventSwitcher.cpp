@@ -11,6 +11,7 @@
 #include "Explorer++.h"
 #include "Explorer++_internal.h"
 #include "ShellBrowser/ShellBrowser.h"
+#include "ShellTreeView/ShellTreeView.h"
 #include "TabContainer.h"
 
 void Explorerplusplus::OnCopyItemPath() const
@@ -80,7 +81,7 @@ void Explorerplusplus::OnFileRename()
 		}
 		else if(hFocus == m_hTreeView)
 		{
-			OnTreeViewFileRename();
+			m_shellTreeView->StartRenamingSelectedItem();
 		}
 	}
 }
@@ -130,7 +131,7 @@ void Explorerplusplus::OnShowFileProperties() const
 	}
 	else if(hFocus == m_hTreeView)
 	{
-		OnTreeViewShowFileProperties();
+		m_shellTreeView->ShowPropertiesOfSelectedItem();
 	}
 }
 
@@ -138,14 +139,14 @@ void Explorerplusplus::OnRightClick(NMHDR *nmhdr)
 {
 	if(nmhdr->hwndFrom == m_hActiveListView)
 	{
-		POINT CursorPos;
+		POINT cursorPos;
 		DWORD dwPos;
 
 		dwPos = GetMessagePos();
-		CursorPos.x = GET_X_LPARAM(dwPos);
-		CursorPos.y = GET_Y_LPARAM(dwPos);
+		cursorPos.x = GET_X_LPARAM(dwPos);
+		cursorPos.y = GET_Y_LPARAM(dwPos);
 
-		OnListViewRClick(&CursorPos);
+		OnListViewRClick(&cursorPos);
 	}
 }
 
@@ -191,12 +192,14 @@ BOOL Explorerplusplus::OnMouseWheel(MousewheelSource mousewheelSource, WPARAM wP
 	{
 		if (wParam & MK_CONTROL)
 		{
+			Tab &selectedTab = m_tabContainer->GetSelectedTab();
+
 			/* Switch listview views. For each wheel delta
 			(notch) the wheel is scrolled through, switch
 			the view once. */
 			for (int i = 0; i < abs(m_zDeltaTotal / WHEEL_DELTA); i++)
 			{
-				CycleViewState((m_zDeltaTotal > 0));
+				selectedTab.GetShellBrowser()->CycleViewMode((m_zDeltaTotal > 0));
 			}
 		}
 		else if (wParam & MK_SHIFT)

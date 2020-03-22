@@ -10,6 +10,8 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "MainResource.h"
+#include "ResourceHelper.h"
+#include "ShellTreeView/ShellTreeView.h"
 #include "TabContainer.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
@@ -21,22 +23,22 @@ void Explorerplusplus::AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent,
 {
 	assert(dwData != NULL);
 
-	FileContextMenuInfo_t *pfcmi = reinterpret_cast<FileContextMenuInfo_t *>(dwData);
+	auto *pfcmi = reinterpret_cast<FileContextMenuInfo_t *>(dwData);
 
-	bool AddNewTabMenuItem = false;
+	bool addNewTabMenuItem = false;
 
 	if(pfcmi->uFrom == FROM_LISTVIEW)
 	{
 		if(pidlItems.size() == 1)
 		{
-			SFGAOF FileAttributes = SFGAO_FOLDER;
+			SFGAOF fileAttributes = SFGAO_FOLDER;
 
 			unique_pidl_absolute pidlComplete(ILCombine(pidlParent, pidlItems.front()));
-			GetItemAttributes(pidlComplete.get(), &FileAttributes);
+			GetItemAttributes(pidlComplete.get(), &fileAttributes);
 
-			if(FileAttributes & SFGAO_FOLDER)
+			if(fileAttributes & SFGAO_FOLDER)
 			{
-				AddNewTabMenuItem = true;
+				addNewTabMenuItem = true;
 			}
 		}
 	}
@@ -45,19 +47,18 @@ void Explorerplusplus::AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent,
 		/* The treeview only contains folders,
 		so the new tab menu item will always
 		be shown. */
-		AddNewTabMenuItem = true;
+		addNewTabMenuItem = true;
 	}
 
-	if(AddNewTabMenuItem)
+	if(addNewTabMenuItem)
 	{
-		MENUITEMINFO mii;
-		TCHAR szTemp[64];
+		std::wstring openInNewTabText = ResourceHelper::LoadString(m_hLanguageModule, IDS_GENERAL_OPEN_IN_NEW_TAB);
 
-		LoadString(m_hLanguageModule,IDS_GENERAL_OPEN_IN_NEW_TAB,szTemp,SIZEOF_ARRAY(szTemp));
+		MENUITEMINFO mii;
 		mii.cbSize		= sizeof(mii);
 		mii.fMask		= MIIM_STRING|MIIM_ID;
 		mii.wID			= MENU_OPEN_IN_NEW_TAB;
-		mii.dwTypeData	= szTemp;
+		mii.dwTypeData	= openInNewTabText.data();
 		InsertMenuItem(hMenu,1,TRUE,&mii);
 	}
 }
@@ -65,7 +66,7 @@ void Explorerplusplus::AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent,
 BOOL Explorerplusplus::HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent,
 	const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd)
 {
-	FileContextMenuInfo_t *pfcmi = reinterpret_cast<FileContextMenuInfo_t *>(dwData);
+	auto *pfcmi = reinterpret_cast<FileContextMenuInfo_t *>(dwData);
 
 	if(StrCmpI(szCmd,_T("open")) == 0)
 	{
@@ -97,7 +98,7 @@ BOOL Explorerplusplus::HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent,
 		}
 		else if(pfcmi->uFrom == FROM_TREEVIEW)
 		{
-			OnTreeViewFileRename();
+			m_shellTreeView->StartRenamingSelectedItem();
 		}
 
 		return TRUE;

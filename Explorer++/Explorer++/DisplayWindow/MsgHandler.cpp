@@ -50,36 +50,44 @@ void DisplayWindow::DrawGradientFill(HDC hdc,RECT *rc)
 
 	Gdiplus::Graphics graphics(m_hdcBackground);
 
-	Gdiplus::Rect DisplayRect(0,0,rc->right - rc->left,rc->bottom - rc->top);
+	Gdiplus::Rect displayRect(0,0,rc->right - rc->left,rc->bottom - rc->top);
 
-	Gdiplus::GraphicsPath Path;
-	Path.AddRectangle(DisplayRect);
-	Gdiplus::PathGradientBrush pgb(&Path);
+	Gdiplus::GraphicsPath path;
+	path.AddRectangle(displayRect);
+	Gdiplus::PathGradientBrush pgb(&path);
 	pgb.SetCenterPoint(Gdiplus::Point(0,0));
 
 	pgb.SetCenterColor(m_CentreColor);
 
 	INT count = 1;
 	pgb.SetSurroundColors(&m_SurroundColor,&count);
-	graphics.FillRectangle(&pgb,DisplayRect);
+	graphics.FillRectangle(&pgb,displayRect);
 
 	/* This draws a separator line across the top edge of the window,
 	so that it is visually separated from other windows. */
-	Gdiplus::Pen NewPen(BORDER_COLOUR,1);
-	graphics.DrawLine(&NewPen,0,0,rc->right,0);
+	Gdiplus::Pen newPen(BORDER_COLOUR,1);
+
+	if (m_bVertical)
+	{
+		graphics.DrawLine(&newPen,0,0,0,rc->bottom);
+	}
+	else
+	{
+		graphics.DrawLine(&newPen,0,0,rc->right,0);
+	}
 
 	SelectObject(m_hdcBackground, originalBackgroundObject);
 }
 
-void DisplayWindow::PatchBackground(HDC hdc,RECT *rc,RECT *UpdateRect)
+void DisplayWindow::PatchBackground(HDC hdc,RECT *rc,RECT *updateRect)
 {
 	HDC hdcMem	= CreateCompatibleDC(hdc);
 	HBITMAP hBitmap	= CreateCompatibleBitmap(hdc,rc->right-rc->left,rc->bottom-rc->top);
 	HGDIOBJ hOriginalObject = SelectObject(hdcMem,hBitmap);
 
 	/* Draw the stored background on top of the patched area. */
-	BitBlt(hdcMem,UpdateRect->left,UpdateRect->top,rc->right,rc->bottom,m_hdcBackground,
-	UpdateRect->left,UpdateRect->top,SRCCOPY);
+	BitBlt(hdcMem,updateRect->left,updateRect->top,rc->right,rc->bottom,m_hdcBackground,
+	updateRect->left,updateRect->top,SRCCOPY);
 
 	PaintText(hdcMem,m_LeftIndent);
 	DrawIconEx(hdcMem,MAIN_ICON_LEFT,MAIN_ICON_TOP,m_hMainIcon,
@@ -90,8 +98,8 @@ void DisplayWindow::PatchBackground(HDC hdc,RECT *rc,RECT *UpdateRect)
 		DrawThumbnail(hdcMem);
 	}
 
-	BitBlt(hdc,UpdateRect->left,UpdateRect->top,rc->right,rc->bottom,hdcMem,
-	UpdateRect->left,UpdateRect->top,SRCCOPY);
+	BitBlt(hdc,updateRect->left,updateRect->top,rc->right,rc->bottom,hdcMem,
+	updateRect->left,updateRect->top,SRCCOPY);
 
 	SelectObject(hdcMem,hOriginalObject);
 	DeleteObject(hBitmap);
@@ -112,7 +120,7 @@ void DisplayWindow::DrawThumbnail(HDC hdcMem)
 			GetClientRect(m_hDisplayWindow,&rc);
 
 			HDC hdcSrc = CreateCompatibleDC(hdcMem);
-			HBITMAP hBitmapOld = (HBITMAP)SelectObject(hdcSrc,m_hbmThumbnail);
+			auto hBitmapOld = (HBITMAP)SelectObject(hdcSrc,m_hbmThumbnail);
 
 			BitBlt(hdcMem,m_xColumnFinal,THUMB_IMAGE_TOP,
 				GetRectWidth(&rc) - m_xColumnFinal,GetRectHeight(&rc) - THUMB_HEIGHT_DELTA,
@@ -144,7 +152,7 @@ DWORD WINAPI Thread_ExtractThumbnailImage(LPVOID lpParameter)
 	return 0;
 }
 
-void DisplayWindow::ExtractThumbnailImage(void)
+void DisplayWindow::ExtractThumbnailImage()
 {
 	ThumbnailEntry_t te;
 
@@ -286,12 +294,12 @@ void DisplayWindow::PaintText(HDC hdc,unsigned int x)
 	/* TODO: Fix. */
 	for(i = 0;i < m_LineList.size();i++)
 	{
-		SIZE StringSize;
+		SIZE stringSize;
 
 		GetTextExtentPoint32(hdc,m_LineList.at(i).szText,
-			lstrlen(m_LineList.at(i).szText),&StringSize);
+			lstrlen(m_LineList.at(i).szText),&stringSize);
 
-		iTextBottom = (iLine * StringSize.cy) + m_LineSpacing + StringSize.cy;
+		iTextBottom = (iLine * stringSize.cy) + m_LineSpacing + stringSize.cy;
 
 		if(abs(iTextBottom - rcClient.bottom) < TEXT_VERTICAL_THRESHOLD)
 		{
@@ -300,12 +308,12 @@ void DisplayWindow::PaintText(HDC hdc,unsigned int x)
 			iLine = 0;
 		}
 
-		iCurrentColumnWidth = max(iCurrentColumnWidth,StringSize.cx);
+		iCurrentColumnWidth = max(iCurrentColumnWidth,stringSize.cx);
 
 		rcText.left		= xCurrent;
-		rcText.top		= (iLine * StringSize.cy) + m_LineSpacing;
-		rcText.right	= rcText.left + StringSize.cx;
-		rcText.bottom	= rcText.top + StringSize.cy;
+		rcText.top		= (iLine * stringSize.cy) + m_LineSpacing;
+		rcText.right	= rcText.left + stringSize.cx;
+		rcText.bottom	= rcText.top + stringSize.cy;
 		TransparentTextOut(hdc,m_LineList.at(i).szText,&rcText);
 
 		iLine++;
@@ -318,20 +326,20 @@ void DisplayWindow::PaintText(HDC hdc,unsigned int x)
 	SelectObject(hdc,hOriginalObject);
 }
 
-void DisplayWindow::TransparentTextOut(HDC hdc,TCHAR *Text,RECT *prcText)
+void DisplayWindow::TransparentTextOut(HDC hdc,TCHAR *text,RECT *prcText)
 {
-	DrawText(hdc,Text,lstrlen(Text),prcText,DT_LEFT|DT_NOPREFIX);
+	DrawText(hdc,text,lstrlen(text),prcText,DT_LEFT|DT_NOPREFIX);
 }
 
 LONG DisplayWindow::OnMouseMove(LPARAM lParam)
 {
-	POINT			CursorPos;
-	static POINT	PrevCursorPos;
+	POINT			cursorPos;
+	static POINT	prevCursorPos;
 	RECT			rc;
 	RECT			rc2;
 
-	CursorPos.x = GET_X_LPARAM(lParam);
-	CursorPos.y = GET_Y_LPARAM(lParam);
+	cursorPos.x = GET_X_LPARAM(lParam);
+	cursorPos.y = GET_Y_LPARAM(lParam);
 
 	GetClientRect(m_hDisplayWindow,&rc);
 
@@ -339,22 +347,23 @@ LONG DisplayWindow::OnMouseMove(LPARAM lParam)
 
 	if(m_bSizing)
 	{
-		if((PrevCursorPos.x == CursorPos.x)
-		&& (PrevCursorPos.y == CursorPos.y))
+		if((prevCursorPos.x == cursorPos.x)
+		&& (prevCursorPos.y == cursorPos.y))
 			return 0;
 
-		PrevCursorPos.x = CursorPos.x;
-		PrevCursorPos.y = CursorPos.y;
+		prevCursorPos.x = cursorPos.x;
+		prevCursorPos.y = cursorPos.y;
 
 		/* Notify the main window, so that it can redraw/reposition
 		its other windows. */
 		SendMessage(GetParent(m_hDisplayWindow),
-			WM_USER_DISPLAYWINDOWRESIZED,(WPARAM)(rc.bottom - CursorPos.y),0);
+			WM_USER_DISPLAYWINDOWRESIZED,
+			(WPARAM)MAKEWPARAM(rc.right - cursorPos.x, rc.bottom - cursorPos.y),0);
 	}
 
-	if(CursorPos.y <= (rc.top + 5))
+	if(m_bVertical && cursorPos.x <= (rc.left + 5) || !m_bVertical && cursorPos.y <= (rc.top + 5))
 	{
-		SetCursor(LoadCursor(nullptr,IDC_SIZENS));
+		SetCursor(LoadCursor(NULL,m_bVertical ? IDC_SIZEWE : IDC_SIZENS));
 	}
 
 	/* If there is a thumbnail preview
@@ -369,7 +378,7 @@ LONG DisplayWindow::OnMouseMove(LPARAM lParam)
 		THUMB_IMAGE_TOP,m_xColumnFinal + m_iImageWidth,
 		THUMB_IMAGE_TOP + m_iImageHeight);
 
-		if(PtInRect(&rcThumbnail,CursorPos))
+		if(PtInRect(&rcThumbnail,cursorPos))
 		{
 			SetCursor(LoadCursor(nullptr,IDC_HAND));
 		}
@@ -380,17 +389,17 @@ LONG DisplayWindow::OnMouseMove(LPARAM lParam)
 
 void DisplayWindow::OnLButtonDown(LPARAM lParam)
 {
-	POINT	CursorPos;
+	POINT	cursorPos;
 	RECT	rc;
 
-	CursorPos.x = GET_X_LPARAM(lParam);
-	CursorPos.y = GET_Y_LPARAM(lParam);
+	cursorPos.x = GET_X_LPARAM(lParam);
+	cursorPos.y = GET_Y_LPARAM(lParam);
 
 	GetClientRect(m_hDisplayWindow,&rc);
 
-	if(CursorPos.y <= (rc.top + 5))
+	if(m_bVertical && cursorPos.x <= (rc.left + 5) || !m_bVertical && cursorPos.y <= (rc.top + 5))
 	{
-		SetCursor(LoadCursor(nullptr,IDC_SIZENS));
+		SetCursor(LoadCursor(NULL, m_bVertical ? IDC_SIZEWE : IDC_SIZENS));
 		m_bSizing = TRUE;
 		SetFocus(m_hDisplayWindow);
 		SetCapture(m_hDisplayWindow);
@@ -407,7 +416,7 @@ void DisplayWindow::OnLButtonDown(LPARAM lParam)
 		THUMB_IMAGE_TOP,m_xColumnFinal + m_iImageWidth,
 		THUMB_IMAGE_TOP + m_iImageHeight);
 
-		if(PtInRect(&rcThumbnail,CursorPos))
+		if(PtInRect(&rcThumbnail,cursorPos))
 		{
 			/* TODO: Parent should be notified. */
 			SetCursor(LoadCursor(nullptr,IDC_HAND));
@@ -440,7 +449,7 @@ void DisplayWindow::OnRButtonUp(WPARAM wParam,LPARAM lParam)
 	}
 }
 
-void DisplayWindow::CancelThumbnailExtraction(void)
+void DisplayWindow::CancelThumbnailExtraction()
 {
 	std::list<ThumbnailEntry_t>::iterator itr;
 

@@ -60,6 +60,7 @@ SendMessage(hDisplay,DWM_CLEARTEXTBUFFER,(WPARAM)0,(LPARAM)0)
 #define DisplayWindow_SetLine(hDisplay,iLine,szText) \
 SendMessage(hDisplay,DWM_SETLINE,(WPARAM)iLine,(LPARAM)szText)
 
+#define WM_USER_DISPLAYWINDOWMOVED	(WM_APP + 99)
 #define WM_USER_DISPLAYWINDOWRESIZED	(WM_APP + 100)
 
 #define WM_NDW_ICONRCLICK	(WM_APP + 101)
@@ -102,25 +103,25 @@ private:
 
 	#define BORDER_COLOUR		Gdiplus::Color(128,128,128)
 
-	LRESULT CALLBACK DisplayWindowProc(HWND,UINT,WPARAM,LPARAM);
+	LRESULT CALLBACK DisplayWindowProc(HWND displayWindow, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	LONG	OnMouseMove(LPARAM lParam);
 	void	OnLButtonDown(LPARAM lParam);
 	void	OnRButtonUp(WPARAM wParam,LPARAM lParam);
 	void	DrawGradientFill(HDC,RECT *);
 	void	PaintText(HDC,unsigned int);
-	void	TransparentTextOut(HDC hdc,TCHAR *Text,RECT *prcText);
+	void	TransparentTextOut(HDC hdc,TCHAR *text,RECT *prcText);
 	void	DrawThumbnail(HDC hdcMem);
 	void	OnSetThumbnailFile(WPARAM wParam,LPARAM lParam);
 	void	OnSetFont(HFONT hFont);
 	void	OnSetTextColor(COLORREF hColor);
 
-	void	PatchBackground(HDC hdc,RECT *rc,RECT *UpdateRect);
+	void	PatchBackground(HDC hdc,RECT *rc,RECT *updateRect);
 
 	void	OnSize(int width, int height);
 
-	void	ExtractThumbnailImage(void);
-	void	CancelThumbnailExtraction(void);
+	void	ExtractThumbnailImage();
+	void	CancelThumbnailExtraction();
 
 
 	HWND			m_hDisplayWindow;
@@ -139,6 +140,7 @@ private:
 
 	int				m_iImageWidth;
 	int				m_iImageHeight;
+	BOOL			m_bVertical;
 
 	/* Thumbnails. */
 	CRITICAL_SECTION	m_csDWThumbnails;
@@ -155,4 +157,4 @@ private:
 	HFONT			m_hDisplayFont;
 };
 
-HWND CreateDisplayWindow(HWND Parent,DWInitialSettings_t *pSettings);
+HWND CreateDisplayWindow(HWND parent,DWInitialSettings_t *pSettings);

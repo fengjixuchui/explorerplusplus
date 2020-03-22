@@ -30,7 +30,7 @@
 #include "Macros.h"
 
 
-UINT_PTR ComboBox::m_StaticSubclassCounter = 0;
+UINT_PTR ComboBox::m_staticSubclassCounter = 0;
 
 ComboBox *ComboBox::CreateNew(HWND hComboBox)
 {
@@ -39,7 +39,7 @@ ComboBox *ComboBox::CreateNew(HWND hComboBox)
 
 ComboBox::ComboBox(HWND hComboBox) :
 BaseWindow(hComboBox),
-m_SubclassCounter(m_StaticSubclassCounter++),
+m_SubclassCounter(m_staticSubclassCounter++),
 m_SuppressAutocomplete(false)
 {
 	COMBOBOXINFO cbi;
@@ -68,14 +68,14 @@ LRESULT CALLBACK ComboBox::ComboBoxEditProcStub(HWND hwnd,UINT uMsg,
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	ComboBox *pcb = reinterpret_cast<ComboBox *>(dwRefData);
+	auto *pcb = reinterpret_cast<ComboBox *>(dwRefData);
 
 	return pcb->ComboBoxEditProc(hwnd,uMsg,wParam,lParam);
 }
 
-LRESULT CALLBACK ComboBox::ComboBoxEditProc(HWND hwnd,UINT Msg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK ComboBox::ComboBoxEditProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
-	switch(Msg)
+	switch(msg)
 	{
 	case WM_KEYDOWN:
 		if(wParam == VK_BACK ||
@@ -86,7 +86,7 @@ LRESULT CALLBACK ComboBox::ComboBoxEditProc(HWND hwnd,UINT Msg,WPARAM wParam,LPA
 		break;
 	}
 
-	return DefSubclassProc(hwnd,Msg,wParam,lParam);
+	return DefSubclassProc(hwnd,msg,wParam,lParam);
 }
 
 LRESULT CALLBACK ComboBox::ComboBoxParentProcStub(HWND hwnd,UINT uMsg,
@@ -94,14 +94,14 @@ LRESULT CALLBACK ComboBox::ComboBoxParentProcStub(HWND hwnd,UINT uMsg,
 {
 	UNREFERENCED_PARAMETER(uIdSubclass);
 
-	ComboBox *pcb = reinterpret_cast<ComboBox *>(dwRefData);
+	auto *pcb = reinterpret_cast<ComboBox *>(dwRefData);
 
 	return pcb->ComboBoxParentProc(hwnd,uMsg,wParam,lParam);
 }
 
-LRESULT CALLBACK ComboBox::ComboBoxParentProc(HWND hwnd,UINT Msg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK ComboBox::ComboBoxParentProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
-	switch(Msg)
+	switch(msg)
 	{
 	case WM_COMMAND:
 		if(HIWORD(wParam) != 0)
@@ -119,7 +119,7 @@ LRESULT CALLBACK ComboBox::ComboBoxParentProc(HWND hwnd,UINT Msg,WPARAM wParam,L
 		break;
 	}
 
-	return DefSubclassProc(hwnd,Msg,wParam,lParam);
+	return DefSubclassProc(hwnd,msg,wParam,lParam);
 }
 
 INT_PTR ComboBox::OnCBNEditChange()
@@ -130,31 +130,31 @@ INT_PTR ComboBox::OnCBNEditChange()
 		return 1;
 	}
 
-	std::wstring CurrentText;
-	GetWindowString(m_hwnd,CurrentText);
+	std::wstring currentText;
+	GetWindowString(m_hwnd,currentText);
 
-	if(CurrentText.length() > 0)
+	if(currentText.length() > 0)
 	{
-		std::list<std::wstring> StringEntries = NComboBox::ComboBox_GetStrings(m_hwnd);
+		std::list<std::wstring> stringEntries = NComboBox::ComboBox_GetStrings(m_hwnd);
 
-		int Index = 0;
+		int index = 0;
 
-		for(const auto &StringEntry : StringEntries)
+		for(const auto &stringEntry : stringEntries)
 		{
-			if(StringEntry.compare(0,CurrentText.length(),CurrentText) == 0)
+			if(stringEntry.compare(0,currentText.length(),currentText) == 0)
 			{
-				DWORD CurrentSelection = ComboBox_GetEditSel(m_hwnd);
+				DWORD currentSelection = ComboBox_GetEditSel(m_hwnd);
 
-				DWORD SelectionStart = LOWORD(CurrentSelection);
-				DWORD SelectionEnd = HIWORD(CurrentSelection);
+				DWORD selectionStart = LOWORD(currentSelection);
+				DWORD selectionEnd = HIWORD(currentSelection);
 
 				/* Autocomplete will only be provided when typing at
 				the end of the text. */
-				if(SelectionStart == CurrentText.length() &&
-					SelectionEnd == CurrentText.length())
+				if(selectionStart == currentText.length() &&
+					selectionEnd == currentText.length())
 				{
 					/* The first matching entry will be used to autocomplete the text. */
-					ComboBox_SetCurSel(m_hwnd,Index);
+					ComboBox_SetCurSel(m_hwnd,index);
 
 					/* It would be better to select the text in reverse (i.e.
 					from the end of the string to the last character the
@@ -166,13 +166,13 @@ INT_PTR ComboBox::OnCBNEditChange()
 					position is greater).
 					Multi-line edit controls and rich edit controls don't
 					have this limitation. */
-					ComboBox_SetEditSel(m_hwnd,CurrentText.length(),-1);
+					ComboBox_SetEditSel(m_hwnd,currentText.length(),-1);
 				}
 
 				break;
 			}
 
-			Index++;
+			index++;
 		}
 	}
 

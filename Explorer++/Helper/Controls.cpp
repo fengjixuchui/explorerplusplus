@@ -31,12 +31,12 @@ HWND CreateTreeView(HWND hParent, DWORD dwStyle)
 	if(hTreeView != NULL)
 	{
 		/* Retrieve the small version of the system image list. */
-		HIMAGELIST SmallIcons;
-		BOOL bRet = Shell_GetImageLists(NULL, &SmallIcons);
+		HIMAGELIST smallIcons;
+		BOOL bRet = Shell_GetImageLists(NULL, &smallIcons);
 
 		if(bRet)
 		{
-			TreeView_SetImageList(hTreeView, SmallIcons, TVSIL_NORMAL);
+			TreeView_SetImageList(hTreeView, smallIcons, TVSIL_NORMAL);
 		}
 	}
 
@@ -65,10 +65,10 @@ HWND CreateToolbar(HWND hParent, DWORD dwStyle, DWORD dwExStyle)
 	return hToolbar;
 }
 
-HWND CreateComboBox(HWND Parent, DWORD dwStyle)
+HWND CreateComboBox(HWND parent, DWORD dwStyle)
 {
 	HWND hComboBox = CreateWindowEx(WS_EX_TOOLWINDOW, WC_COMBOBOXEX,
-		EMPTY_STRING, dwStyle, 0, 0, 0, 200, Parent, NULL,
+		EMPTY_STRING, dwStyle, 0, 0, 0, 200, parent, NULL,
 		GetModuleHandle(0), NULL);
 
 	return hComboBox;
@@ -82,7 +82,7 @@ HWND CreateTabControl(HWND hParent, DWORD dwStyle)
 	return hTabControl;
 }
 
-BOOL PinStatusBar(HWND hStatusBar, int Width, int Height)
+BOOL PinStatusBar(HWND hStatusBar, int width, int height)
 {
 	RECT rc;
 	BOOL bRet = GetWindowRect(hStatusBar, &rc);
@@ -90,31 +90,31 @@ BOOL PinStatusBar(HWND hStatusBar, int Width, int Height)
 	if(bRet)
 	{
 		/* Pin the status bar to the bottom of the window. */
-		bRet = SetWindowPos(hStatusBar, NULL, 0, Height - GetRectHeight(&rc),
-			Width, GetRectHeight(&rc), SWP_NOZORDER);
+		bRet = SetWindowPos(hStatusBar, NULL, 0, height - GetRectHeight(&rc),
+			width, GetRectHeight(&rc), SWP_NOZORDER);
 	}
 
 	return bRet;
 }
 
-BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *Path)
+BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *path)
 {
-	HIMAGELIST SmallIcons;
-	BOOL bRet = Shell_GetImageLists(NULL, &SmallIcons);
+	HIMAGELIST smallIcons;
+	BOOL bRet = Shell_GetImageLists(NULL, &smallIcons);
 
 	if(!bRet)
 	{
 		return FALSE;
 	}
 
-	SendMessage(hComboBoxEx, CBEM_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(SmallIcons));
+	SendMessage(hComboBoxEx, CBEM_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(smallIcons));
 
 	/* Remove all items that are currently in the list. */
 	SendMessage(hComboBoxEx, CB_RESETCONTENT, 0, 0);
 
-	TCHAR FindPath[MAX_PATH];
-	StringCchCopy(FindPath, SIZEOF_ARRAY(FindPath), Path);
-	bRet = PathAppend(FindPath, _T("*"));
+	TCHAR findPath[MAX_PATH];
+	StringCchCopy(findPath, SIZEOF_ARRAY(findPath), path);
+	bRet = PathAppend(findPath, _T("*"));
 
 	if(!bRet)
 	{
@@ -122,7 +122,7 @@ BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *Path)
 	}
 
 	WIN32_FIND_DATA wfd;
-	HANDLE hFirstFile = FindFirstFile(FindPath, &wfd);
+	HANDLE hFirstFile = FindFirstFile(findPath, &wfd);
 
 	if(hFirstFile == INVALID_HANDLE_VALUE)
 	{
@@ -136,8 +136,8 @@ BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *Path)
 		if((wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY &&
 			StrCmp(wfd.cFileName, _T("..")) != 0)
 		{
-			TCHAR FullFileName[MAX_PATH];
-			LPTSTR szRet = PathCombine(FullFileName, Path, wfd.cFileName);
+			TCHAR fullFileName[MAX_PATH];
+			LPTSTR szRet = PathCombine(fullFileName, path, wfd.cFileName);
 
 			if(szRet == NULL)
 			{
@@ -146,7 +146,7 @@ BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *Path)
 			}
 
 			SHFILEINFO shfi;
-			SHGetFileInfo(Path, NULL, &shfi, NULL, SHGFI_SYSICONINDEX);
+			SHGetFileInfo(path, NULL, &shfi, NULL, SHGFI_SYSICONINDEX);
 
 			COMBOBOXEXITEM cbItem;
 			cbItem.mask = CBEIF_TEXT | CBEIF_IMAGE | CBEIF_INDENT | CBEIF_SELECTEDIMAGE;
@@ -172,7 +172,7 @@ BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *Path)
 	return success;
 }
 
-BOOL lCheckDlgButton(HWND hDlg, int ButtonId, BOOL bCheck)
+BOOL lCheckDlgButton(HWND hDlg, int buttonId, BOOL bCheck)
 {
 	UINT uCheck;
 
@@ -185,7 +185,7 @@ BOOL lCheckDlgButton(HWND hDlg, int ButtonId, BOOL bCheck)
 		uCheck = BST_UNCHECKED;
 	}
 
-	return CheckDlgButton(hDlg, ButtonId, uCheck);
+	return CheckDlgButton(hDlg, buttonId, uCheck);
 }
 
 void AddStyleToToolbar(UINT *fStyle, UINT fStyleToAdd)

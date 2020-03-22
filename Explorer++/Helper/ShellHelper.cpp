@@ -16,7 +16,7 @@
 #pragma warning(disable:4459) // declaration of 'boost_scope_exit_aux_args' hides global declaration
 
 HRESULT AddJumpListTasksInternal(IObjectCollection *poc,
-	const std::list<JumpListTaskInformation> &TaskList);
+	const std::list<JumpListTaskInformation> &taskList);
 HRESULT AddJumpListTaskInternal(IObjectCollection *poc,const TCHAR *pszName,
 	const TCHAR *pszPath,const TCHAR *pszArguments,const TCHAR *pszIconPath,int iIcon);
 
@@ -370,12 +370,12 @@ HRESULT DecodeFriendlyPath(const TCHAR *szFriendlyPath,TCHAR *szParsingPath,UINT
 	return E_FAIL;
 }
 
-int GetDefaultFolderIconIndex(void)
+int GetDefaultFolderIconIndex()
 {
 	return GetDefaultIcon(DEFAULT_ICON_FOLDER);
 }
 
-int GetDefaultFileIconIndex(void)
+int GetDefaultFileIconIndex()
 {
 	return GetDefaultIcon(DEFAULT_ICON_FILE);
 }
@@ -493,7 +493,7 @@ BOOL bDataAccept,BOOL bOnSameDrive)
 }
 
 HRESULT BuildHDropList(FORMATETC *pftc,STGMEDIUM *pstg,
-	const std::list<std::wstring> &FilenameList)
+	const std::list<std::wstring> &filenameList)
 {
 	SetFORMATETC(pftc,CF_HDROP,NULL,DVASPECT_CONTENT,-1,TYMED_HGLOBAL);
 
@@ -501,9 +501,9 @@ HRESULT BuildHDropList(FORMATETC *pftc,STGMEDIUM *pstg,
 
 	uSize = sizeof(DROPFILES);
 
-	for(const auto &Filename : FilenameList)
+	for(const auto &filename : filenameList)
 	{
-		uSize += static_cast<UINT>((Filename.length() + 1) * sizeof(TCHAR));
+		uSize += static_cast<UINT>((filename.length() + 1) * sizeof(TCHAR));
 	}
 
 	/* The last string is double-null terminated. */
@@ -516,9 +516,9 @@ HRESULT BuildHDropList(FORMATETC *pftc,STGMEDIUM *pstg,
 		return E_FAIL;
 	}
 
-	LPVOID pcidaData = static_cast<LPVOID>(GlobalLock(hglbHDrop));
+	auto pcidaData = static_cast<LPVOID>(GlobalLock(hglbHDrop));
 
-	DROPFILES *pdf = static_cast<DROPFILES *>(pcidaData);
+	auto *pdf = static_cast<DROPFILES *>(pcidaData);
 
 	pdf->pFiles = sizeof(DROPFILES);
 	pdf->fNC = FALSE;
@@ -531,12 +531,12 @@ HRESULT BuildHDropList(FORMATETC *pftc,STGMEDIUM *pstg,
 
 	TCHAR chNull = '\0';
 
-	for(const auto &Filename : FilenameList)
+	for(const auto &filename : filenameList)
 	{
 		pData = static_cast<LPBYTE>(pcidaData) + sizeof(DROPFILES) + uOffset;
 
-		memcpy(pData,Filename.c_str(),(Filename.length() + 1) * sizeof(TCHAR));
-		uOffset += static_cast<UINT>((Filename.length() + 1) * sizeof(TCHAR));
+		memcpy(pData,filename.c_str(),(filename.length() + 1) * sizeof(TCHAR));
+		uOffset += static_cast<UINT>((filename.length() + 1) * sizeof(TCHAR));
 	}
 
 	/* Copy the last null byte. */
@@ -561,7 +561,7 @@ HRESULT BuildShellIDList(FORMATETC *pftc, STGMEDIUM *pstg, PCIDLIST_ABSOLUTE pid
 	if(pftc == NULL ||
 		pstg == NULL ||
 		pidlDirectory == NULL ||
-		pidlList.size() == 0)
+		pidlList.empty())
 	{
 		return E_FAIL;
 	}
@@ -598,7 +598,7 @@ HRESULT BuildShellIDList(FORMATETC *pftc, STGMEDIUM *pstg, PCIDLIST_ABSOLUTE pid
 		return E_FAIL;
 	}
 
-	LPVOID pcidaData = static_cast<LPVOID>(GlobalLock(hglbIDList));
+	auto pcidaData = static_cast<LPVOID>(GlobalLock(hglbIDList));
 
 	CIDA *pcida = static_cast<CIDA *>(pcidaData);
 
@@ -779,7 +779,7 @@ HRESULT ConvertVariantStringArrayToString(SAFEARRAY *array, TCHAR *szDetail, siz
 
 		if (SUCCEEDED(hr))
 		{
-			strings.push_back(element);
+			strings.emplace_back(element);
 
 			SysFreeString(element);
 		}
@@ -971,9 +971,9 @@ BOOL CompareIdls(PCIDLIST_ABSOLUTE pidl1, PCIDLIST_ABSOLUTE pidl2)
 	return ret;
 }
 
-HRESULT AddJumpListTasks(const std::list<JumpListTaskInformation> &TaskList)
+HRESULT AddJumpListTasks(const std::list<JumpListTaskInformation> &taskList)
 {
-	if(TaskList.size() == 0)
+	if(taskList.empty())
 	{
 		return E_FAIL;
 	}
@@ -1002,7 +1002,7 @@ HRESULT AddJumpListTasks(const std::list<JumpListTaskInformation> &TaskList)
 
 			if(SUCCEEDED(hr))
 			{
-				AddJumpListTasksInternal(poc,TaskList);
+				AddJumpListTasksInternal(poc,taskList);
 
 				hr = poc->QueryInterface(IID_PPV_ARGS(&poa));
 
@@ -1025,9 +1025,9 @@ HRESULT AddJumpListTasks(const std::list<JumpListTaskInformation> &TaskList)
 }
 
 HRESULT AddJumpListTasksInternal(IObjectCollection *poc,
-	const std::list<JumpListTaskInformation> &TaskList)
+	const std::list<JumpListTaskInformation> &taskList)
 {
-	for(const auto &jtli : TaskList)
+	for(const auto &jtli : taskList)
 	{
 		AddJumpListTaskInternal(poc,jtli.pszName,
 			jtli.pszPath,jtli.pszArguments,
@@ -1108,7 +1108,7 @@ provided. Any entries in this set will be ignored (i.e. they
 won't be loaded). Each entry should be a CLSID with the enclosing
 braces included. */
 BOOL LoadContextMenuHandlers(const TCHAR *szRegKey,
-	std::list<ContextMenuHandler_t> &ContextMenuHandlers,
+	std::list<ContextMenuHandler_t> &contextMenuHandlers,
 	const std::vector<std::wstring> &blacklistedCLSIDEntries)
 {
 	HKEY hKey = NULL;
@@ -1145,15 +1145,15 @@ BOOL LoadContextMenuHandlers(const TCHAR *szRegKey,
 				if(lSubKeyRes == ERROR_SUCCESS)
 				{
 					if (std::none_of(blacklistedCLSIDEntries.begin(), blacklistedCLSIDEntries.end(),
-						[&szCLSID](std::wstring blacklistedEntry) { return boost::iequals(szCLSID, blacklistedEntry); }))
+						[&szCLSID](const std::wstring &blacklistedEntry) { return boost::iequals(szCLSID, blacklistedEntry); }))
 					{
-						ContextMenuHandler_t ContextMenuHandler;
+						ContextMenuHandler_t contextMenuHandler;
 
-						BOOL bRes = LoadIUnknownFromCLSID(szCLSID, &ContextMenuHandler);
+						BOOL bRes = LoadIUnknownFromCLSID(szCLSID, &contextMenuHandler);
 
 						if (bRes)
 						{
-							ContextMenuHandlers.push_back(ContextMenuHandler);
+							contextMenuHandlers.push_back(contextMenuHandler);
 						}
 					}
 				}

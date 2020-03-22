@@ -15,7 +15,6 @@
 #define IDD_FILTER                      139
 #define IDR_MAINMENU                    151
 #define IDR_MAINMENU_RCLICK             155
-#define IDR_SORT_MENU                   156
 #define IDR_TAB_RCLICK                  164
 #define IDD_OPTIONS_TABS                166
 #define IDD_SETFILEATTRIBUTES           167
@@ -39,7 +38,6 @@
 #define IDD_NEWCOLORRULE                220
 #define IDR_MASSRENAME_MENU             223
 #define IDD_SEARCH                      224
-#define IDR_GROUPBY_MENU                225
 #define IDD_OPTIONS_WINDOW              227
 #define IDD_CUSTOMIZECOLORS             228
 #define IDS_GENERAL_TRANSLATION_DLL_VERSION_MISMATCH_CHINESE_SIMPLIFIED 232
@@ -151,7 +149,10 @@
 #define IDS_ADD_BOOKMARK_TITLE_BOOKMARK_ALL_TABS 333
 #define IDS_ABOUT_VERSION               334
 #define IDS_ABOUT_BUILD_DATE            335
+#define IDS_MENU_SORT_ASCENDING         336
 #define IDS_BOOKMARK_OPEN_ALL           337
+#define IDS_MENU_SORT_DESCENDING        338
+#define IDS_MENU_SORT_MORE              339
 #define IDC_DEFAULTCOLUMNS_DESCRIPTION  1001
 #define IDC_COLUMNS_DESCRIPTION         1001
 #define IDC_SETTINGS_CHECK_EXTENSIONS   1002
@@ -713,10 +714,6 @@
 #define ID_SORT_SORTBYVISITCOUNT        40462
 #define ID_SORT_SORTBYADDED             40463
 #define ID_SORT_SORTBYLASTMODIFIED      40464
-#define ID_SHOWCOLUMNS_NAME             40465
-#define ID_SHOWCOLUMNS_LOCATION         40466
-#define ID_SHOWCOLUMNS_ADDED            40469
-#define ID_SHOWCOLUMNS_LASTMODIFIED     40470
 #define ID_POPUP_NEWBOOKMARK40471       40471
 #define ID_POPUP_NEWFOLD                40472
 #define ID_POPUP_NEWSEPARATOR           40473
@@ -777,6 +774,8 @@
 #define IDM_MB_ORGANIZE_CUT             40539
 #define IDM_MB_ORGANIZE_COPY            40540
 #define IDM_MB_ORGANIZE_PASTE           40541
+#define IDM_DISPLAYWINDOW_VERTICAL      40542
+#define IDM_POPUP_SHOW_COLUMNS          40543
 #define IDM_SORTBY_NAME                 50000
 #define IDM_SORTBY_SIZE                 50001
 #define IDM_SORTBY_TYPE                 50002
@@ -915,7 +914,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        325
-#define _APS_NEXT_COMMAND_VALUE         40542
+#define _APS_NEXT_COMMAND_VALUE         40544
 #define _APS_NEXT_CONTROL_VALUE         1329
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

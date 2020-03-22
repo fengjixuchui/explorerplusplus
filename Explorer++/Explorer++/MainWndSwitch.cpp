@@ -45,7 +45,7 @@ static const int TREEVIEW_DRAG_OFFSET = 8;
 
 LRESULT CALLBACK WndProcStub(HWND hwnd,UINT Msg,WPARAM wParam,LPARAM lParam)
 {
-	Explorerplusplus *pContainer = (Explorerplusplus *)GetWindowLongPtr(hwnd,GWLP_USERDATA);
+	auto *pContainer = (Explorerplusplus *)GetWindowLongPtr(hwnd,GWLP_USERDATA);
 
 	switch(Msg)
 	{
@@ -224,7 +224,7 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 
 	case WM_COPYDATA:
 		{
-			COPYDATASTRUCT *pcds = reinterpret_cast<COPYDATASTRUCT *>(lParam);
+			auto *pcds = reinterpret_cast<COPYDATASTRUCT *>(lParam);
 
 			if (pcds->lpData != nullptr)
 			{
@@ -242,7 +242,7 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 		{
 			POINT pt;
 			POINTSTOPOINT(pt, MAKEPOINTS(lParam));
-			OnNdwRClick(&pt);
+			OnDisplayWindowRClick(&pt);
 		}
 		break;
 
@@ -250,7 +250,7 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 		{
 			POINT pt;
 			POINTSTOPOINT(pt, MAKEPOINTS(lParam));
-			OnNdwIconRClick(&pt);
+			OnDisplayWindowIconRClick(&pt);
 		}
 		break;
 
@@ -488,6 +488,12 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 	case IDM_VIEW_DISPLAYWINDOW:
 		m_config->showDisplayWindow = !m_config->showDisplayWindow;
 		lShowWindow(m_hDisplayWindow, m_config->showDisplayWindow);
+		ResizeWindows();
+		break;
+
+	case IDM_DISPLAYWINDOW_VERTICAL:
+		m_config->displayWindowVertical = !m_config->displayWindowVertical;
+		ApplyDisplayWindowPosition();
 		ResizeWindows();
 		break;
 
@@ -1258,7 +1264,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 	case IDM_BOOKMARKS_MANAGEBOOKMARKS:
 		if (g_hwndManageBookmarks == nullptr)
 		{
-			ManageBookmarksDialog *pManageBookmarksDialog = new ManageBookmarksDialog(m_hLanguageModule,
+			auto *pManageBookmarksDialog = new ManageBookmarksDialog(m_hLanguageModule,
 				hwnd, this, m_navigation.get(), &m_bookmarkTree);
 			g_hwndManageBookmarks = pManageBookmarksDialog->ShowModelessDialog(new ModelessDialogNotification());
 		}
@@ -1409,7 +1415,7 @@ LRESULT Explorerplusplus::HandleControlNotification(HWND hwnd, WPARAM wParam)
  */
 LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	NMHDR *nmhdr = reinterpret_cast<NMHDR *>(lParam);
+	auto *nmhdr = reinterpret_cast<NMHDR *>(lParam);
 
 	switch(nmhdr->code)
 	{

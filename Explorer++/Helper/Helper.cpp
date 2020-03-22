@@ -16,7 +16,7 @@ enum VersionSubBlockType_t
 	STRING_TABLE_VALUE
 };
 
-void EnterAttributeIntoString(BOOL bEnter, TCHAR *String, int Pos, TCHAR chAttribute);
+void EnterAttributeIntoString(BOOL bEnter, TCHAR *string, int pos, TCHAR chAttribute);
 BOOL GetFileVersionValue(const TCHAR *szFullFileName, VersionSubBlockType_t subBlockType,
 	WORD *pwLanguage, DWORD *pdwProductVersionLS, DWORD *pdwProductVersionMS,
 	const TCHAR *szVersionInfo, TCHAR *szVersionBuffer, UINT cchMax);
@@ -50,17 +50,17 @@ BOOL CreateSystemTimeString(const SYSTEMTIME *localSystemTime,
 		}
 	}
 
-	TCHAR DateBuffer[512];
+	TCHAR dateBuffer[512];
 	int iReturn1 = GetDateFormat(LOCALE_USER_DEFAULT, LOCALE_USE_CP_ACP, localSystemTime,
-		NULL, DateBuffer, SIZEOF_ARRAY(DateBuffer));
+		NULL, dateBuffer, SIZEOF_ARRAY(dateBuffer));
 
-	TCHAR TimeBuffer[512];
+	TCHAR timeBuffer[512];
 	int iReturn2 = GetTimeFormat(LOCALE_USER_DEFAULT, LOCALE_USE_CP_ACP | TIME_NOSECONDS, localSystemTime,
-		NULL, TimeBuffer, SIZEOF_ARRAY(TimeBuffer));
+		NULL, timeBuffer, SIZEOF_ARRAY(timeBuffer));
 
 	if ((iReturn1 != 0) && (iReturn2 != 0))
 	{
-		StringCchPrintf(szBuffer, cchMax, _T("%s %s"), DateBuffer, TimeBuffer);
+		StringCchPrintf(szBuffer, cchMax, _T("%s %s"), dateBuffer, timeBuffer);
 		return TRUE;
 	}
 
@@ -84,7 +84,7 @@ BOOL CreateFriendlySystemTimeString(const SYSTEMTIME *localSystemTime,
 	TCHAR dateComponent[512];
 	bool dateComponentSet = false;
 
-	ptime inputPosixTime = from_ftime<ptime>(localFileTime);
+	auto inputPosixTime = from_ftime<ptime>(localFileTime);
 	date inputDate = inputPosixTime.date();
 
 	date today = day_clock::local_day();
@@ -125,34 +125,34 @@ BOOL CreateFriendlySystemTimeString(const SYSTEMTIME *localSystemTime,
 	return FALSE;
 }
 
-HINSTANCE StartCommandPrompt(const std::wstring &Directory, bool Elevated)
+HINSTANCE StartCommandPrompt(const std::wstring &directory, bool elevated)
 {
 	HINSTANCE hNewInstance = NULL;
 
-	TCHAR SystemPath[MAX_PATH];
-	BOOL bRes = SHGetSpecialFolderPath(NULL, SystemPath, CSIDL_SYSTEM, 0);
+	TCHAR systemPath[MAX_PATH];
+	BOOL bRes = SHGetSpecialFolderPath(NULL, systemPath, CSIDL_SYSTEM, 0);
 
 	if(bRes)
 	{
-		TCHAR CommandPath[MAX_PATH];
-		TCHAR *szRet = PathCombine(CommandPath, SystemPath, _T("cmd.exe"));
+		TCHAR commandPath[MAX_PATH];
+		TCHAR *szRet = PathCombine(commandPath, systemPath, _T("cmd.exe"));
 
 		if(szRet != NULL)
 		{
-			TCHAR Operation[32];
-			std::wstring Parameters(_T(""));
+			TCHAR operation[32];
+			std::wstring parameters;
 
-			if(Elevated)
+			if(elevated)
 			{
-				StringCchCopy(Operation, SIZEOF_ARRAY(Operation), _T("runas"));
-				Parameters = _T("/K cd /d ") + Directory;
+				StringCchCopy(operation, SIZEOF_ARRAY(operation), _T("runas"));
+				parameters = _T("/K cd /d ") + directory;
 			}
 			else
 			{
-				StringCchCopy(Operation, SIZEOF_ARRAY(Operation), _T("open"));
+				StringCchCopy(operation, SIZEOF_ARRAY(operation), _T("open"));
 			}
 
-			hNewInstance = ShellExecute(NULL, Operation, CommandPath, Parameters.c_str(), Directory.c_str(),
+			hNewInstance = ShellExecute(NULL, operation, commandPath, parameters.c_str(), directory.c_str(),
 				SW_SHOWNORMAL);
 		}
 	}
@@ -230,15 +230,15 @@ HRESULT BuildFileAttributeString(DWORD dwFileAttributes, TCHAR *szOutput, size_t
 	return StringCchCopy(szOutput, cchMax, szAttributes);
 }
 
-void EnterAttributeIntoString(BOOL bEnter, TCHAR *String, int Pos, TCHAR chAttribute)
+void EnterAttributeIntoString(BOOL bEnter, TCHAR *string, int pos, TCHAR chAttribute)
 {
 	if(bEnter)
 	{
-		String[Pos] = chAttribute;
+		string[pos] = chAttribute;
 	}
 	else
 	{
-		String[Pos] = '-';
+		string[pos] = '-';
 	}
 }
 
@@ -300,7 +300,7 @@ BOOL FormatUserName(PSID sid, TCHAR *userName, size_t cchMax)
 	return success;
 }
 
-BOOL CheckGroupMembership(GroupType_t GroupType)
+BOOL CheckGroupMembership(GroupType_t groupType)
 {
 	SID_IDENTIFIER_AUTHORITY sia = SECURITY_NT_AUTHORITY;
 	PSID psid;
@@ -308,7 +308,7 @@ BOOL CheckGroupMembership(GroupType_t GroupType)
 	BOOL bMember = FALSE;
 	BOOL bRet;
 
-	switch(GroupType)
+	switch(groupType)
 	{
 	case GROUP_ADMINISTRATORS:
 		dwGroup = DOMAIN_ALIAS_RID_ADMINS;
@@ -349,12 +349,12 @@ DWORD GetNumFileHardLinks(const TCHAR *lpszFileName)
 
 	if(file)
 	{
-		BY_HANDLE_FILE_INFORMATION FileInfo;
-		BOOL bRet = GetFileInformationByHandle(file.get(), &FileInfo);
+		BY_HANDLE_FILE_INFORMATION fileInfo;
+		BOOL bRet = GetFileInformationByHandle(file.get(), &fileInfo);
 
 		if(bRet)
 		{
-			nLinks = FileInfo.nNumberOfLinks;
+			nLinks = fileInfo.nNumberOfLinks;
 		}
 	}
 
@@ -382,7 +382,7 @@ BOOL ReadImageProperty(const TCHAR *lpszImage, PROPID propId, TCHAR *szProperty,
 	GdiplusShutdown. By allocating
 	it on the heap, the lifetime
 	can be directly controlled. */
-	Gdiplus::Image *image = new Gdiplus::Image(lpszImage, FALSE);
+	auto *image = new Gdiplus::Image(lpszImage, FALSE);
 
 	if(image->GetLastStatus() == Gdiplus::Ok)
 	{
@@ -402,7 +402,7 @@ BOOL ReadImageProperty(const TCHAR *lpszImage, PROPID propId, TCHAR *szProperty,
 
 			if(size != 0)
 			{
-				Gdiplus::PropertyItem *propertyItem = reinterpret_cast<Gdiplus::PropertyItem *>(malloc(size));
+				auto *propertyItem = reinterpret_cast<Gdiplus::PropertyItem *>(malloc(size));
 
 				if(propertyItem != NULL)
 				{
@@ -434,7 +434,7 @@ BOOL ReadImageProperty(const TCHAR *lpszImage, PROPID propId, TCHAR *szProperty,
 	return bSuccess;
 }
 
-BOOL GetFileNameFromUser(HWND hwnd,TCHAR *FullFileName,UINT cchMax,const TCHAR *InitialDirectory)
+BOOL GetFileNameFromUser(HWND hwnd,TCHAR *fullFileName,UINT cchMax,const TCHAR *initialDirectory)
 {
 	/* As per the documentation for
 	the OPENFILENAME structure, the
@@ -442,21 +442,21 @@ BOOL GetFileNameFromUser(HWND hwnd,TCHAR *FullFileName,UINT cchMax,const TCHAR *
 	should be at least 256. */
 	assert(cchMax >= 256);
 
-	const TCHAR *Filter = _T("Text Document (*.txt)\0*.txt\0All Files\0*.*\0\0");
+	const TCHAR *filter = _T("Text Document (*.txt)\0*.txt\0All Files\0*.*\0\0");
 	OPENFILENAME ofn;
 	BOOL bRet;
 
 	ofn.lStructSize			= sizeof(ofn);
 	ofn.hwndOwner			= hwnd;
-	ofn.lpstrFilter			= Filter;
+	ofn.lpstrFilter			= filter;
 	ofn.lpstrCustomFilter	= NULL;
 	ofn.nMaxCustFilter		= 0;
 	ofn.nFilterIndex		= 0;
-	ofn.lpstrFile			= FullFileName;
+	ofn.lpstrFile			= fullFileName;
 	ofn.nMaxFile			= cchMax;
 	ofn.lpstrFileTitle		= NULL;
 	ofn.nMaxFileTitle		= 0;
-	ofn.lpstrInitialDir		= InitialDirectory;
+	ofn.lpstrInitialDir		= initialDirectory;
 	ofn.lpstrTitle			= NULL;
 	ofn.Flags				= OFN_ENABLESIZING|OFN_OVERWRITEPROMPT|OFN_EXPLORER;
 	ofn.lpstrDefExt			= _T("txt");
@@ -592,7 +592,7 @@ BOOL GetStringTableValue(void *pBlock, LangAndCodePage *plcp, UINT nItems,
 	const TCHAR *szVersionInfo, TCHAR *szVersionBuffer, UINT cchMax)
 {
 	BOOL bSuccess = FALSE;
-	LANGID UserLangId = GetUserDefaultLangID();
+	LANGID userLangId = GetUserDefaultLangID();
 
 	for(UINT i = 0; i < nItems; i++)
 	{
@@ -600,7 +600,7 @@ BOOL GetStringTableValue(void *pBlock, LangAndCodePage *plcp, UINT nItems,
 		version information (since this means that the version information
 		and the users default language are the same). Also use this version
 		information if the language is not specified (i.e. wLanguage is 0). */
-		if((plcp[i].wLanguage & 0xFF) == (UserLangId & 0xFF) ||
+		if((plcp[i].wLanguage & 0xFF) == (userLangId & 0xFF) ||
 			plcp[i].wLanguage == 0)
 		{
 			TCHAR szSubBlock[64];
@@ -626,17 +626,17 @@ BOOL GetStringTableValue(void *pBlock, LangAndCodePage *plcp, UINT nItems,
 
 void GetCPUBrandString(char *pszCPUBrand,UINT cchBuf)
 {
-	int CPUInfo[4] = {-1};
+	int cpuInfo[4] = {-1};
 	char szCPUBrand[64];
 
 	/* Refer to cpuid documentation at:
 	http://msdn.microsoft.com/en-us/library/hskdteyh(v=vs.100).aspx */
-	__cpuid(CPUInfo,0x80000002);
-	memcpy(szCPUBrand,CPUInfo,sizeof(CPUInfo));
-	__cpuid(CPUInfo,0x80000003);
-	memcpy(szCPUBrand + 16,CPUInfo,sizeof(CPUInfo));
-	__cpuid(CPUInfo,0x80000004);
-	memcpy(szCPUBrand + 32,CPUInfo,sizeof(CPUInfo));
+	__cpuid(cpuInfo,0x80000002);
+	memcpy(szCPUBrand,cpuInfo,sizeof(cpuInfo));
+	__cpuid(cpuInfo,0x80000003);
+	memcpy(szCPUBrand + 16,cpuInfo,sizeof(cpuInfo));
+	__cpuid(cpuInfo,0x80000004);
+	memcpy(szCPUBrand + 32,cpuInfo,sizeof(cpuInfo));
 
 	StringCchCopyA(pszCPUBrand,cchBuf,szCPUBrand);
 }
@@ -671,13 +671,13 @@ HRESULT GetMediaMetadata(const TCHAR *szFileName,const TCHAR *szAttribute,BYTE *
 					if(SUCCEEDED(hr))
 					{
 						WORD wStreamNum;
-						WMT_ATTR_DATATYPE Type;
+						WMT_ATTR_DATATYPE type;
 						WORD cbLength;
 
 						/* Any stream. Should be zero for MP3 files. */
 						wStreamNum = 0;
 
-						hr = pWMHeaderInfo->GetAttributeByName(&wStreamNum,szAttribute,&Type,NULL,&cbLength);
+						hr = pWMHeaderInfo->GetAttributeByName(&wStreamNum,szAttribute,&type,NULL,&cbLength);
 
 						if(SUCCEEDED(hr))
 						{
@@ -685,7 +685,7 @@ HRESULT GetMediaMetadata(const TCHAR *szFileName,const TCHAR *szAttribute,BYTE *
 
 							if(*pszOutput != NULL)
 							{
-								hr = pWMHeaderInfo->GetAttributeByName(&wStreamNum,szAttribute,&Type,
+								hr = pWMHeaderInfo->GetAttributeByName(&wStreamNum,szAttribute,&type,
 									*pszOutput,&cbLength);
 							}
 						}

@@ -24,14 +24,14 @@ private:
 	~ComboBox() = default;
 
 	static LRESULT CALLBACK ComboBoxEditProcStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-	LRESULT CALLBACK ComboBoxEditProc(HWND hwnd,UINT Msg,WPARAM wParam,LPARAM lParam);
+	LRESULT CALLBACK ComboBoxEditProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 	static LRESULT CALLBACK ComboBoxParentProcStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-	LRESULT CALLBACK ComboBoxParentProc(HWND hwnd,UINT Msg,WPARAM wParam,LPARAM lParam);
+	LRESULT CALLBACK ComboBoxParentProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 	INT_PTR	OnCBNEditChange();
 
-	static UINT_PTR m_StaticSubclassCounter;
+	static UINT_PTR m_staticSubclassCounter;
 
 	UINT_PTR m_SubclassCounter;
 
