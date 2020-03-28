@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "Bookmarks/BookmarkDropInfo.h"
+#include "Bookmarks/BookmarkDropper.h"
 #include "../Helper/DropTarget.h"
 #include <wil/com.h>
 #include <optional>
@@ -26,6 +26,7 @@ protected:
 	virtual void UpdateUiForDropLocation(const DropLocation &dropLocation) = 0;
 	virtual void ResetDropUiState() = 0;
 
+	void SetBlockDrop(bool blockDrop);
 	bool IsWithinDrag() const;
 
 private:
@@ -40,8 +41,9 @@ private:
 	BookmarkTree *m_bookmarkTree;
 
 	wil::com_ptr<DropTarget> m_dropTarget;
-	std::unique_ptr<BookmarkDropInfo> m_bookmarkDropInfo;
+	std::unique_ptr<BookmarkDropper> m_bookmarkDropper;
 	std::optional<POINT> m_previousDragOverPoint;
 	std::optional<DropLocation> m_previousDropLocation;
 	DWORD m_previousDropEffect;
+	bool m_blockDrop;
 };

@@ -6,7 +6,8 @@
 #include "Bookmarks/UI/BookmarkDropTargetWindow.h"
 
 BookmarkDropTargetWindow::BookmarkDropTargetWindow(HWND hwnd, BookmarkTree *bookmarkTree) :
-	m_bookmarkTree(bookmarkTree)
+	m_bookmarkTree(bookmarkTree),
+	m_blockDrop(false)
 {
 	m_dropTarget = DropTarget::Create(hwnd, this);
 }
@@ -17,11 +18,12 @@ DWORD BookmarkDropTargetWindow::DragEnter(
 	UNREFERENCED_PARAMETER(keyState);
 	UNREFERENCED_PARAMETER(effect);
 
-	m_bookmarkDropInfo = std::make_unique<BookmarkDropInfo>(dataObject, m_bookmarkTree);
+	m_bookmarkDropper = std::make_unique<BookmarkDropper>(dataObject, m_bookmarkTree);
+	m_bookmarkDropper->SetBlockDrop(m_blockDrop);
 
 	auto dropLocation = GetDropLocation(pt);
 
-	return m_bookmarkDropInfo->GetDropEffect(dropLocation.parentFolder);
+	return m_bookmarkDropper->GetDropEffect(dropLocation.parentFolder);
 }
 
 DWORD BookmarkDropTargetWindow::DragOver(DWORD keyState, POINT pt, DWORD effect)
@@ -48,7 +50,7 @@ DWORD BookmarkDropTargetWindow::DragOver(DWORD keyState, POINT pt, DWORD effect)
 
 	m_previousDropLocation = dropLocation;
 
-	DWORD targetEffect = m_bookmarkDropInfo->GetDropEffect(dropLocation.parentFolder);
+	DWORD targetEffect = m_bookmarkDropper->GetDropEffect(dropLocation.parentFolder);
 
 	if (targetEffect != DROPEFFECT_NONE)
 	{
@@ -78,7 +80,7 @@ DWORD BookmarkDropTargetWindow::Drop(
 
 	auto dropLocation = GetDropLocation(pt);
 	DWORD finalEffect =
-		m_bookmarkDropInfo->PerformDrop(dropLocation.parentFolder, dropLocation.position);
+		m_bookmarkDropper->PerformDrop(dropLocation.parentFolder, dropLocation.position);
 
 	ResetDropState();
 
@@ -89,9 +91,19 @@ void BookmarkDropTargetWindow::ResetDropState()
 {
 	ResetDropUiState();
 
-	m_bookmarkDropInfo.reset();
+	m_bookmarkDropper.reset();
 	m_previousDragOverPoint.reset();
 	m_previousDropLocation.reset();
+}
+
+void BookmarkDropTargetWindow::SetBlockDrop(bool blockDrop)
+{
+	if (m_bookmarkDropper)
+	{
+		m_bookmarkDropper->SetBlockDrop(blockDrop);
+	}
+
+	m_blockDrop = blockDrop;
 }
 
 bool BookmarkDropTargetWindow::IsWithinDrag() const

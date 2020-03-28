@@ -9,11 +9,12 @@
 
 class BookmarkTree;
 
-class BookmarkDropInfo
+class BookmarkDropper
 {
 public:
-	BookmarkDropInfo(IDataObject *dataObject, BookmarkTree *bookmarkTree);
+	BookmarkDropper(IDataObject *dataObject, BookmarkTree *bookmarkTree);
 
+	void SetBlockDrop(bool blockDrop);
 	DWORD GetDropEffect(BookmarkItem *parentFolder);
 	DWORD PerformDrop(BookmarkItem *parentFolder, size_t position);
 
@@ -40,4 +41,5 @@ private:
 	IDataObject *m_dataObject;
 	BookmarkTree *m_bookmarkTree;
 	std::optional<ExtractedInfo> m_extractedInfo;
+	bool m_blockDrop;
 };
