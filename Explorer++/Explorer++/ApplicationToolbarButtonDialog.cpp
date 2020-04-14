@@ -24,6 +24,8 @@ INT_PTR ApplicationToolbarButtonDialog::OnInitDialog()
 		SetWindowText(m_hDlg, newText.c_str());
 	}
 
+	AddTooltipForControl(IDC_APP_EDIT_COMMAND, IDC_APP_EDIT_COMMAND_TT);
+
 	SetDlgItemText(m_hDlg, IDC_APP_EDIT_NAME, m_Button->Name.c_str());
 	SetDlgItemText(m_hDlg, IDC_APP_EDIT_COMMAND, m_Button->Command.c_str());
 
@@ -114,7 +116,14 @@ void ApplicationToolbarButtonDialog::OnChooseFile()
 
 	if (bRet)
 	{
-		SetDlgItemText(m_hDlg, IDC_APP_EDIT_COMMAND, fullFileName);
+		std::wstring finalFileName = fullFileName;
+
+		if (finalFileName.find(' ') != std::wstring::npos)
+		{
+			finalFileName = L"\"" + finalFileName + L"\"";
+		}
+
+		SetDlgItemText(m_hDlg, IDC_APP_EDIT_COMMAND, finalFileName.c_str());
 	}
 }
 
