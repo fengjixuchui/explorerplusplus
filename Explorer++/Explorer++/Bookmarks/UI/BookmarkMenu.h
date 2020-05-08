@@ -7,10 +7,12 @@
 #include "Bookmarks/BookmarkItem.h"
 #include "Bookmarks/UI/BookmarkContextMenu.h"
 #include "Bookmarks/UI/BookmarkMenuBuilder.h"
+#include "Bookmarks/UI/BookmarkMenuController.h"
 #include "../Helper/WindowSubclassWrapper.h"
 #include <functional>
 
 class BookmarkTree;
+class IconFetcher;
 __interface IExplorerplusplus;
 
 // Although it's not necessary, this class is effectively designed to be held
@@ -20,12 +22,11 @@ __interface IExplorerplusplus;
 class BookmarkMenu
 {
 public:
-	using MenuCallback = std::function<void(const BookmarkItem *bookmarkItem)>;
-
 	BookmarkMenu(BookmarkTree *bookmarkTree, HMODULE resourceModule, IExplorerplusplus *expp,
-		HWND parentWindow);
+		Navigation *navigation, IconFetcher *iconFetcher, HWND parentWindow);
 
-	BOOL ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCallback callback = nullptr);
+	BOOL ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt,
+		BookmarkMenuBuilder::IncludePredicate includePredicate = nullptr);
 
 private:
 	static const int MIN_ID = 1;
@@ -38,12 +39,12 @@ private:
 	LRESULT CALLBACK ParentWindowSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	void OnMenuRightButtonUp(HMENU menu, int index, const POINT &pt);
-	void OnMenuItemSelected(
-		int menuItemId, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings, MenuCallback callback);
+	void OnMenuItemSelected(int menuItemId, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings);
 
 	HWND m_parentWindow;
 	BookmarkMenuBuilder m_menuBuilder;
 	BookmarkContextMenu m_bookmarkContextMenu;
+	BookmarkMenuController m_controller;
 
 	bool m_showingMenu;
 	BookmarkMenuBuilder::ItemPositionMap *m_menuItemPositionMappings;

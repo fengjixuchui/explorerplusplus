@@ -20,7 +20,7 @@ public:
 	ULONG		__stdcall	AddRef();
 	ULONG		__stdcall	Release();
 
-	HRESULT _stdcall	QueryContinueDrag(BOOL fEscapePressed,DWORD gfrKeyState);
+	HRESULT _stdcall	QueryContinueDrag(BOOL fEscapePressed, DWORD grfKeyState);
 	HRESULT _stdcall	GiveFeedback(DWORD dwEffect);
 
 private:
@@ -92,21 +92,27 @@ HRESULT _stdcall DropSource::QueryContinueDrag(BOOL fEscapePressed,DWORD grfKeyS
 
 	if(m_DragType == DragType::LeftClick)
 	{
-		if((grfKeyState & MK_LBUTTON) == 0)
+		if ((grfKeyState & MK_LBUTTON) == 0)
+		{
 			return DRAGDROP_S_DROP;
+		}
 
 		dwStopButton = MK_RBUTTON;
 	}
 	else if(m_DragType == DragType::RightClick)
 	{
-		if((grfKeyState & MK_RBUTTON) == 0)
+		if ((grfKeyState & MK_RBUTTON) == 0)
+		{
 			return DRAGDROP_S_DROP;
+		}
 
 		dwStopButton = MK_LBUTTON;
 	}
 
-	if(fEscapePressed == TRUE || grfKeyState & dwStopButton)
+	if (fEscapePressed == TRUE || grfKeyState & dwStopButton)
+	{
 		return DRAGDROP_S_CANCEL;
+	}
 
 	return S_OK;
 }

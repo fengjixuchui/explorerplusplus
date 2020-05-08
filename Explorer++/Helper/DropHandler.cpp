@@ -204,8 +204,7 @@ void DropHandler::HandleLeftClickDrop(IDataObject *pDataObject,POINTL *pptl)
 		hrCopy = CopyDIBV5Data(pDataObject,pastedFileList);
 	}
 
-	if(hrCopy == S_OK &&
-		pastedFileList.size() > 0)
+	if(hrCopy == S_OK && !pastedFileList.empty())
 	{
 		/* The data was copied successfully, so notify
 		the caller via the specified callback interface. */
@@ -521,8 +520,10 @@ HRESULT DropHandler::CopyFileDescriptorData(IDataObject *pDataObject,
 
 					if(pBuffer != NULL)
 					{
-						if(!(pfgd->fgd[i].dwFlags & FD_FILESIZE))
-							nBytesToWrite = (DWORD)GlobalSize(stgFileContents.hGlobal);
+						if (!(pfgd->fgd[i].dwFlags & FD_FILESIZE))
+						{
+							nBytesToWrite = (DWORD) GlobalSize(stgFileContents.hGlobal);
+						}
 
 						auto pTemp = (LPBYTE)GlobalLock(stgFileContents.hGlobal);
 
@@ -553,8 +554,10 @@ HRESULT DropHandler::CopyFileDescriptorData(IDataObject *pDataObject,
 						{
 							/* If the file size isn't explicitly given,
 							use the size of the stream. */
-							if(!(pfgd->fgd[i].dwFlags & FD_FILESIZE))
+							if (!(pfgd->fgd[i].dwFlags & FD_FILESIZE))
+							{
 								nBytesToWrite = sstg.cbSize.LowPart;
+							}
 
 							stgFileContents.pstm->Read(pBuffer,sstg.cbSize.LowPart,&cbRead);
 
@@ -960,7 +963,7 @@ void DropHandler::CopyDroppedFiles(const HDROP &hd,BOOL bPreferredEffect,DWORD d
 void DropHandler::CopyDroppedFilesInternal(const std::list<std::wstring> &FullFilenameList,
 	BOOL bCopy,BOOL bRenameOnCollision)
 {
-	if(FullFilenameList.size() == 0)
+	if(FullFilenameList.empty())
 	{
 		return;
 	}
@@ -1303,10 +1306,14 @@ BOOL DropHandler::CheckItemLocations(int iDroppedItem)
 				DragQueryFile((HDROP)pdf,iDroppedItem,szFullFileName,
 					SIZEOF_ARRAY(szFullFileName));
 
-				if(PathIsSameRoot(m_szDestDirectory,szFullFileName))
+				if (PathIsSameRoot(m_szDestDirectory, szFullFileName))
+				{
 					bOnSameDrive = TRUE;
+				}
 				else
+				{
 					bOnSameDrive = FALSE;
+				}
 			}
 
 			GlobalUnlock(stg.hGlobal);

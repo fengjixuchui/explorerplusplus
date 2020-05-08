@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Bookmarks/UI/ManageBookmarksDialog.h"
 #include "Bookmarks/BookmarkHelper.h"
+#include "Bookmarks/BookmarkIconManager.h"
 #include "Bookmarks/BookmarkNavigationController.h"
 #include "Bookmarks/BookmarkTree.h"
 #include "Bookmarks/UI/BookmarkTreeView.h"
@@ -21,10 +22,12 @@
 const TCHAR ManageBookmarksDialogPersistentSettings::SETTINGS_KEY[] = _T("ManageBookmarks");
 
 ManageBookmarksDialog::ManageBookmarksDialog(HINSTANCE hInstance, HWND hParent,
-	IExplorerplusplus *pexpp, Navigation *navigation, BookmarkTree *bookmarkTree) :
+	IExplorerplusplus *pexpp, Navigation *navigation, IconFetcher *iconFetcher,
+	BookmarkTree *bookmarkTree) :
 	BaseDialog(hInstance, IDD_MANAGE_BOOKMARKS, hParent, true),
 	m_pexpp(pexpp),
 	m_navigation(navigation),
+	m_iconFetcher(iconFetcher),
 	m_bookmarkTree(bookmarkTree)
 {
 	m_persistentSettings = &ManageBookmarksDialogPersistentSettings::GetInstance();
@@ -114,7 +117,8 @@ void ManageBookmarksDialog::SetupToolbar()
 
 	TBBUTTON tbb;
 
-	std::wstring text = ResourceHelper::LoadString(GetInstance(), IDS_MANAGE_BOOKMARKS_TOOLBAR_BACK);
+	std::wstring text =
+		ResourceHelper::LoadString(GetInstance(), IDS_MANAGE_BOOKMARKS_TOOLBAR_BACK);
 
 	tbb.iBitmap = m_imageListToolbarMappings.at(Icon::Back);
 	tbb.idCommand = TOOLBAR_ID_BACK;
@@ -182,8 +186,8 @@ void ManageBookmarksDialog::SetupListView()
 {
 	HWND hListView = GetDlgItem(m_hDlg, IDC_MANAGEBOOKMARKS_LISTVIEW);
 
-	m_bookmarkListView = new BookmarkListView(
-		hListView, GetInstance(), m_bookmarkTree, m_pexpp, m_persistentSettings->m_listViewColumns);
+	m_bookmarkListView = new BookmarkListView(hListView, GetInstance(), m_bookmarkTree, m_pexpp,
+		m_iconFetcher, m_persistentSettings->m_listViewColumns);
 
 	m_connections.push_back(m_bookmarkListView->AddNavigationCompletedObserver(
 		std::bind(&ManageBookmarksDialog::OnListViewNavigation, this, std::placeholders::_1,
@@ -380,17 +384,25 @@ void ManageBookmarksDialog::SetViewMenuItemStates(HMENU menu)
 	CheckMenuRadioItem(
 		menu, IDM_MB_VIEW_SORTBYNAME, IDM_MB_VIEW_SORT_BY_DEFAULT, itemToCheck, MF_BYCOMMAND);
 
-	if (m_bookmarkListView->GetSortAscending())
+	if (m_bookmarkListView->GetSortColumn() == BookmarkHelper::ColumnType::Default)
 	{
-		itemToCheck = IDM_MB_VIEW_SORTASCENDING;
+		MenuHelper::EnableItem(menu, IDM_MB_VIEW_SORTASCENDING, FALSE);
+		MenuHelper::EnableItem(menu, IDM_MB_VIEW_SORTDESCENDING, FALSE);
 	}
 	else
 	{
-		itemToCheck = IDM_MB_VIEW_SORTDESCENDING;
-	}
+		if (m_bookmarkListView->GetSortAscending())
+		{
+			itemToCheck = IDM_MB_VIEW_SORTASCENDING;
+		}
+		else
+		{
+			itemToCheck = IDM_MB_VIEW_SORTDESCENDING;
+		}
 
-	CheckMenuRadioItem(
-		menu, IDM_MB_VIEW_SORTASCENDING, IDM_MB_VIEW_SORTDESCENDING, itemToCheck, MF_BYCOMMAND);
+		CheckMenuRadioItem(
+			menu, IDM_MB_VIEW_SORTASCENDING, IDM_MB_VIEW_SORTDESCENDING, itemToCheck, MF_BYCOMMAND);
+	}
 }
 
 void ManageBookmarksDialog::OnViewMenuItemSelected(int menuItemId)
@@ -501,8 +513,7 @@ void ManageBookmarksDialog::SetOrganizeMenuItemStates(HMENU menu)
 
 	MenuHelper::EnableItem(
 		menu, IDM_MB_ORGANIZE_NEWBOOKMARK, focus == listView || focus == treeView);
-	MenuHelper::EnableItem(
-		menu, IDM_MB_ORGANIZE_NEWFOLDER, focus == listView || focus == treeView);
+	MenuHelper::EnableItem(menu, IDM_MB_ORGANIZE_NEWFOLDER, focus == listView || focus == treeView);
 	MenuHelper::EnableItem(menu, IDM_MB_ORGANIZE_SELECTALL, focus == listView);
 
 	bool canDelete = false;

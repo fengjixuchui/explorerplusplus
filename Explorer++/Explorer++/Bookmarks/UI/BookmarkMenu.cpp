@@ -4,12 +4,14 @@
 
 #include "stdafx.h"
 #include "Bookmarks/UI/BookmarkMenu.h"
+#include "Bookmarks/BookmarkIconManager.h"
 
 BookmarkMenu::BookmarkMenu(BookmarkTree *bookmarkTree, HMODULE resourceModule,
-	IExplorerplusplus *expp, HWND parentWindow) :
+	IExplorerplusplus *expp, Navigation *navigation, IconFetcher *iconFetcher, HWND parentWindow) :
 	m_parentWindow(parentWindow),
-	m_menuBuilder(resourceModule),
+	m_menuBuilder(expp, iconFetcher, resourceModule),
 	m_bookmarkContextMenu(bookmarkTree, resourceModule, expp),
+	m_controller(navigation),
 	m_showingMenu(false),
 	m_menuItemPositionMappings(nullptr)
 {
@@ -77,7 +79,8 @@ void BookmarkMenu::OnMenuRightButtonUp(HMENU menu, int index, const POINT &pt)
 		m_parentWindow, itr->second->GetParent(), { itr->second }, pt, true);
 }
 
-BOOL BookmarkMenu::ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCallback callback)
+BOOL BookmarkMenu::ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt,
+	BookmarkMenuBuilder::IncludePredicate includePredicate)
 {
 	wil::unique_hmenu menu(CreatePopupMenu());
 
@@ -86,10 +89,11 @@ BOOL BookmarkMenu::ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCal
 		return FALSE;
 	}
 
+	std::vector<wil::unique_hbitmap> menuImages;
 	BookmarkMenuBuilder::ItemIdMap menuItemIdMappings;
 	BookmarkMenuBuilder::ItemPositionMap menuItemPositionMappings;
-	BOOL res = m_menuBuilder.BuildMenu(menu.get(), bookmarkItem, { MIN_ID, MAX_ID }, 0,
-		menuItemIdMappings, &menuItemPositionMappings);
+	BOOL res = m_menuBuilder.BuildMenu(m_parentWindow, menu.get(), bookmarkItem, { MIN_ID, MAX_ID },
+		0, menuItemIdMappings, menuImages, &menuItemPositionMappings, includePredicate);
 
 	if (!res)
 	{
@@ -107,14 +111,14 @@ BOOL BookmarkMenu::ShowMenu(BookmarkItem *bookmarkItem, const POINT &pt, MenuCal
 
 	if (cmd != 0)
 	{
-		OnMenuItemSelected(cmd, menuItemIdMappings, callback);
+		OnMenuItemSelected(cmd, menuItemIdMappings);
 	}
 
 	return TRUE;
 }
 
 void BookmarkMenu::OnMenuItemSelected(
-	int menuItemId, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings, MenuCallback callback)
+	int menuItemId, BookmarkMenuBuilder::ItemIdMap &menuItemIdMappings)
 {
 	auto itr = menuItemIdMappings.find(menuItemId);
 
@@ -123,10 +127,5 @@ void BookmarkMenu::OnMenuItemSelected(
 		return;
 	}
 
-	if (!callback)
-	{
-		return;
-	}
-
-	callback(itr->second);
+	m_controller.OnBookmarkMenuItemSelected(itr->second);
 }

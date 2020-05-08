@@ -5,9 +5,8 @@
 #include "stdafx.h"
 #include "ShellNavigationController.h"
 
-ShellNavigationController::ShellNavigationController(NavigatorInterface *navigator, TabNavigationInterface *tabNavigation,
-	IconFetcherInterface *iconFetcher) :
-	NavigationController(),
+ShellNavigationController::ShellNavigationController(NavigatorInterface *navigator,
+	TabNavigationInterface *tabNavigation, IconFetcherInterface *iconFetcher) :
 	m_navigator(navigator),
 	m_tabNavigation(tabNavigation),
 	m_iconFetcher(iconFetcher)
@@ -15,9 +14,9 @@ ShellNavigationController::ShellNavigationController(NavigatorInterface *navigat
 	Initialize();
 }
 
-ShellNavigationController::ShellNavigationController(NavigatorInterface *navigator, TabNavigationInterface *tabNavigation,
-	IconFetcherInterface *iconFetcher, const std::vector<std::unique_ptr<PreservedHistoryEntry>> &preservedEntries,
-	int currentEntry) :
+ShellNavigationController::ShellNavigationController(NavigatorInterface *navigator,
+	TabNavigationInterface *tabNavigation, IconFetcherInterface *iconFetcher,
+	const std::vector<std::unique_ptr<PreservedHistoryEntry>> &preservedEntries, int currentEntry) :
 	NavigationController(CopyPreservedHistoryEntries(preservedEntries), currentEntry),
 	m_navigator(navigator),
 	m_tabNavigation(tabNavigation),
@@ -47,12 +46,14 @@ std::vector<std::unique_ptr<HistoryEntry>> ShellNavigationController::CopyPreser
 	return entries;
 }
 
-void ShellNavigationController::OnNavigationCompleted(PCIDLIST_ABSOLUTE pidlDirectory, bool addHistoryEntry)
+void ShellNavigationController::OnNavigationCompleted(
+	PCIDLIST_ABSOLUTE pidlDirectory, bool addHistoryEntry)
 {
 	if (addHistoryEntry)
 	{
 		TCHAR displayName[MAX_PATH];
-		GetDisplayName(pidlDirectory, displayName, static_cast<UINT>(std::size(displayName)), SHGDN_INFOLDER);
+		GetDisplayName(
+			pidlDirectory, displayName, static_cast<UINT>(std::size(displayName)), SHGDN_INFOLDER);
 
 		auto newEntry = std::make_unique<HistoryEntry>(pidlDirectory, displayName);
 		int entryId = newEntry->GetId();
@@ -60,8 +61,8 @@ void ShellNavigationController::OnNavigationCompleted(PCIDLIST_ABSOLUTE pidlDire
 
 		// TODO: It would probably be better to do this somewhere else, since
 		// this class is focused on navigation.
-		m_iconFetcher->QueueIconTask(pidlDirectory, [this, index, entryId] (int iconIndex) {
-			auto entry = GetEntryAtIndex(index);
+		m_iconFetcher->QueueIconTask(pidlDirectory, [this, index, entryId](int iconIndex) {
+			auto *entry = GetEntryAtIndex(index);
 
 			if (!entry || entry->GetId() != entryId)
 			{
@@ -75,7 +76,7 @@ void ShellNavigationController::OnNavigationCompleted(PCIDLIST_ABSOLUTE pidlDire
 
 bool ShellNavigationController::CanGoUp() const
 {
-	auto currentEntry = GetCurrentEntry();
+	auto *currentEntry = GetCurrentEntry();
 
 	if (!currentEntry)
 	{
@@ -87,7 +88,7 @@ bool ShellNavigationController::CanGoUp() const
 
 HRESULT ShellNavigationController::GoUp()
 {
-	auto currentEntry = GetCurrentEntry();
+	auto *currentEntry = GetCurrentEntry();
 
 	if (!currentEntry)
 	{
@@ -107,7 +108,7 @@ HRESULT ShellNavigationController::GoUp()
 
 HRESULT ShellNavigationController::Refresh()
 {
-	auto currentEntry = GetCurrentEntry();
+	auto *currentEntry = GetCurrentEntry();
 
 	if (!currentEntry)
 	{
@@ -125,7 +126,8 @@ HRESULT ShellNavigationController::BrowseFolder(const HistoryEntry *entry, bool 
 HRESULT ShellNavigationController::BrowseFolder(const std::wstring &path, bool addHistoryEntry)
 {
 	unique_pidl_absolute pidlDirectory;
-	HRESULT hr = SHParseDisplayName(path.c_str(), nullptr, wil::out_param(pidlDirectory), 0, nullptr);
+	HRESULT hr =
+		SHParseDisplayName(path.c_str(), nullptr, wil::out_param(pidlDirectory), 0, nullptr);
 
 	if (SUCCEEDED(hr))
 	{

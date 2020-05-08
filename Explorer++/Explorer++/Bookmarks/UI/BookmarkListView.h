@@ -17,7 +17,9 @@
 #include <wil/resource.h>
 #include <optional>
 
+class BookmarkIconManager;
 class BookmarkTree;
+class IconFetcher;
 __interface IExplorerplusplus;
 
 class BookmarkListView : public BookmarkNavigatorInterface, private BookmarkDropTargetWindow
@@ -31,7 +33,8 @@ public:
 	};
 
 	BookmarkListView(HWND hListView, HMODULE resourceModule, BookmarkTree *bookmarkTree,
-		IExplorerplusplus *expp, const std::vector<Column> &initialColumns);
+		IExplorerplusplus *expp, IconFetcher *iconFetcher,
+		const std::vector<Column> &initialColumns);
 
 	void NavigateToBookmarkFolder(BookmarkItem *bookmarkFolder, bool addHistoryEntry) override;
 	boost::signals2::connection AddNavigationCompletedObserver(
@@ -54,13 +57,20 @@ public:
 	void SetSortAscending(bool sortAscending);
 
 private:
+	static inline const UINT_PTR SUBCLASS_ID = 0;
 	static inline const UINT_PTR PARENT_SUBCLASS_ID = 0;
 
 	static inline const double FOLDER_CENTRAL_RECT_INDENT_PERCENTAGE = 0.2;
 
+	static LRESULT CALLBACK WndProcStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+		UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+	LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
 	static LRESULT CALLBACK ParentWndProcStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 		UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 	LRESULT CALLBACK ParentWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+	void SetUpListViewImageList(IconFetcher *iconFetcher);
 
 	void InsertColumns(const std::vector<Column> &columns);
 	void InsertColumn(const Column &column, int index);
@@ -70,14 +80,18 @@ private:
 	std::optional<BookmarkHelper::ColumnType> GetColumnTypeByIndex(int index) const;
 
 	int InsertBookmarkItemIntoListView(BookmarkItem *bookmarkItem, int position);
-	std::wstring GetBookmarkItemColumnInfo(const BookmarkItem *bookmarkItem, BookmarkHelper::ColumnType columnType);
-	static std::wstring FormatDate(const FILETIME *date);
+	void OnBookmarkIconAvailable(std::wstring_view guid, int iconIndex);
+	std::wstring GetBookmarkItemColumnInfo(
+		const BookmarkItem *bookmarkItem, BookmarkHelper::ColumnType columnType);
+	std::wstring FormatDate(const FILETIME *date);
 
 	BookmarkItem *GetBookmarkItemFromListView(int iItem);
+	const BookmarkItem *GetBookmarkItemFromListView(int iItem) const;
 
 	void SortItems();
 	static int CALLBACK SortBookmarksStub(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 	int CALLBACK SortBookmarks(LPARAM lParam1, LPARAM lParam2);
+	int GetItemSortedPosition(const BookmarkItem *bookmarkItem) const;
 
 	void OnDblClk(const NMITEMACTIVATE *itemActivate);
 	void OnRClick(const NMITEMACTIVATE *itemActivate);
@@ -90,7 +104,9 @@ private:
 	void OnKeyDown(const NMLVKEYDOWN *keyDown);
 	void OnBeginDrag();
 	void OnRename();
+	void OnEnterPressed();
 
+	void OnHeaderItemClick(const NMHEADER *header);
 	void OnHeaderRClick(const POINT &pt);
 	void OnHeaderContextMenuItemSelected(int menuItemId);
 	void UpdateHeader();
@@ -105,7 +121,9 @@ private:
 
 	void RemoveBookmarkItem(const BookmarkItem *bookmarkItem);
 	std::optional<int> GetBookmarkItemIndex(const BookmarkItem *bookmarkItem) const;
-	BookmarkHelper::ColumnType MapPropertyTypeToColumnType(BookmarkItem::PropertyType propertyType) const;
+	std::optional<int> GetBookmarkItemIndexUsingGuid(std::wstring_view guid) const;
+	BookmarkHelper::ColumnType MapPropertyTypeToColumnType(
+		BookmarkItem::PropertyType propertyType) const;
 	Column &GetColumnByType(BookmarkHelper::ColumnType columnType);
 	std::optional<int> GetColumnHeaderIndexByType(BookmarkHelper::ColumnType columnType) const;
 	int GetColumnIndexByType(BookmarkHelper::ColumnType columnType) const;
@@ -121,8 +139,7 @@ private:
 	HMODULE m_resourceModule;
 	IExplorerplusplus *m_expp;
 	DpiCompatibility m_dpiCompat;
-	wil::unique_himagelist m_imageList;
-	IconImageListMapping m_imageListMappings;
+	std::unique_ptr<BookmarkIconManager> m_bookmarkIconManager;
 	std::vector<Column> m_columns;
 
 	BookmarkTree *m_bookmarkTree;

@@ -5,12 +5,11 @@
 #pragma once
 
 #include "../Helper/BaseDialog.h"
-#include <wil/resource.h>
 
-class AboutDialog : public BaseDialog
+class ThirdPartyCreditsDialog : public BaseDialog
 {
 public:
-	AboutDialog(HINSTANCE hInstance, HWND hParent);
+	ThirdPartyCreditsDialog(HINSTANCE instance, HWND parent);
 
 protected:
 	INT_PTR OnInitDialog() override;
@@ -19,6 +18,7 @@ protected:
 	INT_PTR OnClose() override;
 
 private:
-	wil::unique_hicon m_icon;
-	wil::unique_hicon m_mainIcon;
+	INT_PTR OnLinkNotification(const ENLINK *linkNotificationDetails);
+
+	void OnLinkClicked(const ENLINK *linkNotificationDetails);
 };
