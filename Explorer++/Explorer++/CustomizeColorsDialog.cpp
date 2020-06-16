@@ -6,6 +6,7 @@
 #include "CustomizeColorsDialog.h"
 #include "ColorRuleDialog.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "Explorer++_internal.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
@@ -18,8 +19,8 @@
 const TCHAR CustomizeColorsDialogPersistentSettings::SETTINGS_KEY[] = _T("CustomizeColors");
 
 CustomizeColorsDialog::CustomizeColorsDialog(HINSTANCE hInstance, HWND hParent,
-	IExplorerplusplus *expp, std::vector<NColorRuleHelper::ColorRule_t> *pColorRuleList) :
-	BaseDialog(hInstance, IDD_CUSTOMIZECOLORS, hParent, true),
+	IExplorerplusplus *expp, std::vector<NColorRuleHelper::ColorRule> *pColorRuleList) :
+	DarkModeDialogBase(hInstance, IDD_CUSTOMIZECOLORS, hParent, true),
 	m_expp(expp),
 	m_pColorRuleList(pColorRuleList)
 {
@@ -67,6 +68,10 @@ INT_PTR CustomizeColorsDialog::OnInitDialog()
 
 	SetFocus(hListView);
 
+	AllowDarkModeForControls({ IDC_BUTTON_NEW, IDC_BUTTON_EDIT, IDC_BUTTON_MOVEUP,
+		IDC_BUTTON_MOVEDOWN, IDC_BUTTON_DELETE });
+	AllowDarkModeForListView(IDC_LISTVIEW_COLORRULES);
+
 	m_persistentSettings->RestoreDialogPosition(m_hDlg,true);
 
 	return 0;
@@ -80,63 +85,58 @@ wil::unique_hicon CustomizeColorsDialog::GetDialogIcon(int iconWidth, int iconHe
 void CustomizeColorsDialog::GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc,
 	std::list<ResizableDialog::Control_t> &ControlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_LISTVIEW_COLORRULES;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BUTTON_DELETE;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BUTTON_MOVEDOWN;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BUTTON_MOVEUP;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BUTTON_EDIT;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BUTTON_NEW;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDCANCEL;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 }
 
-void CustomizeColorsDialog::InsertColorRuleIntoListView(HWND hListView,const NColorRuleHelper::ColorRule_t &ColorRule,
+void CustomizeColorsDialog::InsertColorRuleIntoListView(HWND hListView,const NColorRuleHelper::ColorRule &colorRule,
 	int iIndex)
 {
 	TCHAR szTemp[512];
 
 	StringCchCopy(szTemp,SIZEOF_ARRAY(szTemp),
-		ColorRule.strDescription.c_str());
+		colorRule.strDescription.c_str());
 
 	LVITEM lvItem;
 	lvItem.mask		= LVIF_TEXT;
@@ -147,10 +147,10 @@ void CustomizeColorsDialog::InsertColorRuleIntoListView(HWND hListView,const NCo
 
 	if(iActualIndex != -1)
 	{
-		StringCchCopy(szTemp,SIZEOF_ARRAY(szTemp),ColorRule.strFilterPattern.c_str());
+		StringCchCopy(szTemp,SIZEOF_ARRAY(szTemp),colorRule.strFilterPattern.c_str());
 		ListView_SetItemText(hListView,iActualIndex,1,szTemp);
 
-		BuildFileAttributeString(ColorRule.dwFilterAttributes,szTemp,SIZEOF_ARRAY(szTemp));
+		BuildFileAttributeString(colorRule.dwFilterAttributes,szTemp,SIZEOF_ARRAY(szTemp));
 		ListView_SetItemText(hListView,iActualIndex,2,szTemp);
 	}
 }
@@ -229,7 +229,7 @@ void CustomizeColorsDialog::OnNew()
 {
 	HWND hListView = GetDlgItem(m_hDlg,IDC_LISTVIEW_COLORRULES);
 
-	NColorRuleHelper::ColorRule_t colorRule;
+	NColorRuleHelper::ColorRule colorRule;
 
 	ColorRuleDialog colorRuleDialog(GetInstance(), m_hDlg, &colorRule, FALSE);
 

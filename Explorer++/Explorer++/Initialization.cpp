@@ -6,10 +6,12 @@
 #include "Explorer++.h"
 #include "Bookmarks/UI/BookmarksMainMenu.h"
 #include "Config.h"
+#include "DarkModeHelper.h"
 #include "DisplayWindow/DisplayWindow.h"
 #include "Explorer++_internal.h"
 #include "LoadSaveInterface.h"
 #include "MainResource.h"
+#include "MainToolbar.h"
 #include "MainWindow.h"
 #include "MenuHelper.h"
 #include "MenuRanges.h"
@@ -17,9 +19,12 @@
 #include "TaskbarThumbnails.h"
 #include "UiTheming.h"
 #include "ViewModeHelper.h"
+#include "../Helper/CustomGripper.h"
 #include "../Helper/iDirectoryMonitor.h"
 #include "../Helper/ImageHelper.h"
 #include "../Helper/Macros.h"
+
+bool g_enableDarkMode = false;
 
 /*
 * Main window creation.
@@ -39,6 +44,11 @@ void Explorerplusplus::OnCreate()
 	m_iconResourceLoader = std::make_unique<IconResourceLoader>(m_config->iconTheme);
 
 	SetLanguageModule();
+
+	if (g_enableDarkMode)
+	{
+		SetUpDarkMode();
+	}
 
 	m_bookmarksMainMenu = std::make_unique<BookmarksMainMenu>(this, &m_bookmarkIconFetcher,
 		&m_bookmarkTree, MenuIdRange{ MENU_BOOKMARK_STARTID, MENU_BOOKMARK_ENDID });
@@ -89,6 +99,19 @@ void Explorerplusplus::OnCreate()
 
 	m_uiTheming = std::make_unique<UiTheming>(this, m_tabContainer);
 
+	COLORREF gripperBackgroundColor;
+
+	if (DarkModeHelper::GetInstance().IsDarkModeEnabled())
+	{
+		gripperBackgroundColor = DarkModeHelper::BACKGROUND_COLOR;
+	}
+	else
+	{
+		gripperBackgroundColor = GetSysColor(COLOR_WINDOW);
+	}
+
+	CustomGripper::Initialize(m_hContainer, gripperBackgroundColor);
+
 	InitializePlugins();
 
 	SetTimer(m_hContainer, AUTOSAVE_TIMER_ID, AUTOSAVE_TIMEOUT, nullptr);
@@ -138,4 +161,23 @@ void Explorerplusplus::AddViewModesToMenu(HMENU menu)
 		mii.dwTypeData = szText;
 		InsertMenuItem(menu, IDM_VIEW_PLACEHOLDER, FALSE, &mii);
 	}
+}
+
+void Explorerplusplus::SetUpDarkMode()
+{
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+	darkModeHelper.EnableForApp();
+
+	if (!darkModeHelper.IsDarkModeEnabled())
+	{
+		return;
+	}
+
+	darkModeHelper.AllowDarkModeForWindow(m_hContainer, true);
+
+	BOOL dark = TRUE;
+	DarkModeHelper::WINDOWCOMPOSITIONATTRIBDATA compositionData = {
+		DarkModeHelper::WCA_USEDARKMODECOLORS, &dark, sizeof(dark)
+	};
+	darkModeHelper.SetWindowCompositionAttribute(m_hContainer, &compositionData);
 }

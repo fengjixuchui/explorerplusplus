@@ -37,7 +37,7 @@ protected:
 private:
 	BOOST_STRONG_TYPEDEF(UINT, IDCounter);
 
-	struct DriveInformation_t
+	struct DriveInformation
 	{
 		int Position;
 		IDCounter ID;
@@ -67,7 +67,7 @@ private:
 	void RemoveDrive(const std::wstring &DrivePath);
 
 	int GetSortedPosition(const std::wstring &DrivePath);
-	DriveInformation_t GetDrivePosition(const std::wstring &DrivePath);
+	DriveInformation GetDrivePosition(const std::wstring &DrivePath);
 	std::wstring GetDrivePath(int iIndex);
 
 	void UpdateDriveIcon(const std::wstring &DrivePath);
@@ -95,5 +95,5 @@ private:
 
 	IDCounter m_IDCounter;
 
-	std::vector<WindowSubclassWrapper> m_windowSubclasses;
+	std::vector<std::unique_ptr<WindowSubclassWrapper>> m_windowSubclasses;
 };

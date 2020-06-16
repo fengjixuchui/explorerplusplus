@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/Macros.h"
 
@@ -25,7 +25,7 @@ private:
 	DISALLOW_COPY_AND_ASSIGN(UpdateCheckDialogPersistentSettings);
 };
 
-class UpdateCheckDialog : public BaseDialog
+class UpdateCheckDialog : public DarkModeDialogBase
 {
 public:
 	UpdateCheckDialog(HINSTANCE hInstance, HWND hParent);
@@ -42,7 +42,7 @@ protected:
 	INT_PTR OnPrivateMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) override;
 
 private:
-	struct Version_t
+	struct Version
 	{
 		int MajorVersion;
 		int MinorVersion;
@@ -64,7 +64,7 @@ private:
 	static void PerformUpdateCheck(HWND hDlg);
 
 	void OnUpdateCheckError();
-	void OnUpdateCheckSuccess(Version_t *Version);
+	void OnUpdateCheckSuccess(Version *version);
 
 	bool m_UpdateCheckComplete;
 

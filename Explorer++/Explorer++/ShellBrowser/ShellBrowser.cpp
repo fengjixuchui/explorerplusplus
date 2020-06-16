@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "ShellBrowser.h"
 #include "Config.h"
+#include "DarkModeHelper.h"
 #include "ItemData.h"
 #include "MainResource.h"
 #include "PreservedFolderState.h"
@@ -110,11 +111,14 @@ ShellBrowser::ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner,
 	m_tabNavigation(tabNavigation),
 	m_folderSettings(folderSettings),
 	m_folderColumns(initialColumns ? *initialColumns : config->globalFolderSettings.folderColumns),
-	m_columnThreadPool(1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
+	m_columnThreadPool(
+		1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
 	m_columnResultIDCounter(0),
-	m_thumbnailThreadPool(1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
+	m_thumbnailThreadPool(
+		1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
 	m_thumbnailResultIDCounter(0),
-	m_infoTipsThreadPool(1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
+	m_infoTipsThreadPool(
+		1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
 	m_infoTipResultIDCounter(0)
 {
 	m_iRefCount = 1;
@@ -128,7 +132,7 @@ ShellBrowser::ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner,
 
 	m_bFolderVisited = FALSE;
 
-	m_bColumnsPlaced = FALSE;
+	m_listViewColumnsSetUp = false;
 	m_bOverFolder = FALSE;
 	m_bDragging = FALSE;
 	m_bVirtualFolder = FALSE;
@@ -171,8 +175,12 @@ ShellBrowser::~ShellBrowser()
 
 HWND ShellBrowser::SetUpListView(HWND parent)
 {
+	// Note that the only reason LVS_REPORT is specified here is so that the listview header theme
+	// can be set immediately when in dark mode. Without this style, ListView_GetHeader() will
+	// return NULL. The actual view mode set here doesn't matter, since it will be updated when
+	// navigating to a folder.
 	HWND hListView = CreateListView(parent,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | LVS_ICON | LVS_EDITLABELS
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | LVS_REPORT | LVS_EDITLABELS
 			| LVS_SHOWSELALWAYS | LVS_SHAREIMAGELISTS | LVS_AUTOARRANGE | WS_TABSTOP
 			| LVS_ALIGNTOP);
 
@@ -207,13 +215,23 @@ HWND ShellBrowser::SetUpListView(HWND parent)
 		m_config->globalFolderSettings.oneClickActivate,
 		m_config->globalFolderSettings.oneClickActivateHoverTime);
 
-	SetWindowTheme(hListView, L"Explorer", nullptr);
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
 
-	m_windowSubclasses.emplace_back(
-		hListView, ListViewProcStub, LISTVIEW_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		darkModeHelper.SetListViewDarkModeColors(hListView);
+	}
+	else
+	{
+		SetWindowTheme(hListView, L"Explorer", nullptr);
+	}
 
-	m_windowSubclasses.emplace_back(parent, ListViewParentProcStub,
-		listViewParentSubclassIdCounter++, reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		hListView, ListViewProcStub, LISTVIEW_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+
+	m_windowSubclasses.push_back(
+		std::make_unique<WindowSubclassWrapper>(parent, ListViewParentProcStub,
+			listViewParentSubclassIdCounter++, reinterpret_cast<DWORD_PTR>(this)));
 
 	return hListView;
 }
@@ -348,10 +366,10 @@ void ShellBrowser::SetViewModeInternal(ViewMode viewMode)
 	case ViewMode::Details:
 		dwStyle = LV_VIEW_DETAILS;
 
-		if (!m_bColumnsPlaced)
+		if (!m_listViewColumnsSetUp)
 		{
-			PlaceColumns();
-			m_bColumnsPlaced = TRUE;
+			SetUpListViewColumns();
+			m_listViewColumnsSetUp = true;
 		}
 		break;
 
@@ -370,15 +388,61 @@ void ShellBrowser::SetViewModeInternal(ViewMode viewMode)
 		break;
 	}
 
-	m_folderSettings.viewMode = viewMode;
-
 	if (viewMode != +ViewMode::Details)
 	{
 		m_columnThreadPool.clear_queue();
 		m_columnResults.clear();
 	}
 
+	ViewMode previousViewMode = m_folderSettings.viewMode;
+	m_folderSettings.viewMode = viewMode;
+
 	SendMessage(m_hListView, LVM_SETVIEW, dwStyle, 0);
+
+	if (previousViewMode != +ViewMode::Details && viewMode == +ViewMode::Details)
+	{
+		auto firstColumn = GetFirstCheckedColumn();
+
+		if (firstColumn.type != ColumnType::Name)
+		{
+			SetFirstColumnTextToCallback();
+		}
+	}
+	else if (previousViewMode == +ViewMode::Details && viewMode != +ViewMode::Details)
+	{
+		auto firstColumn = GetFirstCheckedColumn();
+
+		// The item text in non-details view is always the filename.
+		if (firstColumn.type != ColumnType::Name)
+		{
+			SetFirstColumnTextToFilename();
+		}
+	}
+}
+
+void ShellBrowser::SetFirstColumnTextToCallback()
+{
+	int numItems = ListView_GetItemCount(m_hListView);
+
+	for (int i = 0; i < numItems; i++)
+	{
+		ListView_SetItemText(m_hListView, i, 0, LPSTR_TEXTCALLBACK);
+	}
+}
+
+void ShellBrowser::SetFirstColumnTextToFilename()
+{
+	int numItems = ListView_GetItemCount(m_hListView);
+
+	for (int i = 0; i < numItems; i++)
+	{
+		int internalIndex = GetItemInternalIndex(i);
+
+		BasicItemInfo_t basicItemInfo = getBasicItemInfo(internalIndex);
+		std::wstring filename = ProcessItemFileName(basicItemInfo, m_config->globalFolderSettings);
+
+		ListView_SetItemText(m_hListView, i, 0, filename.data());
+	}
 }
 
 void ShellBrowser::CycleViewMode(bool cycleForward)
@@ -1156,7 +1220,7 @@ void ShellBrowser::VerifySortMode()
 
 	auto itr = std::find_if(columns->begin(), columns->end(),
 		[sortMode = m_folderSettings.sortMode](const Column_t &column) {
-			return column.id == static_cast<unsigned int>(sortMode);
+			return static_cast<unsigned int>(column.type) == static_cast<unsigned int>(sortMode);
 		});
 
 	if (itr != columns->end())
@@ -1164,13 +1228,8 @@ void ShellBrowser::VerifySortMode()
 		return;
 	}
 
-	auto firstChecked = std::find_if(columns->begin(), columns->end(), [](const Column_t &column) {
-		return column.bChecked;
-	});
-
-	// There should always be at least one checked column, so firstChecked
-	// should always be valid here.
-	m_folderSettings.sortMode = DetermineColumnSortMode(firstChecked->id);
+	auto firstChecked = GetFirstCheckedColumn();
+	m_folderSettings.sortMode = DetermineColumnSortMode(firstChecked.type);
 }
 
 BOOL ShellBrowser::GetSortAscending() const
@@ -1205,7 +1264,7 @@ std::vector<SortMode> ShellBrowser::GetAvailableSortModes() const
 	{
 		if (column.bChecked)
 		{
-			sortModes.push_back(DetermineColumnSortMode(column.id));
+			sortModes.push_back(DetermineColumnSortMode(column.type));
 		}
 	}
 

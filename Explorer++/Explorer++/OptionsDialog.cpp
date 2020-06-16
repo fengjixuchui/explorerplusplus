@@ -30,10 +30,15 @@
 #include "../Helper/SetDefaultFileManager.h"
 #include "../Helper/ShellHelper.h"
 #include "../Helper/WindowHelper.h"
+#include <boost/algorithm/string.hpp>
+#include <boost/format.hpp>
 #include <boost/range/adaptor/map.hpp>
+#include <unordered_map>
 
 int CALLBACK NewTabDirectoryBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData);
 UINT GetIconThemeStringResourceId(IconTheme iconTheme);
+
+using namespace DefaultFileManager;
 
 // clang-format off
 const OptionsDialog::OptionsDialogSheetInfo OptionsDialog::OPTIONS_DIALOG_SHEETS[] = {
@@ -45,20 +50,26 @@ const OptionsDialog::OptionsDialogSheetInfo OptionsDialog::OPTIONS_DIALOG_SHEETS
 };
 // clang-format on
 
-struct FileSize_t
+const std::unordered_map<ReplaceExplorerMode, int> REPLACE_EXPLORER_ENUM_CONTROL_ID_MAPPINGS = {
+	{ ReplaceExplorerMode::None, IDC_OPTION_REPLACEEXPLORER_NONE },
+	{ ReplaceExplorerMode::FileSystem, IDC_OPTION_REPLACEEXPLORER_FILESYSTEM },
+	{ ReplaceExplorerMode::All, IDC_OPTION_REPLACEEXPLORER_ALL }
+};
+
+struct FileSize
 {
-	SizeDisplayFormat_t sdf;
+	SizeDisplayFormat sdf;
 	UINT StringID;
 };
 
 // clang-format off
-static const FileSize_t FILE_SIZES[] = {
-	{SIZE_FORMAT_BYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_BYTES},
-	{SIZE_FORMAT_KBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_KB},
-	{SIZE_FORMAT_MBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_MB},
-	{SIZE_FORMAT_GBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_GB},
-	{SIZE_FORMAT_TBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_TB},
-	{SIZE_FORMAT_PBYTES, IDS_OPTIONS_DIALOG_FILE_SIZE_PB}
+static const FileSize FILE_SIZES[] = {
+	{SizeDisplayFormat::Bytes, IDS_OPTIONS_DIALOG_FILE_SIZE_BYTES},
+	{SizeDisplayFormat::KB, IDS_OPTIONS_DIALOG_FILE_SIZE_KB},
+	{SizeDisplayFormat::MB, IDS_OPTIONS_DIALOG_FILE_SIZE_MB},
+	{SizeDisplayFormat::GB, IDS_OPTIONS_DIALOG_FILE_SIZE_GB},
+	{SizeDisplayFormat::TB, IDS_OPTIONS_DIALOG_FILE_SIZE_TB},
+	{SizeDisplayFormat::PB, IDS_OPTIONS_DIALOG_FILE_SIZE_PB}
 };
 // clang-format on
 
@@ -110,8 +121,8 @@ HWND OptionsDialog::Show(HWND parentWindow)
 	psh.pfnCallback = nullptr;
 	HWND propertySheet = reinterpret_cast<HWND>(PropertySheet(&psh));
 
-	m_windowSubclasses.emplace_back(propertySheet, PropSheetProcStub, PROP_SHEET_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(propertySheet,
+		PropSheetProcStub, PROP_SHEET_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	CenterWindow(parentWindow, propertySheet);
 
@@ -198,25 +209,8 @@ INT_PTR CALLBACK OptionsDialog::GeneralSettingsProc(
 		}
 		CheckDlgButton(hDlg, nIDButton, BST_CHECKED);
 
-		switch (m_config->replaceExplorerMode)
-		{
-		case NDefaultFileManager::REPLACEEXPLORER_NONE:
-			nIDButton = IDC_OPTION_REPLACEEXPLORER_NONE;
-			break;
-
-		case NDefaultFileManager::REPLACEEXPLORER_FILESYSTEM:
-			nIDButton = IDC_OPTION_REPLACEEXPLORER_FILESYSTEM;
-			break;
-
-		case NDefaultFileManager::REPLACEEXPLORER_ALL:
-			nIDButton = IDC_OPTION_REPLACEEXPLORER_ALL;
-			break;
-
-		default:
-			nIDButton = IDC_OPTION_REPLACEEXPLORER_NONE;
-			break;
-		}
-		CheckDlgButton(hDlg, nIDButton, BST_CHECKED);
+		CheckRadioButton(hDlg, IDC_OPTION_REPLACEEXPLORER_NONE, IDC_OPTION_REPLACEEXPLORER_ALL,
+			REPLACE_EXPLORER_ENUM_CONTROL_ID_MAPPINGS.at(m_config->replaceExplorerMode));
 
 		if (m_expp->GetSavePreferencesToXmlFile())
 		{
@@ -288,9 +282,7 @@ INT_PTR CALLBACK OptionsDialog::GeneralSettingsProc(
 			HWND hEdit;
 			TCHAR szNewTabDir[MAX_PATH];
 			TCHAR szVirtualParsingPath[MAX_PATH];
-			NDefaultFileManager::ReplaceExplorerModes_t replaceExplorerMode =
-				NDefaultFileManager::REPLACEEXPLORER_NONE;
-			BOOL bSuccess;
+			ReplaceExplorerMode replaceExplorerMode = ReplaceExplorerMode::None;
 			HRESULT hr;
 			int iSel;
 
@@ -305,121 +297,20 @@ INT_PTR CALLBACK OptionsDialog::GeneralSettingsProc(
 
 			if (IsDlgButtonChecked(hDlg, IDC_OPTION_REPLACEEXPLORER_NONE) == BST_CHECKED)
 			{
-				replaceExplorerMode = NDefaultFileManager::REPLACEEXPLORER_NONE;
+				replaceExplorerMode = ReplaceExplorerMode::None;
 			}
 			else if (IsDlgButtonChecked(hDlg, IDC_OPTION_REPLACEEXPLORER_FILESYSTEM) == BST_CHECKED)
 			{
-				replaceExplorerMode = NDefaultFileManager::REPLACEEXPLORER_FILESYSTEM;
+				replaceExplorerMode = ReplaceExplorerMode::FileSystem;
 			}
 			else if (IsDlgButtonChecked(hDlg, IDC_OPTION_REPLACEEXPLORER_ALL) == BST_CHECKED)
 			{
-				replaceExplorerMode = NDefaultFileManager::REPLACEEXPLORER_ALL;
+				replaceExplorerMode = ReplaceExplorerMode::All;
 			}
 
 			if (m_config->replaceExplorerMode != replaceExplorerMode)
 			{
-				bSuccess = TRUE;
-
-				std::wstring menuText =
-					ResourceHelper::LoadString(m_instance, IDS_OPEN_IN_EXPLORERPLUSPLUS);
-
-				switch (replaceExplorerMode)
-				{
-				case NDefaultFileManager::REPLACEEXPLORER_NONE:
-				{
-					switch (m_config->replaceExplorerMode)
-					{
-					case NDefaultFileManager::REPLACEEXPLORER_FILESYSTEM:
-						bSuccess = NDefaultFileManager::RemoveAsDefaultFileManagerFileSystem(
-							SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
-						break;
-
-					case NDefaultFileManager::REPLACEEXPLORER_ALL:
-						bSuccess = NDefaultFileManager::RemoveAsDefaultFileManagerAll(
-							SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
-						break;
-
-					default:
-						bSuccess = TRUE;
-						break;
-					}
-				}
-				break;
-
-				case NDefaultFileManager::REPLACEEXPLORER_FILESYSTEM:
-					NDefaultFileManager::RemoveAsDefaultFileManagerFileSystem(
-						SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
-					NDefaultFileManager::RemoveAsDefaultFileManagerAll(
-						SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
-					bSuccess = NDefaultFileManager::SetAsDefaultFileManagerFileSystem(
-						SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText.c_str());
-					break;
-
-				case NDefaultFileManager::REPLACEEXPLORER_ALL:
-					NDefaultFileManager::RemoveAsDefaultFileManagerFileSystem(
-						SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
-					NDefaultFileManager::RemoveAsDefaultFileManagerAll(
-						SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
-					bSuccess = NDefaultFileManager::SetAsDefaultFileManagerAll(
-						SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText.c_str());
-					break;
-				}
-
-				if (bSuccess)
-				{
-					m_config->replaceExplorerMode = replaceExplorerMode;
-				}
-				else
-				{
-					std::wstring errorMessage =
-						ResourceHelper::LoadString(m_instance, IDS_ERR_FILEMANAGERSETTING);
-					MessageBox(
-						hDlg, errorMessage.c_str(), NExplorerplusplus::APP_NAME, MB_ICONWARNING);
-
-					int nIDButton;
-
-					switch (replaceExplorerMode)
-					{
-					case NDefaultFileManager::REPLACEEXPLORER_NONE:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_NONE;
-						break;
-
-					case NDefaultFileManager::REPLACEEXPLORER_FILESYSTEM:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_FILESYSTEM;
-						break;
-
-					case NDefaultFileManager::REPLACEEXPLORER_ALL:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_ALL;
-						break;
-
-					default:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_NONE;
-						break;
-					}
-					CheckDlgButton(hDlg, nIDButton, BST_UNCHECKED);
-
-					/* The default file manager setting was not changed, so
-					reset the state of the file manager radio buttons. */
-					switch (m_config->replaceExplorerMode)
-					{
-					case NDefaultFileManager::REPLACEEXPLORER_NONE:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_NONE;
-						break;
-
-					case NDefaultFileManager::REPLACEEXPLORER_FILESYSTEM:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_FILESYSTEM;
-						break;
-
-					case NDefaultFileManager::REPLACEEXPLORER_ALL:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_ALL;
-						break;
-
-					default:
-						nIDButton = IDC_OPTION_REPLACEEXPLORER_NONE;
-						break;
-					}
-					CheckDlgButton(hDlg, nIDButton, BST_CHECKED);
-				}
+				OnReplaceExplorerSettingChanged(hDlg, replaceExplorerMode);
 			}
 
 			BOOL savePreferencesToXmlFile =
@@ -469,6 +360,106 @@ INT_PTR CALLBACK OptionsDialog::GeneralSettingsProc(
 	}
 
 	return 0;
+}
+
+void OptionsDialog::OnReplaceExplorerSettingChanged(
+	HWND dialog, ReplaceExplorerMode updatedReplaceMode)
+{
+	bool settingChanged = UpdateReplaceExplorerSetting(dialog, updatedReplaceMode);
+
+	if (!settingChanged)
+	{
+		// The default file manager setting was not changed, so reset the state of the file manager
+		// radio buttons.
+		CheckRadioButton(dialog, IDC_OPTION_REPLACEEXPLORER_NONE, IDC_OPTION_REPLACEEXPLORER_ALL,
+			REPLACE_EXPLORER_ENUM_CONTROL_ID_MAPPINGS.at(m_config->replaceExplorerMode));
+	}
+}
+
+bool OptionsDialog::UpdateReplaceExplorerSetting(
+	HWND dialog, ReplaceExplorerMode updatedReplaceMode)
+{
+	if (updatedReplaceMode != ReplaceExplorerMode::None
+		&& m_config->replaceExplorerMode == ReplaceExplorerMode::None)
+	{
+		std::wstring warningMessage =
+			ResourceHelper::LoadString(m_instance, IDS_OPTIONS_DIALOG_REPLACE_EXPLORER_WARNING);
+
+		int selectedButton = MessageBox(dialog, warningMessage.c_str(), NExplorerplusplus::APP_NAME,
+			MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+
+		if (selectedButton == IDNO)
+		{
+			return false;
+		}
+	}
+
+	LSTATUS res = ERROR_SUCCESS;
+	std::wstring menuText = ResourceHelper::LoadString(m_instance, IDS_OPEN_IN_EXPLORERPLUSPLUS);
+
+	switch (updatedReplaceMode)
+	{
+	case ReplaceExplorerMode::None:
+	{
+		switch (m_config->replaceExplorerMode)
+		{
+		case ReplaceExplorerMode::FileSystem:
+			res = RemoveAsDefaultFileManagerFileSystem(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
+			break;
+
+		case ReplaceExplorerMode::All:
+			res = RemoveAsDefaultFileManagerAll(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
+			break;
+		}
+	}
+	break;
+
+	case ReplaceExplorerMode::FileSystem:
+		RemoveAsDefaultFileManagerFileSystem(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
+		RemoveAsDefaultFileManagerAll(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
+		res = SetAsDefaultFileManagerFileSystem(
+			SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText.c_str());
+		break;
+
+	case ReplaceExplorerMode::All:
+		RemoveAsDefaultFileManagerFileSystem(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
+		RemoveAsDefaultFileManagerAll(SHELL_DEFAULT_INTERNAL_COMMAND_NAME);
+		res = SetAsDefaultFileManagerAll(SHELL_DEFAULT_INTERNAL_COMMAND_NAME, menuText.c_str());
+		break;
+	}
+
+	if (res == ERROR_SUCCESS)
+	{
+		m_config->replaceExplorerMode = updatedReplaceMode;
+
+		return true;
+	}
+	else
+	{
+		auto systemErrorMessage = GetLastErrorMessage(res);
+		std::wstring finalSystemErrorMessage;
+
+		if (systemErrorMessage)
+		{
+			finalSystemErrorMessage = *systemErrorMessage;
+
+			// Any trailing newlines are unnecessary, as they'll be added below when appropriate.
+			boost::trim(finalSystemErrorMessage);
+		}
+		else
+		{
+			std::wstring errorCodeTemplate = ResourceHelper::LoadString(m_instance, IDS_ERROR_CODE);
+			finalSystemErrorMessage = (boost::wformat(errorCodeTemplate) % res).str();
+		}
+
+		std::wstring errorMessage =
+			ResourceHelper::LoadString(m_instance, IDS_ERROR_REPLACE_EXPLORER_SETTING) + L"\n\n"
+			+ finalSystemErrorMessage;
+
+		MessageBox(dialog, errorMessage.c_str(), NExplorerplusplus::APP_NAME, MB_ICONWARNING);
+
+		return false;
+	}
 }
 
 INT_PTR CALLBACK OptionsDialog::FilesFoldersProcStub(
@@ -585,7 +576,7 @@ INT_PTR CALLBACK OptionsDialog::FilesFoldersProc(HWND hDlg, UINT uMsg, WPARAM wP
 			std::wstring fileSizeText =
 				ResourceHelper::LoadString(m_instance, FILE_SIZES[i].StringID);
 			SendMessage(hCBSize, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(fileSizeText.c_str()));
-			SendMessage(hCBSize, CB_SETITEMDATA, i, FILE_SIZES[i].sdf);
+			SendMessage(hCBSize, CB_SETITEMDATA, i, static_cast<LPARAM>(FILE_SIZES[i].sdf));
 
 			if (FILE_SIZES[i].sdf == m_config->globalFolderSettings.sizeDisplayFormat)
 			{
@@ -731,7 +722,7 @@ INT_PTR CALLBACK OptionsDialog::FilesFoldersProc(HWND hDlg, UINT uMsg, WPARAM wP
 
 			iSel = (int) SendMessage(hCBSize, CB_GETCURSEL, 0, 0);
 			m_config->globalFolderSettings.sizeDisplayFormat =
-				(SizeDisplayFormat_t) SendMessage(hCBSize, CB_GETITEMDATA, iSel, 0);
+				(SizeDisplayFormat) SendMessage(hCBSize, CB_GETITEMDATA, iSel, 0);
 
 			for (auto &tab : m_tabContainer->GetAllTabs() | boost::adaptors::map_values)
 			{

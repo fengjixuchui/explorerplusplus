@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "SelectColumnsDialog.h"
+#include "DarkModeHelper.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
@@ -19,7 +20,7 @@ const TCHAR SelectColumnsDialogPersistentSettings::SETTINGS_KEY[] = _T("SelectCo
 
 SelectColumnsDialog::SelectColumnsDialog(HINSTANCE hInstance, HWND hParent,
 	ShellBrowser *shellBrowser, IconResourceLoader *iconResourceLoader) :
-	BaseDialog(hInstance, IDD_SELECTCOLUMNS, hParent, true),
+	DarkModeDialogBase(hInstance, IDD_SELECTCOLUMNS, hParent, true),
 	m_shellBrowser(shellBrowser),
 	m_iconResourceLoader(iconResourceLoader),
 	m_bColumnsSwapped(FALSE)
@@ -49,14 +50,14 @@ INT_PTR SelectColumnsDialog::OnInitDialog()
 	for (const auto &column : currentColumns)
 	{
 		std::wstring text = ResourceHelper::LoadString(
-			GetInstance(), ShellBrowser::LookupColumnNameStringIndex(column.id));
+			GetInstance(), ShellBrowser::LookupColumnNameStringIndex(column.type));
 
 		LVITEM lvItem;
 		lvItem.mask = LVIF_TEXT | LVIF_PARAM;
 		lvItem.iItem = iItem;
 		lvItem.iSubItem = 0;
 		lvItem.pszText = text.data();
-		lvItem.lParam = column.id;
+		lvItem.lParam = static_cast<LPARAM>(column.type);
 		ListView_InsertItem(hListView, &lvItem);
 
 		ListView_SetCheckState(hListView, iItem, column.bChecked);
@@ -68,6 +69,15 @@ INT_PTR SelectColumnsDialog::OnInitDialog()
 
 	ListViewHelper::SelectItem(hListView, 0, TRUE);
 	SetFocus(hListView);
+
+	AllowDarkModeForControls({ IDC_COLUMNS_MOVEUP, IDC_COLUMNS_MOVEDOWN });
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		darkModeHelper.SetListViewDarkModeColors(hListView);
+	}
 
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, true);
 
@@ -99,11 +109,11 @@ bool SelectColumnsDialog::CompareColumns(const Column_t &column1, const Column_t
 	}
 
 	TCHAR column1Text[64];
-	LoadString(GetInstance(), ShellBrowser::LookupColumnNameStringIndex(column1.id), column1Text,
+	LoadString(GetInstance(), ShellBrowser::LookupColumnNameStringIndex(column1.type), column1Text,
 		SIZEOF_ARRAY(column1Text));
 
 	TCHAR column2Text[64];
-	LoadString(GetInstance(), ShellBrowser::LookupColumnNameStringIndex(column2.id), column2Text,
+	LoadString(GetInstance(), ShellBrowser::LookupColumnNameStringIndex(column2.type), column2Text,
 		SIZEOF_ARRAY(column2Text));
 
 	int ret = StrCmpLogicalW(column1Text, column2Text);
@@ -121,63 +131,58 @@ bool SelectColumnsDialog::CompareColumns(const Column_t &column1, const Column_t
 void SelectColumnsDialog::GetResizableControlInformation(
 	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_COLUMNS_LISTVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDC_COLUMNS_MOVEUP;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_COLUMNS_MOVEDOWN;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_STATIC_DESCRIPTION;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_COLUMNS_DESCRIPTION;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_COLUMNS_DESCRIPTION;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_STATIC_ETCHEDHORZ;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_STATIC_ETCHEDHORZ;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDCANCEL;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 }
 
@@ -253,14 +258,14 @@ void SelectColumnsDialog::OnOk()
 		lvItem.iSubItem = 0;
 		ListView_GetItem(hListView, &lvItem);
 
-		UINT id = static_cast<int>(lvItem.lParam);
+		ColumnType columnType = static_cast<ColumnType>(lvItem.lParam);
 		auto itr = std::find_if(
-			currentColumns.begin(), currentColumns.end(), [id](const Column_t &Column) {
-				return Column.id == id;
+			currentColumns.begin(), currentColumns.end(), [columnType](const Column_t &column) {
+				return column.type == columnType;
 			});
 
 		Column_t column;
-		column.id = id;
+		column.type = columnType;
 		column.iWidth = itr->iWidth;
 		column.bChecked = ListView_GetCheckState(hListView, i);
 		updatedColumns.push_back(column);
@@ -335,7 +340,7 @@ void SelectColumnsDialog::OnLvnItemChanged(const NMLISTVIEW *pnmlv)
 		ListView_GetItem(hListView, &lvItem);
 
 		int iDescriptionStringIndex =
-			ShellBrowser::LookupColumnDescriptionStringIndex(static_cast<int>(lvItem.lParam));
+			ShellBrowser::LookupColumnDescriptionStringIndex(static_cast<ColumnType>(lvItem.lParam));
 
 		TCHAR szColumnDescription[128];
 		LoadString(GetInstance(), iDescriptionStringIndex, szColumnDescription,

@@ -4,13 +4,13 @@
 
 #pragma once
 
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 #include <list>
 
 namespace NSetFileAttributesDialogExternal
 {
-struct SetFileAttributesInfo_t
+struct SetFileAttributesInfo
 {
 	TCHAR szFullFileName[MAX_PATH];
 	WIN32_FIND_DATA wfd;
@@ -36,11 +36,11 @@ private:
 		const SetFileAttributesDialogPersistentSettings &);
 };
 
-class SetFileAttributesDialog : public BaseDialog
+class SetFileAttributesDialog : public DarkModeDialogBase
 {
 public:
 	SetFileAttributesDialog(HINSTANCE hInstance, HWND hParent,
-		const std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> &sfaiList);
+		const std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo> &sfaiList);
 
 protected:
 	INT_PTR OnInitDialog() override;
@@ -80,7 +80,7 @@ private:
 	void OnOk();
 	void OnCancel();
 
-	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> m_FileList;
+	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo> m_FileList;
 	std::list<Attribute_t> m_AttributeList;
 
 	SetFileAttributesDialogPersistentSettings *m_psfadps;

@@ -19,7 +19,7 @@ const TCHAR AddBookmarkDialogPersistentSettings::SETTINGS_KEY[] = _T("AddBookmar
 AddBookmarkDialog::AddBookmarkDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
 	BookmarkTree *bookmarkTree, BookmarkItem *bookmarkItem, BookmarkItem *defaultParentSelection,
 	BookmarkItem **selectedParentFolder, std::optional<std::wstring> customDialogTitle) :
-	BaseDialog(hInstance, IDD_ADD_BOOKMARK, hParent, true),
+	DarkModeDialogBase(hInstance, IDD_ADD_BOOKMARK, hParent, true),
 	m_expp(expp),
 	m_bookmarkTree(bookmarkTree),
 	m_bookmarkItem(bookmarkItem),
@@ -84,6 +84,8 @@ INT_PTR AddBookmarkDialog::OnInitDialog()
 	HWND hEditName = GetDlgItem(m_hDlg, IDC_BOOKMARK_NAME);
 	SendMessage(hEditName, EM_SETSEL, 0, -1);
 	SetFocus(hEditName);
+
+	AllowDarkModeForControls({ IDC_BOOKMARK_NEWFOLDER });
 
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, false);
 
@@ -187,47 +189,42 @@ wil::unique_hicon AddBookmarkDialog::GetDialogIcon(int iconWidth, int iconHeight
 void AddBookmarkDialog::GetResizableControlInformation(
 	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_BOOKMARK_NAME;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BOOKMARK_LOCATION;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BOOKMARK_TREEVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDC_BOOKMARK_NEWFOLDER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDCANCEL;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 }
 
-INT_PTR AddBookmarkDialog::OnCtlColorEdit(HWND hwnd, HDC hdc)
+INT_PTR AddBookmarkDialog::OnCtlColorEditExtra(HWND hwnd, HDC hdc)
 {
 	if (hwnd == GetDlgItem(m_hDlg, IDC_BOOKMARK_NAME)
 		|| hwnd == GetDlgItem(m_hDlg, IDC_BOOKMARK_LOCATION))

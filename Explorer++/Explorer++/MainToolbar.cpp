@@ -6,6 +6,7 @@
 #include "MainToolbar.h"
 #include "Config.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "DefaultToolbarButtons.h"
 #include "Icon.h"
 #include "MainResource.h"
@@ -158,8 +159,8 @@ void MainToolbar::Initialize(HWND parent)
 	AddButtonsToToolbar(m_persistentSettings->m_toolbarButtons);
 	UpdateConfigDependentButtonStates();
 
-	m_windowSubclasses.emplace_back(parent, ParentWndProcStub, PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		parent, ParentWndProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	m_pexpp->AddTabsInitializedObserver([this] {
 		m_connections.push_back(m_pexpp->GetTabContainer()->tabSelectedSignal.AddObserver(
@@ -169,6 +170,13 @@ void MainToolbar::Initialize(HWND parent)
 	});
 
 	m_connections.push_back(m_config->useLargeToolbarIcons.addObserver(boost::bind(&MainToolbar::OnUseLargeToolbarIconsUpdated, this, _1)));
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		darkModeHelper.SetDarkModeForToolbarTooltips(m_hwnd);
+	}
 }
 
 void MainToolbar::SetTooolbarImageList()

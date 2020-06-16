@@ -11,6 +11,7 @@
 #include "Bookmarks/BookmarkTree.h"
 #include "Bookmarks/UI/AddBookmarkDialog.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
 #include "TabContainer.h"
@@ -49,13 +50,13 @@ void BookmarksToolbar::InitializeToolbar(IconFetcher *iconFetcher)
 
 	SetUpToolbarImageList(iconFetcher);
 
-	m_windowSubclasses.emplace_back(
-		m_hToolbar, BookmarksToolbarProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		m_hToolbar, BookmarksToolbarProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	/* Also subclass the parent window, so that WM_COMMAND/WM_NOTIFY messages
 	can be caught. */
-	m_windowSubclasses.emplace_back(GetParent(m_hToolbar), BookmarksToolbarParentProcStub,
-		PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(GetParent(m_hToolbar),
+		BookmarksToolbarParentProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	InsertBookmarkItems();
 
@@ -73,6 +74,13 @@ void BookmarksToolbar::InitializeToolbar(IconFetcher *iconFetcher)
 	m_connections.push_back(m_pexpp->AddToolbarContextMenuObserver(
 		std::bind(&BookmarksToolbar::OnToolbarContextMenuPreShow, this, std::placeholders::_1,
 			std::placeholders::_2, std::placeholders::_3)));
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		darkModeHelper.SetDarkModeForToolbarTooltips(m_hToolbar);
+	}
 }
 
 void BookmarksToolbar::SetUpToolbarImageList(IconFetcher *iconFetcher)

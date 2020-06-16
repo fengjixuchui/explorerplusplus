@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "DrivesToolbar.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
 #include "TabContainer.h"
@@ -63,10 +64,17 @@ void DrivesToolbar::Initialize(HWND hParent)
 
 	SendMessage(m_hwnd, TB_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(himlSmall));
 
-	m_windowSubclasses.emplace_back(hParent, DrivesToolbarParentProcStub, PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(hParent,
+		DrivesToolbarParentProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	InsertDrives();
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		darkModeHelper.SetDarkModeForToolbarTooltips(m_hwnd);
+	}
 }
 
 INT_PTR DrivesToolbar::OnMButtonUp(const POINTS *pts)
@@ -296,7 +304,7 @@ void DrivesToolbar::InsertDrive(const std::wstring &DrivePath)
 
 void DrivesToolbar::RemoveDrive(const std::wstring &DrivePath)
 {
-	DriveInformation_t di = GetDrivePosition(DrivePath);
+	DriveInformation di = GetDrivePosition(DrivePath);
 
 	if (di.Position != -1)
 	{
@@ -310,7 +318,7 @@ void DrivesToolbar::RemoveDrive(const std::wstring &DrivePath)
 for example, if a cd/dvd is inserted/removed. */
 void DrivesToolbar::UpdateDriveIcon(const std::wstring &DrivePath)
 {
-	DriveInformation_t di = GetDrivePosition(DrivePath);
+	DriveInformation di = GetDrivePosition(DrivePath);
 
 	if (di.Position != -1)
 	{
@@ -345,9 +353,9 @@ int DrivesToolbar::GetSortedPosition(const std::wstring &DrivePath)
 	return position;
 }
 
-DrivesToolbar::DriveInformation_t DrivesToolbar::GetDrivePosition(const std::wstring &DrivePath)
+DrivesToolbar::DriveInformation DrivesToolbar::GetDrivePosition(const std::wstring &DrivePath)
 {
-	DriveInformation_t di;
+	DriveInformation di;
 	di.Position = -1;
 
 	int nButtons = static_cast<int>(SendMessage(m_hwnd, TB_BUTTONCOUNT, 0, 0));

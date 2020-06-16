@@ -24,7 +24,7 @@ const TCHAR ManageBookmarksDialogPersistentSettings::SETTINGS_KEY[] = _T("Manage
 ManageBookmarksDialog::ManageBookmarksDialog(HINSTANCE hInstance, HWND hParent,
 	IExplorerplusplus *pexpp, Navigation *navigation, IconFetcher *iconFetcher,
 	BookmarkTree *bookmarkTree) :
-	BaseDialog(hInstance, IDD_MANAGE_BOOKMARKS, hParent, true),
+	DarkModeDialogBase(hInstance, IDD_MANAGE_BOOKMARKS, hParent, true),
 	m_pexpp(pexpp),
 	m_navigation(navigation),
 	m_iconFetcher(iconFetcher),
@@ -64,28 +64,23 @@ INT_PTR ManageBookmarksDialog::OnInitDialog()
 void ManageBookmarksDialog::GetResizableControlInformation(
 	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &controlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_MANAGEBOOKMARKS_TREEVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	controlList.push_back(control);
 
 	control.iID = IDC_MANAGEBOOKMARKS_LISTVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	controlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	controlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	controlList.push_back(control);
 }
 
@@ -583,7 +578,16 @@ void ManageBookmarksDialog::OnNewBookmark()
 
 	if (focus == listView)
 	{
-		targetIndex = m_bookmarkListView->GetLastSelectedItemIndex() + 1;
+		auto lastSelectedItemIndex = m_bookmarkListView->GetLastSelectedItemIndex();
+
+		if (lastSelectedItemIndex)
+		{
+			targetIndex = *lastSelectedItemIndex + 1;
+		}
+		else
+		{
+			targetIndex = m_currentBookmarkFolder->GetChildren().size();
+		}
 	}
 
 	auto bookmark = BookmarkHelper::AddBookmarkItem(m_bookmarkTree, BookmarkItem::Type::Bookmark,
@@ -642,7 +646,16 @@ void ManageBookmarksDialog::OnPaste()
 
 	if (focus == GetDlgItem(m_hDlg, IDC_MANAGEBOOKMARKS_LISTVIEW))
 	{
-		targetIndex = m_bookmarkListView->GetLastSelectedItemIndex() + 1;
+		auto lastSelectedItemindex = m_bookmarkListView->GetLastSelectedItemIndex();
+
+		if (lastSelectedItemindex)
+		{
+			targetIndex = *lastSelectedItemindex + 1;
+		}
+		else
+		{
+			targetIndex = m_currentBookmarkFolder->GetChildren().size();
+		}
 	}
 	else
 	{

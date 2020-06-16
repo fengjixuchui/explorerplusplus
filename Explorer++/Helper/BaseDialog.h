@@ -25,23 +25,27 @@ class BaseDialog : public MessageForwarder
 	friend INT_PTR CALLBACK BaseDialogProcStub(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 public:
-	enum DialogSizeConstraint
+	enum class DialogSizeConstraint
 	{
-		DIALOG_SIZE_CONSTRAINT_NONE,
-		DIALOG_SIZE_CONSTRAINT_X,
-		DIALOG_SIZE_CONSTRAINT_Y
+		None,
+		X,
+		Y
 	};
 
 	static const int RETURN_CANCEL = 0;
 	static const int RETURN_OK = 1;
 
-	BaseDialog(HINSTANCE hInstance, int iResource, HWND hParent, bool bResizable);
 	virtual ~BaseDialog() = default;
 
 	INT_PTR ShowModalDialog();
 	HWND ShowModelessDialog(IModelessDialogNotification *pmdn = NULL);
 
 protected:
+	BaseDialog(HINSTANCE hInstance, int iResource, HWND hParent, bool bResizable);
+
+	virtual void OnInitDialogBase();
+	virtual int GetGripperControlId() = 0;
+
 	HINSTANCE GetInstance() const;
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const;
 

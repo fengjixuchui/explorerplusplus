@@ -54,6 +54,11 @@ private:
 		HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	INT_PTR CALLBACK DefaultSettingsProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+	void OnReplaceExplorerSettingChanged(HWND dialog,
+		DefaultFileManager::ReplaceExplorerMode updatedReplaceMode);
+	bool UpdateReplaceExplorerSetting(
+		HWND dialog, DefaultFileManager::ReplaceExplorerMode updatedReplaceMode);
+
 	/* Default settings dialog. */
 	void OnDefaultSettingsNewTabDir(HWND hDlg);
 	void DefaultSettingsSetNewTabDir(HWND hEdit, const TCHAR *szPath);
@@ -79,5 +84,5 @@ private:
 	wil::unique_hicon m_optionsDialogIcon;
 	wil::unique_hicon m_newTabDirectoryIcon;
 
-	std::vector<WindowSubclassWrapper> m_windowSubclasses;
+	std::vector<std::unique_ptr<WindowSubclassWrapper>> m_windowSubclasses;
 };

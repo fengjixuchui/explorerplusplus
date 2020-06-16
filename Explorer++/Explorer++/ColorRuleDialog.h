@@ -5,7 +5,7 @@
 #pragma once
 
 #include "CustomizeColorsDialog.h"
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 
 class ColorRuleDialog;
@@ -41,11 +41,11 @@ private:
 	COLORREF	m_cfCustomColors[16];
 };
 
-class ColorRuleDialog : public BaseDialog
+class ColorRuleDialog : public DarkModeDialogBase
 {
 public:
 
-	ColorRuleDialog(HINSTANCE hInstance, HWND hParent, NColorRuleHelper::ColorRule_t *pColorRule, BOOL bEdit);
+	ColorRuleDialog(HINSTANCE hInstance, HWND hParent, NColorRuleHelper::ColorRule *pColorRule, BOOL bEdit);
 
 	LRESULT CALLBACK	StaticColorProc(HWND hwnd,UINT Msg,WPARAM wParam,LPARAM lParam);
 
@@ -65,7 +65,7 @@ private:
 	void	OnCancel();
 
 	BOOL		m_bEdit;
-	NColorRuleHelper::ColorRule_t	*m_pColorRule;
+	NColorRuleHelper::ColorRule	*m_pColorRule;
 
 	COLORREF	m_cfCurrentColor;
 

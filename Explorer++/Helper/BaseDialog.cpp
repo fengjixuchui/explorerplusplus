@@ -5,13 +5,14 @@
 #include "stdafx.h"
 #include "BaseDialog.h"
 #include "Controls.h"
+#include "CustomGripper.h"
 #include "Helper.h"
 #include "WindowHelper.h"
 #include <unordered_map>
 
 namespace
 {
-std::unordered_map<HWND, BaseDialog *> g_windowMap;
+	std::unordered_map<HWND, BaseDialog *> g_windowMap;
 }
 
 BaseDialog::BaseDialog(HINSTANCE hInstance, int iResource, HWND hParent, bool bResizable) :
@@ -69,19 +70,38 @@ INT_PTR CALLBACK BaseDialog::BaseDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
 
 		if (m_bResizable)
 		{
-			RECT rcMain;
-			GetWindowRect(m_hDlg, &rcMain);
+			RECT windowRect;
+			GetWindowRect(m_hDlg, &windowRect);
 
 			/* Assume that the current width and height of
 			the dialog are the minimum width and height.
 			Note that at this point, the dialog has NOT
 			been initialized in any way, so it will not
 			have had a chance to be resized yet. */
-			m_iMinWidth = GetRectWidth(&rcMain);
-			m_iMinHeight = GetRectHeight(&rcMain);
+			m_iMinWidth = GetRectWidth(&windowRect);
+			m_iMinHeight = GetRectHeight(&windowRect);
+
+			RECT clientRect;
+			GetClientRect(m_hDlg, &clientRect);
+
+			const SIZE gripperSize = CustomGripper::GetDpiScaledSize(m_hDlg);
+
+			CreateWindow(CustomGripper::CLASS_NAME, L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+				clientRect.right - gripperSize.cx, clientRect.bottom - gripperSize.cy,
+				gripperSize.cx, gripperSize.cy, m_hDlg,
+				reinterpret_cast<HMENU>(static_cast<INT_PTR>(GetGripperControlId())),
+				GetModuleHandle(nullptr), nullptr);
+
+			m_dsc = DialogSizeConstraint::None;
 
 			std::list<ResizableDialog::Control_t> controlList;
-			m_dsc = DIALOG_SIZE_CONSTRAINT_NONE;
+
+			ResizableDialog::Control_t control;
+			control.iID = GetGripperControlId();
+			control.Type = ResizableDialog::ControlType::Move;
+			control.Constraint = ResizableDialog::ControlConstraint::None;
+			controlList.push_back(control);
+
 			GetResizableControlInformation(m_dsc, controlList);
 
 			m_prd = std::make_unique<ResizableDialog>(m_hDlg, controlList);
@@ -98,6 +118,8 @@ INT_PTR CALLBACK BaseDialog::BaseDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
 		}
 
 		m_tipWnd = CreateTooltipControl(m_hDlg, m_hInstance);
+
+		OnInitDialogBase();
 	}
 	break;
 
@@ -109,12 +131,12 @@ INT_PTR CALLBACK BaseDialog::BaseDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
 			pmmi->ptMinTrackSize.x = m_iMinWidth;
 			pmmi->ptMinTrackSize.y = m_iMinHeight;
 
-			if (m_dsc == DIALOG_SIZE_CONSTRAINT_X)
+			if (m_dsc == DialogSizeConstraint::X)
 			{
 				pmmi->ptMaxTrackSize.y = m_iMinHeight;
 			}
 
-			if (m_dsc == DIALOG_SIZE_CONSTRAINT_Y)
+			if (m_dsc == DialogSizeConstraint::Y)
 			{
 				pmmi->ptMaxTrackSize.x = m_iMinWidth;
 			}
@@ -164,6 +186,10 @@ wil::unique_hicon BaseDialog::GetDialogIcon(int iconWidth, int iconHeight) const
 	UNREFERENCED_PARAMETER(iconHeight);
 
 	return nullptr;
+}
+
+void BaseDialog::OnInitDialogBase()
+{
 }
 
 INT_PTR BaseDialog::GetDefaultReturnValue(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)

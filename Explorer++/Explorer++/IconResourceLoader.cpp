@@ -113,6 +113,7 @@ std::unique_ptr<Gdiplus::Bitmap> IconResourceLoader::LoadGdiplusBitmapFromPNGAnd
 	}
 
 	auto bitmap = ImageHelper::LoadGdiplusBitmapFromPNG(GetModuleHandle(nullptr), match->second);
+	assert(bitmap);
 
 	// If the icon size matches exactly, it doesn't need to be scaled, so can be
 	// returned immediately.
@@ -123,6 +124,8 @@ std::unique_ptr<Gdiplus::Bitmap> IconResourceLoader::LoadGdiplusBitmapFromPNGAnd
 	}
 
 	auto scaledBitmap = std::make_unique<Gdiplus::Bitmap>(iconWidth, iconHeight);
+	scaledBitmap->SetResolution(bitmap->GetHorizontalResolution(), bitmap->GetVerticalResolution());
+
 	Gdiplus::Graphics graphics(scaledBitmap.get());
 
 	float scalingFactorX = static_cast<float>(iconWidth) / static_cast<float>(match->first);

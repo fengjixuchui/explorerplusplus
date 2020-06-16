@@ -112,7 +112,7 @@ void Explorerplusplus::ValidateSingleColumnSet(int iColumnSet, std::vector<Colum
 
 		for(auto itr = columns.begin();itr != columns.end();itr++)
 		{
-			if(itr->id == pColumns[i].id)
+			if(itr->type == pColumns[i].type)
 			{
 				bFound = TRUE;
 				break;
@@ -122,7 +122,7 @@ void Explorerplusplus::ValidateSingleColumnSet(int iColumnSet, std::vector<Colum
 		/* The column is not currently in the set. Add it in. */
 		if(!bFound)
 		{
-			column.id		= pColumns[i].id;
+			column.type		= pColumns[i].type;
 			column.bChecked	= pColumns[i].bChecked;
 			column.iWidth	= DEFAULT_COLUMN_WIDTH;
 			columns.push_back(column);
@@ -305,10 +305,10 @@ Possible bugs:
 void Explorerplusplus::DirectoryAlteredCallback(const TCHAR *szFileName,DWORD dwAction,
 void *pData)
 {
-	DirectoryAltered_t	*pDirectoryAltered = nullptr;
+	DirectoryAltered	*pDirectoryAltered = nullptr;
 	Explorerplusplus			*pContainer = nullptr;
 
-	pDirectoryAltered = (DirectoryAltered_t *)pData;
+	pDirectoryAltered = (DirectoryAltered *)pData;
 	pContainer = (Explorerplusplus *)pDirectoryAltered->pData;
 
 	Tab *tab = pContainer->m_tabContainer->GetTabOptional(pDirectoryAltered->iIndex);
@@ -326,20 +326,20 @@ void *pData)
 
 void Explorerplusplus::FolderSizeCallbackStub(int nFolders,int nFiles,PULARGE_INTEGER lTotalFolderSize,LPVOID pData)
 {
-	auto *pfsei = reinterpret_cast<Explorerplusplus::FolderSizeExtraInfo_t *>(pData);
+	auto *pfsei = reinterpret_cast<Explorerplusplus::FolderSizeExtraInfo *>(pData);
 	reinterpret_cast<Explorerplusplus *>(pfsei->pContainer)->FolderSizeCallback(pfsei,nFolders,nFiles,lTotalFolderSize);
 	free(pfsei);
 }
 
-void Explorerplusplus::FolderSizeCallback(FolderSizeExtraInfo_t *pfsei,
+void Explorerplusplus::FolderSizeCallback(FolderSizeExtraInfo *pfsei,
 int nFolders,int nFiles,PULARGE_INTEGER lTotalFolderSize)
 {
 	UNREFERENCED_PARAMETER(nFolders);
 	UNREFERENCED_PARAMETER(nFiles);
 
-	DWFolderSizeCompletion_t *pDWFolderSizeCompletion = nullptr;
+	DWFolderSizeCompletion *pDWFolderSizeCompletion = nullptr;
 
-	pDWFolderSizeCompletion = (DWFolderSizeCompletion_t *)malloc(sizeof(DWFolderSizeCompletion_t));
+	pDWFolderSizeCompletion = (DWFolderSizeCompletion *)malloc(sizeof(DWFolderSizeCompletion));
 
 	pDWFolderSizeCompletion->liFolderSize = *lTotalFolderSize;
 	pDWFolderSizeCompletion->uId = pfsei->uId;

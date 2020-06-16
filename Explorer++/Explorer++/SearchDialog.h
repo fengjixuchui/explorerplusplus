@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/FileContextMenuManager.h"
 #include "../Helper/ReferenceCount.h"
@@ -53,7 +53,7 @@ private:
 		Path = 2
 	};
 
-	struct ColumnInfo_t
+	struct ColumnInfo
 	{
 		SortMode sortMode;
 		UINT uStringID;
@@ -91,7 +91,7 @@ private:
 	BOOL m_bReadOnly;
 	BOOL m_bSystem;
 
-	std::vector<ColumnInfo_t> m_Columns;
+	std::vector<ColumnInfo> m_Columns;
 	SortMode m_SortMode;
 	BOOL m_bSortAscending;
 
@@ -132,7 +132,7 @@ private:
 	int m_iFilesFound;
 };
 
-class SearchDialog : public BaseDialog, public IFileContextMenuExternal
+class SearchDialog : public DarkModeDialogBase, public IFileContextMenuExternal
 {
 public:
 	SearchDialog(HINSTANCE hInstance, HWND hParent, std::wstring_view searchDirectory,

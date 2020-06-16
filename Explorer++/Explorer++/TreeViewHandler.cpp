@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "Config.h"
+#include "DarkModeHelper.h"
 #include "HolderWindow.h"
 #include "MainResource.h"
 #include "MainToolbar.h"
@@ -49,9 +50,24 @@ void Explorerplusplus::CreateFolderControls()
 	m_hTreeView = CreateTreeView(m_hHolder,WS_CHILD|WS_VISIBLE|TVS_SHOWSELALWAYS|
 		TVS_HASBUTTONS|TVS_EDITLABELS|TVS_HASLINES|TVS_TRACKSELECT);
 
-	SetWindowTheme(m_hTreeView,L"Explorer", nullptr);
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
 
-	SetWindowLongPtr(m_hTreeView,GWL_EXSTYLE,WS_EX_CLIENTEDGE);
+	if (DarkModeHelper::GetInstance().IsDarkModeEnabled())
+	{
+		darkModeHelper.AllowDarkModeForWindow(m_hTreeView, true);
+
+		TreeView_SetBkColor(m_hTreeView, TREE_VIEW_DARK_MODE_BACKGROUND_COLOR);
+		TreeView_SetTextColor(m_hTreeView, DarkModeHelper::FOREGROUND_COLOR);
+
+		InvalidateRect(m_hTreeView, nullptr, TRUE);
+
+		HWND tooltips = TreeView_GetToolTips(m_hTreeView);
+		darkModeHelper.AllowDarkModeForWindow(tooltips, true);
+		SetWindowTheme(tooltips, L"Explorer", nullptr);
+	}
+
+	SetWindowTheme(m_hTreeView, L"Explorer", nullptr);
+
 	m_shellTreeView = new ShellTreeView(m_hTreeView, m_hHolder, m_pDirMon, &m_cachedIcons);
 
 	/* Now, subclass the treeview again. This is needed for messages
@@ -209,7 +225,7 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 	hItem	= (HTREEITEM)wParam;
 	ppt		= (POINT *)lParam;
 
-	m_bTreeViewRightClick = TRUE;
+	m_bTreeViewRightClick = true;
 
 	hPrevItem = TreeView_GetSelection(m_hTreeView);
 	TreeView_SelectItem(m_hTreeView,hItem);
@@ -237,14 +253,14 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 
 			if(pidlParent)
 			{
-				m_bTreeViewOpenInNewTab = FALSE;
+				m_bTreeViewOpenInNewTab = false;
 
 				std::vector<PCITEMID_CHILD> pidlItems;
 				pidlItems.push_back(pidlRelative);
 
 				FileContextMenuManager fcmm(m_hContainer, pidlParent.get(), pidlItems);
 
-				FileContextMenuInfo_t fcmi;
+				FileContextMenuInfo fcmi;
 				fcmi.uFrom = FROM_TREEVIEW;
 
 				StatusBar statusBar(m_hStatusBar);
@@ -266,7 +282,7 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 		TreeView_SelectItem(m_hTreeView, hPrevItem);
 	}
 
-	m_bTreeViewRightClick = FALSE;
+	m_bTreeViewRightClick = false;
 }
 
 void Explorerplusplus::OnTreeViewCopyItemPath() const
@@ -420,7 +436,7 @@ void Explorerplusplus::OnTreeViewSelChanged(LPARAM lParam)
 	}
 	else
 	{
-		m_bSelectingTreeViewDirectory = FALSE;
+		m_bSelectingTreeViewDirectory = false;
 	}
 }
 
@@ -641,8 +657,8 @@ void Explorerplusplus::OnTreeViewSetFileAttributes() const
 		return;
 	}
 
-	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> sfaiList;
-	NSetFileAttributesDialogExternal::SetFileAttributesInfo_t sfai;
+	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo> sfaiList;
+	NSetFileAttributesDialogExternal::SetFileAttributesInfo sfai;
 
 	auto pidlItem = m_shellTreeView->GetItemPidl(hItem);
 	HRESULT hr = GetDisplayName(pidlItem.get(),sfai.szFullFileName,SIZEOF_ARRAY(sfai.szFullFileName),SHGDN_FORPARSING);
@@ -742,7 +758,7 @@ void Explorerplusplus::UpdateTreeViewSelection()
 			selection is changed by browsing using the listview. */
 			if (TreeView_GetSelection(m_hTreeView) != hItem)
 			{
-				m_bSelectingTreeViewDirectory = TRUE;
+				m_bSelectingTreeViewDirectory = true;
 			}
 
 			SendMessage(m_hTreeView,TVM_SELECTITEM,(WPARAM)TVGN_CARET,(LPARAM)hItem);

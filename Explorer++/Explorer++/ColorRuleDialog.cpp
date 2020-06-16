@@ -27,8 +27,8 @@ const TCHAR ColorRuleDialogPersistentSettings::SETTING_INITIAL_COLOR[] = _T("Ini
 const TCHAR ColorRuleDialogPersistentSettings::SETTING_CUSTOM_COLORS[] = _T("CustomColors");
 
 ColorRuleDialog::ColorRuleDialog(HINSTANCE hInstance, HWND hParent,
-	NColorRuleHelper::ColorRule_t *pColorRule, BOOL bEdit) :
-	BaseDialog(hInstance, IDD_NEWCOLORRULE, hParent, false)
+	NColorRuleHelper::ColorRule *pColorRule, BOOL bEdit) :
+	DarkModeDialogBase(hInstance, IDD_NEWCOLORRULE, hParent, false)
 {
 	m_pColorRule = pColorRule;
 	m_bEdit = bEdit;
@@ -82,6 +82,11 @@ INT_PTR ColorRuleDialog::OnInitDialog()
 
 	SendMessage(GetDlgItem(m_hDlg,IDC_EDIT_DESCRIPTION),EM_SETSEL,0,-1);
 	SetFocus(GetDlgItem(m_hDlg,IDC_EDIT_DESCRIPTION));
+
+	AllowDarkModeForControls({ IDC_BUTTON_CHANGECOLOR });
+	AllowDarkModeForCheckboxes(
+		{ IDC_CHECK_CASE_INSENSITIVE, IDC_CHECK_COMPRESSED, IDC_CHECK_ENCRYPTED, IDC_CHECK_ARCHIVE,
+			IDC_CHECK_HIDDEN, IDC_CHECK_INDEXED, IDC_CHECK_READONLY, IDC_CHECK_SYSTEM });
 
 	m_pcrdps->RestoreDialogPosition(m_hDlg,false);
 

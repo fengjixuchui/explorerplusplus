@@ -178,15 +178,15 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 
 	case WM_APP_FOLDERSIZECOMPLETED:
 		{
-			DWFolderSizeCompletion_t *pDWFolderSizeCompletion = nullptr;
+			DWFolderSizeCompletion *pDWFolderSizeCompletion = nullptr;
 			TCHAR szFolderSize[32];
 			TCHAR szSizeString[64];
 			TCHAR szTotalSize[64];
 			BOOL bValid = FALSE;
 
-			pDWFolderSizeCompletion = (DWFolderSizeCompletion_t *)wParam;
+			pDWFolderSizeCompletion = (DWFolderSizeCompletion *)wParam;
 
-			std::list<DWFolderSize_t>::iterator itr;
+			std::list<DWFolderSize>::iterator itr;
 
 			/* First, make sure we should still display the
 			results (we won't if the listview selection has
@@ -283,6 +283,13 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 	case WM_DPICHANGED:
 		OnDpiChanged(reinterpret_cast<RECT *>(lParam));
 		return 0;
+
+	case WM_CTLCOLORSTATIC:
+		if (auto res = OnCtlColorStatic(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam)))
+		{
+			return *res;
+		}
+		break;
 
 	case WM_CLOSE:
 		return OnClose();

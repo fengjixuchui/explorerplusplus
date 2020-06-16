@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "AddressBar.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "MainToolbar.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "ShellBrowser/ShellNavigationController.h"
@@ -27,6 +28,7 @@ AddressBar::AddressBar(HWND parent, IExplorerplusplus *expp, MainToolbar *mainTo
 	BaseWindow(CreateAddressBar(parent)),
 	m_expp(expp),
 	m_mainToolbar(mainToolbar),
+	m_backgroundBrush(CreateSolidBrush(DARK_MODE_BACKGROUND_COLOR)),
 	m_defaultFolderIconIndex(GetDefaultFolderIconIndex())
 {
 	Initialize(parent);
@@ -44,15 +46,31 @@ void AddressBar::Initialize(HWND parent)
 	Shell_GetImageLists(nullptr, &smallIcons);
 	SendMessage(m_hwnd, CBEM_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(smallIcons));
 
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		HWND comboBox = reinterpret_cast<HWND>(SendMessage(m_hwnd, CBEM_GETCOMBOCONTROL, 0, 0));
+
+		darkModeHelper.AllowDarkModeForWindow(comboBox, true);
+		SetWindowTheme(comboBox, L"AddressComposited", nullptr);
+	}
+
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(m_hwnd,
+		std::bind(&AddressBar::ComboBoxExSubclass, this, std::placeholders::_1,
+			std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+		0));
+
 	HWND hEdit = reinterpret_cast<HWND>(SendMessage(m_hwnd, CBEM_GETEDITCONTROL, 0, 0));
-	m_windowSubclasses.emplace_back(hEdit, EditSubclassStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		hEdit, EditSubclassStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	/* Turn on auto complete for the edit control within the combobox.
 	This will let the os complete paths as they are typed. */
 	SHAutoComplete(hEdit, SHACF_FILESYSTEM | SHACF_AUTOSUGGEST_FORCE_ON);
 
-	m_windowSubclasses.emplace_back(parent, ParentWndProcStub, PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		parent, ParentWndProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	m_expp->AddTabsInitializedObserver([this] {
 		m_connections.push_back(m_expp->GetTabContainer()->tabSelectedSignal.AddObserver(
@@ -60,6 +78,39 @@ void AddressBar::Initialize(HWND parent)
 		m_connections.push_back(m_expp->GetTabContainer()->tabNavigationCompletedSignal.AddObserver(
 			boost::bind(&AddressBar::OnNavigationCompleted, this, _1)));
 	});
+}
+
+LRESULT AddressBar::ComboBoxExSubclass(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_CTLCOLOREDIT:
+		if (auto result = OnComboBoxExCtlColorEdit(
+				reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam)))
+		{
+			return *result;
+		}
+		break;
+	}
+
+	return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
+std::optional<LRESULT> AddressBar::OnComboBoxExCtlColorEdit(HWND hwnd, HDC hdc)
+{
+	UNREFERENCED_PARAMETER(hwnd);
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (!darkModeHelper.IsDarkModeEnabled())
+	{
+		return std::nullopt;
+	}
+
+	SetBkMode(hdc, TRANSPARENT);
+	SetTextColor(hdc, DarkModeHelper::FOREGROUND_COLOR);
+
+	return reinterpret_cast<LRESULT>(m_backgroundBrush.get());
 }
 
 LRESULT CALLBACK AddressBar::EditSubclassStub(HWND hwnd, UINT uMsg,

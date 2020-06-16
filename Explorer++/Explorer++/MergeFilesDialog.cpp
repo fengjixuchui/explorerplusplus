@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "MergeFilesDialog.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "Explorer++_internal.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
@@ -38,7 +39,7 @@ bool CompareFilenames(const std::wstring &strFirst, const std::wstring &strSecon
 MergeFilesDialog::MergeFilesDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
 	const std::wstring &strOutputDirectory, const std::list<std::wstring> &FullFilenameList,
 	BOOL bShowFriendlyDates) :
-	BaseDialog(hInstance, IDD_MERGEFILES, hParent, true),
+	DarkModeDialogBase(hInstance, IDD_MERGEFILES, hParent, true),
 	m_expp(expp),
 	m_strOutputDirectory(strOutputDirectory),
 	m_FullFilenameList(FullFilenameList),
@@ -187,6 +188,10 @@ INT_PTR MergeFilesDialog::OnInitDialog()
 	SendMessage(GetDlgItem(m_hDlg, IDC_MERGE_EDIT_FILENAME), EM_SETSEL, 0, -1);
 	SetFocus(GetDlgItem(m_hDlg, IDC_MERGE_EDIT_FILENAME));
 
+	AllowDarkModeForControls(
+		{ IDC_MERGE_BUTTON_MOVEUP, IDC_MERGE_BUTTON_MOVEDOWN, IDC_MERGE_BUTTON_OUTPUT });
+	AllowDarkModeForListView(IDC_MERGE_LISTVIEW);
+
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, true);
 
 	return 0;
@@ -201,78 +206,73 @@ wil::unique_hicon MergeFilesDialog::GetDialogIcon(int iconWidth, int iconHeight)
 void MergeFilesDialog::GetResizableControlInformation(
 	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_MERGE_LISTVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_BUTTON_MOVEUP;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_BUTTON_MOVEDOWN;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_STATIC_OUTPUT;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_EDIT_FILENAME;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_EDIT_FILENAME;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_BUTTON_OUTPUT;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_PROGRESS;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_PROGRESS;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_STATIC_ETCHED;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MERGE_STATIC_ETCHED;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDCANCEL;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 }
 

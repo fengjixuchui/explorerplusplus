@@ -24,6 +24,7 @@
 #include "../Helper/IconFetcher.h"
 #include <boost/signals2.hpp>
 #include <wil/resource.h>
+#include <optional>
 
 /* Sent when a folder size calculation has finished. */
 #define WM_APP_FOLDERSIZECOMPLETED WM_APP + 3
@@ -37,7 +38,7 @@ class AddressBar;
 class ApplicationToolbar;
 class BookmarksMainMenu;
 class BookmarksToolbar;
-struct ColumnWidth_t;
+struct ColumnWidth;
 struct Config;
 class DrivesToolbar;
 class IconResourceLoader;
@@ -58,7 +59,7 @@ class UiTheming;
 
 namespace NColorRuleHelper
 {
-struct ColorRule_t;
+struct ColorRule;
 }
 
 namespace Plugins
@@ -119,33 +120,36 @@ private:
 	// shared between various components in the application.
 	static const int MAX_CACHED_ICONS = 1000;
 
-	struct FileContextMenuInfo_t
+	// This is the same background color as used in the Explorer treeview.
+	static inline constexpr COLORREF TREE_VIEW_DARK_MODE_BACKGROUND_COLOR = RGB(25, 25, 25);
+
+	struct FileContextMenuInfo
 	{
 		UINT uFrom;
 	};
 
-	struct DirectoryAltered_t
+	struct DirectoryAltered
 	{
 		int iIndex;
 		int iFolderIndex;
 		void *pData;
 	};
 
-	struct DWFolderSizeCompletion_t
+	struct DWFolderSizeCompletion
 	{
 		ULARGE_INTEGER liFolderSize;
 		int uId;
 		int iTabId;
 	};
 
-	struct DWFolderSize_t
+	struct DWFolderSize
 	{
 		int uId;
 		int iTabId;
 		BOOL bValid;
 	};
 
-	struct FolderSizeExtraInfo_t
+	struct FolderSizeExtraInfo
 	{
 		void *pContainer;
 		int uId;
@@ -165,6 +169,7 @@ private:
 	void OnCreate();
 	BOOL OnSize(int MainWindowWidth, int MainWindowHeight);
 	void OnDpiChanged(const RECT *updatedWindowRect);
+	std::optional<LRESULT> OnCtlColorStatic(HWND hwnd, HDC hdc);
 	int OnClose();
 	int OnDestroy();
 	void OnRightClick(NMHDR *nmhdr);
@@ -345,7 +350,7 @@ private:
 	std::vector<Column_t> LoadColumnFromRegistry(HKEY hColumnsKey, const TCHAR *szKeyName);
 	void SaveColumnToRegistry(
 		HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns);
-	std::vector<ColumnWidth_t> LoadColumnWidthsFromRegistry(
+	std::vector<ColumnWidth> LoadColumnWidthsFromRegistry(
 		HKEY hColumnsKey, const TCHAR *szKeyName);
 	void SaveColumnWidthsToRegistry(
 		HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns);
@@ -483,13 +488,20 @@ private:
 	HMENU BuildViewsMenu() override;
 	void AddViewModesToMenu(HMENU menu);
 
+	// Dark mode
+	void SetUpDarkMode();
+
+	// Rebar
+	HMENU CreateRebarHistoryMenu(BOOL bBack);
+	std::optional<int> OnRebarCustomDraw(NMHDR *nmhdr);
+	bool OnRebarEraseBackground(HDC hdc);
+
 	/* Miscellaneous. */
 	void CreateStatusBar();
 	void InitializeDisplayWindow();
 	int CreateDriveFreeSpaceString(const TCHAR *szPath, TCHAR *szBuffer, int nBuffer);
 	void ShowMainRebarBand(HWND hwnd, BOOL bShow);
 	BOOL OnMouseWheel(MousewheelSource mousewheelSource, WPARAM wParam, LPARAM lParam) override;
-	HMENU CreateRebarHistoryMenu(BOOL bBack);
 	StatusBar *GetStatusBar() override;
 	void HandleDirectoryMonitoring(int iTabId);
 	int DetermineListViewObjectIndex(HWND hListView);
@@ -497,7 +509,7 @@ private:
 	static void FolderSizeCallbackStub(
 		int nFolders, int nFiles, PULARGE_INTEGER lTotalFolderSize, LPVOID pData);
 	void FolderSizeCallback(
-		FolderSizeExtraInfo_t *pfsei, int nFolders, int nFiles, PULARGE_INTEGER lTotalFolderSize);
+		FolderSizeExtraInfo *pfsei, int nFolders, int nFiles, PULARGE_INTEGER lTotalFolderSize);
 
 	HWND m_hContainer;
 	HWND m_hStatusBar;
@@ -521,12 +533,12 @@ private:
 	HWND m_hNextClipboardViewer;
 	std::wstring m_CurrentDirectory;
 	TCHAR m_OldTreeViewFileName[MAX_PATH];
-	BOOL m_bTreeViewRightClick;
-	BOOL m_bSelectingTreeViewDirectory;
-	BOOL m_bAttemptToolbarRestore;
-	BOOL m_bLanguageLoaded;
-	BOOL m_bTreeViewOpenInNewTab;
-	BOOL m_bShowTabBar;
+	bool m_bTreeViewRightClick;
+	bool m_bSelectingTreeViewDirectory;
+	bool m_bAttemptToolbarRestore;
+	bool m_bLanguageLoaded;
+	bool m_bTreeViewOpenInNewTab;
+	bool m_bShowTabBar;
 	int m_iLastSelectedTab;
 	ULONG m_SHChangeNotifyID;
 	ValueWrapper<bool> m_InitializationFinished;
@@ -598,7 +610,7 @@ private:
 	IconFetcher m_bookmarkIconFetcher;
 
 	/* Customize colors. */
-	std::vector<NColorRuleHelper::ColorRule_t> m_ColorRules;
+	std::vector<NColorRuleHelper::ColorRule> m_ColorRules;
 
 	/* Undo support. */
 	FileActionHandler m_FileActionHandler;
@@ -610,7 +622,7 @@ private:
 	ApplicationToolbar *m_pApplicationToolbar;
 
 	/* Display window folder sizes. */
-	std::list<DWFolderSize_t> m_DWFolderSizes;
+	std::list<DWFolderSize> m_DWFolderSizes;
 	int m_iDWFolderSizeUniqueId;
 
 	/* Copy/cut. */
@@ -618,12 +630,12 @@ private:
 	HTREEITEM m_hCutTreeViewItem;
 
 	/* Drag and drop. */
-	BOOL m_bDragging;
-	BOOL m_bDragCancelled;
-	BOOL m_bDragAllowed;
+	bool m_bDragging;
+	bool m_bDragCancelled;
+	bool m_bDragAllowed;
 
 	/* Rename support. */
-	BOOL m_bListViewRenaming;
+	bool m_bListViewRenaming;
 
 	/* Cut items data. */
 	std::list<std::wstring> m_CutFileNameList;
@@ -638,5 +650,5 @@ private:
 	/* TreeView middle click. */
 	HTREEITEM m_hTVMButtonItem;
 
-	BOOL m_blockNextListViewSelection;
+	bool m_blockNextListViewSelection;
 };

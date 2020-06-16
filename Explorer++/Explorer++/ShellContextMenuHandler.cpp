@@ -23,7 +23,7 @@ void Explorerplusplus::AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent,
 {
 	assert(dwData != NULL);
 
-	auto *pfcmi = reinterpret_cast<FileContextMenuInfo_t *>(dwData);
+	auto *pfcmi = reinterpret_cast<FileContextMenuInfo *>(dwData);
 
 	bool addNewTabMenuItem = false;
 
@@ -67,7 +67,7 @@ void Explorerplusplus::AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent,
 BOOL Explorerplusplus::HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent,
 	const std::vector<PITEMID_CHILD> &pidlItems, DWORD_PTR dwData, const TCHAR *szCmd)
 {
-	auto *pfcmi = reinterpret_cast<FileContextMenuInfo_t *>(dwData);
+	auto *pfcmi = reinterpret_cast<FileContextMenuInfo *>(dwData);
 
 	if (StrCmpI(szCmd, _T("open")) == 0)
 	{
@@ -87,7 +87,7 @@ BOOL Explorerplusplus::HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent,
 			}
 		}
 
-		m_bTreeViewOpenInNewTab = TRUE;
+		m_bTreeViewOpenInNewTab = true;
 
 		return TRUE;
 	}
@@ -162,7 +162,7 @@ void Explorerplusplus::HandleCustomMenuItem(
 			pidlComplete.get(), szParsingPath, SIZEOF_ARRAY(szParsingPath), SHGDN_FORPARSING);
 		m_tabContainer->CreateNewTab(szParsingPath, TabSettings(_selected = true));
 
-		m_bTreeViewOpenInNewTab = TRUE;
+		m_bTreeViewOpenInNewTab = true;
 	}
 	break;
 	}

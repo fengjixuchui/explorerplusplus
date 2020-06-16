@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/FileOperations.h"
 #include "../Helper/ResizableDialog.h"
@@ -35,10 +35,10 @@ private:
 	void SaveExtraXMLSettings(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode) override;
 	void LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue) override;
 
-	NFileOperations::OverwriteMethod_t m_uOverwriteMethod;
+	NFileOperations::OverwriteMethod m_overwriteMethod;
 };
 
-class DestroyFilesDialog : public BaseDialog
+class DestroyFilesDialog : public DarkModeDialogBase
 {
 public:
 	DestroyFilesDialog(HINSTANCE hInstance, HWND hParent,
@@ -46,7 +46,7 @@ public:
 
 protected:
 	INT_PTR OnInitDialog() override;
-	INT_PTR OnCtlColorStatic(HWND hwnd, HDC hdc) override;
+	INT_PTR OnCtlColorStaticExtra(HWND hwnd, HDC hdc) override;
 	INT_PTR OnCommand(WPARAM wParam, LPARAM lParam) override;
 	INT_PTR OnClose() override;
 

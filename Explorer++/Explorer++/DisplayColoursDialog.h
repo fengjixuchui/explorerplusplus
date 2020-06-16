@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 
 class DisplayColoursDialog;
@@ -26,7 +26,7 @@ private:
 		const DisplayColoursDialogPersistentSettings &);
 };
 
-class DisplayColoursDialog : public BaseDialog
+class DisplayColoursDialog : public DarkModeDialogBase
 {
 public:
 	DisplayColoursDialog(HINSTANCE hInstance, HWND hParent, HWND hDisplayWindow,
@@ -49,7 +49,7 @@ private:
 		Blue
 	};
 
-	struct ColorGroup_t
+	struct ColorGroup
 	{
 		UINT sliderId;
 		UINT editId;
@@ -67,19 +67,19 @@ private:
 	void OnCancel();
 
 	void InitializeColorGroups();
-	void InitializeColorGroupControls(ColorGroup_t ColorGroup[NUM_COLORS]);
-	void SetColorGroupValues(ColorGroup_t ColorGroup[NUM_COLORS], COLORREF color);
+	void InitializeColorGroupControls(ColorGroup colorGroup[NUM_COLORS]);
+	void SetColorGroupValues(ColorGroup colorGroup[NUM_COLORS], COLORREF color);
 	void InitializePreviewWindow();
 
-	void UpdateEditControlsFromSlider(ColorGroup_t ColorGroup[NUM_COLORS]);
-	COLORREF GetColorFromSliderGroup(ColorGroup_t ColorGroup[NUM_COLORS]);
+	void UpdateEditControlsFromSlider(ColorGroup colorGroup[NUM_COLORS]);
+	COLORREF GetColorFromSliderGroup(ColorGroup colorGroup[NUM_COLORS]);
 
 	HWND m_hDisplayWindow;
 	HWND m_hPreviewDisplayWindow;
 	HICON m_hDisplayWindowIcon;
 
-	ColorGroup_t m_CenterGroup[NUM_COLORS];
-	ColorGroup_t m_SurroundingGroup[NUM_COLORS];
+	ColorGroup m_CenterGroup[NUM_COLORS];
+	ColorGroup m_SurroundingGroup[NUM_COLORS];
 
 	HFONT m_hDisplayFont;
 	COLORREF m_TextColor;

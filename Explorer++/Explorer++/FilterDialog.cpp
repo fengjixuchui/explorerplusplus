@@ -18,7 +18,7 @@ const TCHAR FilterDialogPersistentSettings::SETTINGS_KEY[] = _T("Filter");
 const TCHAR FilterDialogPersistentSettings::SETTING_FILTER_LIST[] = _T("Filter");
 
 FilterDialog::FilterDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *pexpp) :
-	BaseDialog(hInstance, IDD_FILTER, hParent, true)
+	DarkModeDialogBase(hInstance, IDD_FILTER, hParent, true)
 {
 	m_pexpp = pexpp;
 
@@ -48,6 +48,8 @@ INT_PTR FilterDialog::OnInitDialog()
 		CheckDlgButton(m_hDlg, IDC_FILTERS_CASESENSITIVE, BST_CHECKED);
 	}
 
+	AllowDarkModeForCheckboxes({ IDC_FILTERS_CASESENSITIVE });
+
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, true);
 
 	return 0;
@@ -62,28 +64,23 @@ wil::unique_hicon FilterDialog::GetDialogIcon(int iconWidth, int iconHeight) con
 void FilterDialog::GetResizableControlInformation(
 	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_X;
+	dsc = BaseDialog::DialogSizeConstraint::X;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_FILTER_COMBOBOX;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDCANCEL;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 }
 

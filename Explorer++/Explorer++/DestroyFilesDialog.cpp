@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "DestroyFilesDialog.h"
+#include "DarkModeHelper.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
 #include "../Helper/Helper.h"
@@ -19,7 +20,7 @@ const TCHAR DestroyFilesDialogPersistentSettings::SETTING_OVERWRITE_METHOD[] =
 
 DestroyFilesDialog::DestroyFilesDialog(HINSTANCE hInstance, HWND hParent,
 	const std::list<std::wstring> &FullFilenameList, BOOL bShowFriendlyDates) :
-	BaseDialog(hInstance, IDD_DESTROYFILES, hParent, true)
+	DarkModeDialogBase(hInstance, IDD_DESTROYFILES, hParent, true)
 {
 	m_FullFilenameList = FullFilenameList;
 	m_bShowFriendlyDates = bShowFriendlyDates;
@@ -110,16 +111,20 @@ INT_PTR DestroyFilesDialog::OnInitDialog()
 	ListView_SetColumnWidth(hListView, 2, LVSCW_AUTOSIZE_USEHEADER);
 	ListView_SetColumnWidth(hListView, 3, LVSCW_AUTOSIZE_USEHEADER);
 
-	switch (m_pdfdps->m_uOverwriteMethod)
+	switch (m_pdfdps->m_overwriteMethod)
 	{
-	case NFileOperations::OVERWRITE_ONEPASS:
+	case NFileOperations::OverwriteMethod::OnePass:
 		CheckDlgButton(m_hDlg, IDC_DESTROYFILES_RADIO_ONEPASS, BST_CHECKED);
 		break;
 
-	case NFileOperations::OVERWRITE_THREEPASS:
+	case NFileOperations::OverwriteMethod::ThreePass:
 		CheckDlgButton(m_hDlg, IDC_DESTROYFILES_RADIO_THREEPASS, BST_CHECKED);
 		break;
 	}
+
+	AllowDarkModeForListView(IDC_DESTROYFILES_LISTVIEW);
+	AllowDarkModeForRadioButtons(
+		{ IDC_DESTROYFILES_RADIO_ONEPASS, IDC_DESTROYFILES_RADIO_THREEPASS });
 
 	m_pdfdps->RestoreDialogPosition(m_hDlg, true);
 
@@ -129,62 +134,57 @@ INT_PTR DestroyFilesDialog::OnInitDialog()
 void DestroyFilesDialog::GetResizableControlInformation(
 	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_DESTROYFILES_LISTVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDC_GROUP;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_GROUP;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_DESTROYFILES_RADIO_ONEPASS;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_DESTROYFILES_RADIO_THREEPASS;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_DESTROYFILES_STATIC_WARNING_MESSAGE;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);
 
 	control.iID = IDC_DESTROYFILES_STATIC_WARNING_MESSAGE;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDCANCEL;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 }
 
-INT_PTR DestroyFilesDialog::OnCtlColorStatic(HWND hwnd, HDC hdc)
+INT_PTR DestroyFilesDialog::OnCtlColorStaticExtra(HWND hwnd, HDC hdc)
 {
 	if (hwnd == GetDlgItem(m_hDlg, IDC_DESTROYFILES_STATIC_WARNING_MESSAGE))
 	{
@@ -193,7 +193,7 @@ INT_PTR DestroyFilesDialog::OnCtlColorStatic(HWND hwnd, HDC hdc)
 		return reinterpret_cast<INT_PTR>(GetStockObject(NULL_BRUSH));
 	}
 
-	return 0;
+	return FALSE;
 }
 
 INT_PTR DestroyFilesDialog::OnCommand(WPARAM wParam, LPARAM lParam)
@@ -226,11 +226,11 @@ void DestroyFilesDialog::SaveState()
 
 	if (IsDlgButtonChecked(m_hDlg, IDC_DESTROYFILES_RADIO_ONEPASS) == BST_CHECKED)
 	{
-		m_pdfdps->m_uOverwriteMethod = NFileOperations::OVERWRITE_ONEPASS;
+		m_pdfdps->m_overwriteMethod = NFileOperations::OverwriteMethod::OnePass;
 	}
 	else
 	{
-		m_pdfdps->m_uOverwriteMethod = NFileOperations::OVERWRITE_THREEPASS;
+		m_pdfdps->m_overwriteMethod = NFileOperations::OverwriteMethod::ThreePass;
 	}
 
 	m_pdfdps->m_bStateSaved = TRUE;
@@ -266,15 +266,15 @@ void DestroyFilesDialog::OnCancel()
 
 void DestroyFilesDialog::OnConfirmDestroy()
 {
-	NFileOperations::OverwriteMethod_t overwriteMethod;
+	NFileOperations::OverwriteMethod overwriteMethod;
 
 	if (IsDlgButtonChecked(m_hDlg, IDC_DESTROYFILES_RADIO_ONEPASS) == BST_CHECKED)
 	{
-		overwriteMethod = NFileOperations::OVERWRITE_ONEPASS;
+		overwriteMethod = NFileOperations::OverwriteMethod::OnePass;
 	}
 	else
 	{
-		overwriteMethod = NFileOperations::OVERWRITE_THREEPASS;
+		overwriteMethod = NFileOperations::OverwriteMethod::ThreePass;
 	}
 
 	/* TODO: Perform in background thread. */
@@ -289,7 +289,7 @@ void DestroyFilesDialog::OnConfirmDestroy()
 DestroyFilesDialogPersistentSettings::DestroyFilesDialogPersistentSettings() :
 	DialogSettings(SETTINGS_KEY)
 {
-	m_uOverwriteMethod = NFileOperations::OVERWRITE_ONEPASS;
+	m_overwriteMethod = NFileOperations::OverwriteMethod::OnePass;
 }
 
 DestroyFilesDialogPersistentSettings &DestroyFilesDialogPersistentSettings::GetInstance()
@@ -300,27 +300,27 @@ DestroyFilesDialogPersistentSettings &DestroyFilesDialogPersistentSettings::GetI
 
 void DestroyFilesDialogPersistentSettings::SaveExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_OVERWRITE_METHOD, m_uOverwriteMethod);
+	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_OVERWRITE_METHOD, static_cast<DWORD>(m_overwriteMethod));
 }
 
 void DestroyFilesDialogPersistentSettings::LoadExtraRegistrySettings(HKEY hKey)
 {
 	NRegistrySettings::ReadDwordFromRegistry(
-		hKey, SETTING_OVERWRITE_METHOD, reinterpret_cast<LPDWORD>(&m_uOverwriteMethod));
+		hKey, SETTING_OVERWRITE_METHOD, reinterpret_cast<LPDWORD>(&m_overwriteMethod));
 }
 
 void DestroyFilesDialogPersistentSettings::SaveExtraXMLSettings(
 	IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode)
 {
 	NXMLSettings::AddAttributeToNode(pXMLDom, pParentNode, SETTING_OVERWRITE_METHOD,
-		NXMLSettings::EncodeIntValue(m_uOverwriteMethod));
+		NXMLSettings::EncodeIntValue(static_cast<int>(m_overwriteMethod)));
 }
 
 void DestroyFilesDialogPersistentSettings::LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue)
 {
 	if (lstrcmpi(bstrName, SETTING_OVERWRITE_METHOD) == 0)
 	{
-		m_uOverwriteMethod = static_cast<NFileOperations::OverwriteMethod_t>(
+		m_overwriteMethod = static_cast<NFileOperations::OverwriteMethod>(
 			NXMLSettings::DecodeIntValue(bstrValue));
 	}
 }

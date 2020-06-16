@@ -7,6 +7,7 @@
 #include "AddressBar.h"
 #include "ColorRuleHelper.h"
 #include "Config.h"
+#include "DarkModeHelper.h"
 #include "Explorer++_internal.h"
 #include "LoadSaveRegistry.h"
 #include "LoadSaveXml.h"
@@ -518,6 +519,25 @@ void Explorerplusplus::OnDpiChanged(const RECT *updatedWindowRect)
 		SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+std::optional<LRESULT> Explorerplusplus::OnCtlColorStatic(HWND hwnd, HDC hdc)
+{
+	UNREFERENCED_PARAMETER(hdc);
+
+	if (hwnd == m_hTabBacking)
+	{
+		auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+		if (!darkModeHelper.IsDarkModeEnabled())
+		{
+			return std::nullopt;
+		}
+
+		return reinterpret_cast<INT_PTR>(darkModeHelper.GetBackgroundBrush());
+	}
+
+	return std::nullopt;
+}
+
 int Explorerplusplus::OnDestroy()
 {
 	if(m_pClipboardDataObject != nullptr)
@@ -657,7 +677,7 @@ void Explorerplusplus::OnChangeCBChain(WPARAM wParam,LPARAM lParam)
 
 void Explorerplusplus::HandleDirectoryMonitoring(int iTabId)
 {
-	DirectoryAltered_t	*pDirectoryAltered = nullptr;
+	DirectoryAltered	*pDirectoryAltered = nullptr;
 	int					iDirMonitorId;
 
 	Tab &tab = m_tabContainer->GetTab(iTabId);
@@ -677,7 +697,7 @@ void Explorerplusplus::HandleDirectoryMonitoring(int iTabId)
 	}
 	else
 	{
-		pDirectoryAltered = (DirectoryAltered_t *)malloc(sizeof(DirectoryAltered_t));
+		pDirectoryAltered = (DirectoryAltered *)malloc(sizeof(DirectoryAltered));
 
 		pDirectoryAltered->iIndex		= iTabId;
 		pDirectoryAltered->iFolderIndex	= tab.GetShellBrowser()->GetUniqueFolderId();
@@ -968,7 +988,7 @@ void Explorerplusplus::CopyColumnInfoToClipboard()
 		if(column.bChecked)
 		{
 			TCHAR szText[64];
-			LoadString(m_hLanguageModule,ShellBrowser::LookupColumnNameStringIndex(column.id),szText,SIZEOF_ARRAY(szText));
+			LoadString(m_hLanguageModule,ShellBrowser::LookupColumnNameStringIndex(column.type),szText,SIZEOF_ARRAY(szText));
 
 			strColumnInfo += std::wstring(szText) + _T("\t");
 

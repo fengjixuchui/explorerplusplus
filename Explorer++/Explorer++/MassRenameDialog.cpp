@@ -16,6 +16,7 @@
 #include "stdafx.h"
 #include "MassRenameDialog.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
@@ -34,7 +35,7 @@ const TCHAR MassRenameDialogPersistentSettings::SETTING_COLUMN_WIDTH_2[] = _T("C
 
 MassRenameDialog::MassRenameDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
 	const std::list<std::wstring> &FullFilenameList, FileActionHandler *pFileActionHandler) :
-	BaseDialog(hInstance, IDD_MASSRENAME, hParent, true),
+	DarkModeDialogBase(hInstance, IDD_MASSRENAME, hParent, true),
 	m_expp(expp),
 	m_FullFilenameList(FullFilenameList),
 	m_pFileActionHandler(pFileActionHandler)
@@ -111,6 +112,9 @@ INT_PTR MassRenameDialog::OnInitDialog()
 	SendMessage(GetDlgItem(m_hDlg, IDC_MASSRENAME_EDIT), EM_SETSEL, 0, -1);
 	SetFocus(GetDlgItem(m_hDlg, IDC_MASSRENAME_EDIT));
 
+	AllowDarkModeForControls({ IDC_MASSRENAME_MORE });
+	AllowDarkModeForListView(IDC_MASSRENAME_FILELISTVIEW);
+
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, true);
 
 	return 0;
@@ -125,38 +129,33 @@ wil::unique_hicon MassRenameDialog::GetDialogIcon(int iconWidth, int iconHeight)
 void MassRenameDialog::GetResizableControlInformation(
 	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
 	ResizableDialog::Control_t control;
 
 	control.iID = IDC_MASSRENAME_EDIT;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MASSRENAME_MORE;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_X;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
 	control.iID = IDC_MASSRENAME_FILELISTVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
 	control.iID = IDCANCEL;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	ControlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 }
 

@@ -5,13 +5,13 @@
 #pragma once
 
 #include "ApplicationToolbar.h"
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 
-class ApplicationToolbarButtonDialog : public BaseDialog
+class ApplicationToolbarButtonDialog : public DarkModeDialogBase
 {
 public:
 	ApplicationToolbarButtonDialog(
-		HINSTANCE hInstance, HWND hParent, ApplicationButton_t *Button, bool IsNew);
+		HINSTANCE hInstance, HWND hParent, ApplicationButton *Button, bool IsNew);
 
 protected:
 	INT_PTR OnInitDialog() override;
@@ -24,6 +24,6 @@ private:
 	void OnOk();
 	void OnCancel();
 
-	ApplicationButton_t *m_Button;
+	ApplicationButton *m_Button;
 	bool m_IsNew;
 };
