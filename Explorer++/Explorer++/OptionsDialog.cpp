@@ -14,6 +14,8 @@
 #include "OptionsDialog.h"
 #include "Config.h"
 #include "CoreInterface.h"
+#include "DarkModeGroupBox.h"
+#include "DarkModeHelper.h"
 #include "Explorer++_internal.h"
 #include "MainResource.h"
 #include "ResourceHelper.h"
@@ -27,6 +29,7 @@
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ProcessHelper.h"
+#include "../Helper/PropertySheet.h"
 #include "../Helper/SetDefaultFileManager.h"
 #include "../Helper/ShellHelper.h"
 #include "../Helper/WindowHelper.h"
@@ -118,7 +121,7 @@ HWND OptionsDialog::Show(HWND parentWindow)
 	psh.hIcon = m_optionsDialogIcon.get();
 	psh.ppsp = nullptr;
 	psh.phpage = sheetHandles.data();
-	psh.pfnCallback = nullptr;
+	psh.pfnCallback = PropertySheetCallback;
 	HWND propertySheet = reinterpret_cast<HWND>(PropertySheet(&psh));
 
 	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(propertySheet,
@@ -127,6 +130,42 @@ HWND OptionsDialog::Show(HWND parentWindow)
 	CenterWindow(parentWindow, propertySheet);
 
 	return propertySheet;
+}
+
+int CALLBACK OptionsDialog::PropertySheetCallback(HWND dialog, UINT msg, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(lParam);
+
+	switch (msg)
+	{
+	case PSCB_INITIALIZED:
+		OnPropertySheetInitialized(dialog);
+		break;
+	}
+
+	return 0;
+}
+
+void OptionsDialog::OnPropertySheetInitialized(HWND dialog)
+{
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (!darkModeHelper.IsDarkModeEnabled())
+	{
+		return;
+	}
+
+	darkModeHelper.AllowDarkModeForWindow(dialog, true);
+
+	BOOL dark = TRUE;
+	DarkModeHelper::WINDOWCOMPOSITIONATTRIBDATA compositionData = {
+		DarkModeHelper::WCA_USEDARKMODECOLORS, &dark, sizeof(dark)
+	};
+	darkModeHelper.SetWindowCompositionAttribute(dialog, &compositionData);
+
+	darkModeHelper.SetDarkModeForControl(GetDlgItem(dialog, IDOK));
+	darkModeHelper.SetDarkModeForControl(GetDlgItem(dialog, IDCANCEL));
+	darkModeHelper.SetDarkModeForControl(GetDlgItem(dialog, IDAPPLY));
 }
 
 PROPSHEETPAGE OptionsDialog::GeneratePropertySheetDefinition(
@@ -229,8 +268,34 @@ INT_PTR CALLBACK OptionsDialog::GeneralSettingsProc(
 
 		AddIconThemes(hDlg);
 		AddLanguages(hDlg);
+
+		auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+		if (darkModeHelper.IsDarkModeEnabled())
+		{
+			darkModeHelper.SetDarkModeForControl(GetDlgItem(hDlg, IDC_DEFAULT_NEWTABDIR_BUTTON));
+			darkModeHelper.SetDarkModeForComboBox(GetDlgItem(hDlg, IDC_OPTIONS_ICON_THEME));
+			darkModeHelper.SetDarkModeForComboBox(GetDlgItem(hDlg, IDC_OPTIONS_LANGUAGE));
+
+			m_darkModeGroupBoxes.push_back(
+				std::make_unique<DarkModeGroupBox>(GetDlgItem(hDlg, IDC_GROUP_STARTUP)));
+			m_darkModeGroupBoxes.push_back(std::make_unique<DarkModeGroupBox>(
+				GetDlgItem(hDlg, IDC_GROUP_DEFAULT_FILE_MANAGER)));
+			m_darkModeGroupBoxes.push_back(
+				std::make_unique<DarkModeGroupBox>(GetDlgItem(hDlg, IDC_GROUP_GENERAL_SETTINGS)));
+			m_darkModeGroupBoxes.push_back(
+				std::make_unique<DarkModeGroupBox>(GetDlgItem(hDlg, IDC_GROUP_LANGUAGE)));
+		}
 	}
 	break;
+
+	case WM_CTLCOLORDLG:
+		return OnCtlColorDlg(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
+
+	case WM_CTLCOLORSTATIC:
+	case WM_CTLCOLOREDIT:
+	case WM_CTLCOLORLISTBOX:
+		return OnCtlColor(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
 
 	case WM_COMMAND:
 		if (HIWORD(wParam) != 0)
@@ -588,8 +653,23 @@ INT_PTR CALLBACK OptionsDialog::FilesFoldersProc(HWND hDlg, UINT uMsg, WPARAM wP
 
 		SetInfoTipWindowStates(hDlg);
 		SetFolderSizeWindowState(hDlg);
+
+		auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+		if (darkModeHelper.IsDarkModeEnabled())
+		{
+			darkModeHelper.SetDarkModeForComboBox(GetDlgItem(hDlg, IDC_COMBO_FILESIZES));
+		}
 	}
 	break;
+
+	case WM_CTLCOLORDLG:
+		return OnCtlColorDlg(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
+
+	case WM_CTLCOLORSTATIC:
+	case WM_CTLCOLOREDIT:
+	case WM_CTLCOLORLISTBOX:
+		return OnCtlColor(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
 
 	case WM_COMMAND:
 		if (HIWORD(wParam) != 0)
@@ -845,8 +925,30 @@ INT_PTR CALLBACK OptionsDialog::WindowProc(HWND hDlg, UINT uMsg, WPARAM wParam, 
 		{
 			CheckDlgButton(hDlg, IDC_OPTION_FULLROWSELECT, BST_CHECKED);
 		}
+
+		auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+		if (darkModeHelper.IsDarkModeEnabled())
+		{
+			m_darkModeGroupBoxes.push_back(
+				std::make_unique<DarkModeGroupBox>(GetDlgItem(hDlg, IDC_GROUP_GENERAL)));
+			m_darkModeGroupBoxes.push_back(
+				std::make_unique<DarkModeGroupBox>(GetDlgItem(hDlg, IDC_GROUP_LISTVIEW)));
+			m_darkModeGroupBoxes.push_back(
+				std::make_unique<DarkModeGroupBox>(GetDlgItem(hDlg, IDC_GROUP_TREEVIEW)));
+			m_darkModeGroupBoxes.push_back(
+				std::make_unique<DarkModeGroupBox>(GetDlgItem(hDlg, IDC_GROUP_DISPLAY_WINDOW)));
+		}
 	}
 	break;
+
+	case WM_CTLCOLORDLG:
+		return OnCtlColorDlg(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
+
+	case WM_CTLCOLORSTATIC:
+	case WM_CTLCOLOREDIT:
+	case WM_CTLCOLORLISTBOX:
+		return OnCtlColor(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam))
@@ -1037,6 +1139,14 @@ INT_PTR CALLBACK OptionsDialog::TabSettingsProc(HWND hDlg, UINT uMsg, WPARAM wPa
 	}
 	break;
 
+	case WM_CTLCOLORDLG:
+		return OnCtlColorDlg(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
+
+	case WM_CTLCOLORSTATIC:
+	case WM_CTLCOLOREDIT:
+	case WM_CTLCOLORLISTBOX:
+		return OnCtlColor(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
+
 	case WM_COMMAND:
 		switch (LOWORD(wParam))
 		{
@@ -1166,8 +1276,24 @@ INT_PTR CALLBACK OptionsDialog::DefaultSettingsProc(
 		}
 
 		SendMessage(hComboBox, CB_SETCURSEL, selectedIndex, 0);
+
+		auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+		if (darkModeHelper.IsDarkModeEnabled())
+		{
+			darkModeHelper.SetDarkModeForControl(GetDlgItem(hDlg, IDC_BUTTON_DEFAULTCOLUMNS));
+			darkModeHelper.SetDarkModeForComboBox(GetDlgItem(hDlg, IDC_OPTIONS_DEFAULT_VIEW));
+		}
 	}
 	break;
+
+	case WM_CTLCOLORDLG:
+		return OnCtlColorDlg(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
+
+	case WM_CTLCOLORSTATIC:
+	case WM_CTLCOLOREDIT:
+	case WM_CTLCOLORLISTBOX:
+		return OnCtlColor(reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam));
 
 	case WM_COMMAND:
 		if (HIWORD(wParam) != 0)
@@ -1240,6 +1366,38 @@ INT_PTR CALLBACK OptionsDialog::DefaultSettingsProc(
 	}
 
 	return 0;
+}
+
+INT_PTR OptionsDialog::OnCtlColorDlg(HWND hwnd, HDC hdc)
+{
+	UNREFERENCED_PARAMETER(hwnd);
+	UNREFERENCED_PARAMETER(hdc);
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (!darkModeHelper.IsDarkModeEnabled())
+	{
+		return FALSE;
+	}
+
+	return reinterpret_cast<INT_PTR>(darkModeHelper.GetBackgroundBrush());
+}
+
+INT_PTR OptionsDialog::OnCtlColor(HWND hwnd, HDC hdc)
+{
+	UNREFERENCED_PARAMETER(hwnd);
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (!darkModeHelper.IsDarkModeEnabled())
+	{
+		return FALSE;
+	}
+
+	SetBkColor(hdc, DarkModeHelper::BACKGROUND_COLOR);
+	SetTextColor(hdc, DarkModeHelper::FOREGROUND_COLOR);
+
+	return reinterpret_cast<INT_PTR>(darkModeHelper.GetBackgroundBrush());
 }
 
 void OptionsDialog::OnDefaultSettingsNewTabDir(HWND hDlg)

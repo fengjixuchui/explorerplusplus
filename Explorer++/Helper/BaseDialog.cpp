@@ -16,13 +16,12 @@ namespace
 }
 
 BaseDialog::BaseDialog(HINSTANCE hInstance, int iResource, HWND hParent, bool bResizable) :
-	MessageForwarder(),
 	m_hInstance(hInstance),
 	m_iResource(iResource),
 	m_hParent(hParent),
 	m_bResizable(bResizable)
 {
-	m_prd = NULL;
+	m_prd = nullptr;
 	m_bShowingModelessDialog = FALSE;
 }
 
@@ -94,9 +93,9 @@ INT_PTR CALLBACK BaseDialog::BaseDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
 
 			m_dsc = DialogSizeConstraint::None;
 
-			std::list<ResizableDialog::Control_t> controlList;
+			std::list<ResizableDialog::Control> controlList;
 
-			ResizableDialog::Control_t control;
+			ResizableDialog::Control control;
 			control.iID = GetGripperControlId();
 			control.Type = ResizableDialog::ControlType::Move;
 			control.Constraint = ResizableDialog::ControlConstraint::None;
@@ -159,7 +158,7 @@ INT_PTR CALLBACK BaseDialog::BaseDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
 		caller that the dialog is been destroyed. */
 		if (m_bShowingModelessDialog)
 		{
-			if (m_pmdn != NULL)
+			if (m_pmdn != nullptr)
 			{
 				m_pmdn->OnModelessDialogDestroy(m_iResource);
 				m_pmdn->Release();
@@ -225,13 +224,13 @@ HWND BaseDialog::ShowModelessDialog(IModelessDialogNotification *pmdn)
 {
 	if (m_bShowingModelessDialog)
 	{
-		return NULL;
+		return nullptr;
 	}
 
 	HWND hDlg = CreateDialogParam(m_hInstance, MAKEINTRESOURCE(m_iResource), m_hParent,
 		BaseDialogProcStub, reinterpret_cast<LPARAM>(this));
 
-	if (hDlg != NULL)
+	if (hDlg != nullptr)
 	{
 		m_bShowingModelessDialog = TRUE;
 	}
@@ -242,7 +241,7 @@ HWND BaseDialog::ShowModelessDialog(IModelessDialogNotification *pmdn)
 }
 
 void BaseDialog::GetResizableControlInformation(
-	DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &controlList)
+	DialogSizeConstraint &dsc, std::list<ResizableDialog::Control> &controlList)
 {
 	UNREFERENCED_PARAMETER(dsc);
 	UNREFERENCED_PARAMETER(controlList);

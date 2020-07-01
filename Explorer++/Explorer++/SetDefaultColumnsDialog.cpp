@@ -99,15 +99,13 @@ INT_PTR SetDefaultColumnsDialog::OnInitDialog()
 	SetFocus(hListView);
 
 	AllowDarkModeForControls({ IDC_DEFAULTCOLUMNS_MOVEUP, IDC_DEFAULTCOLUMNS_MOVEDOWN });
+	AllowDarkModeForComboBoxes({ IDC_DEFAULTCOLUMNS_COMBOBOX });
 
 	auto &darkModeHelper = DarkModeHelper::GetInstance();
 
 	if (darkModeHelper.IsDarkModeEnabled())
 	{
 		darkModeHelper.SetListViewDarkModeColors(hListView);
-
-		darkModeHelper.AllowDarkModeForWindow(hComboBox, true);
-		SetWindowTheme(hComboBox, L"CFD", nullptr);
 	}
 
 	m_psdcdps->RestoreDialogPosition(m_hDlg, true);
@@ -116,11 +114,11 @@ INT_PTR SetDefaultColumnsDialog::OnInitDialog()
 }
 
 void SetDefaultColumnsDialog::GetResizableControlInformation(
-	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
+	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control> &ControlList)
 {
 	dsc = BaseDialog::DialogSizeConstraint::None;
 
-	ResizableDialog::Control_t control;
+	ResizableDialog::Control control;
 
 	control.iID = IDC_COLUMNS_LISTVIEW;
 	control.Type = ResizableDialog::ControlType::Resize;

@@ -125,6 +125,7 @@ INT_PTR DestroyFilesDialog::OnInitDialog()
 	AllowDarkModeForListView(IDC_DESTROYFILES_LISTVIEW);
 	AllowDarkModeForRadioButtons(
 		{ IDC_DESTROYFILES_RADIO_ONEPASS, IDC_DESTROYFILES_RADIO_THREEPASS });
+	AllowDarkModeForGroupBoxes({ IDC_GROUP_WIPE_METHOD });
 
 	m_pdfdps->RestoreDialogPosition(m_hDlg, true);
 
@@ -132,23 +133,23 @@ INT_PTR DestroyFilesDialog::OnInitDialog()
 }
 
 void DestroyFilesDialog::GetResizableControlInformation(
-	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
+	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control> &ControlList)
 {
 	dsc = BaseDialog::DialogSizeConstraint::None;
 
-	ResizableDialog::Control_t control;
+	ResizableDialog::Control control;
 
 	control.iID = IDC_DESTROYFILES_LISTVIEW;
 	control.Type = ResizableDialog::ControlType::Resize;
 	control.Constraint = ResizableDialog::ControlConstraint::None;
 	ControlList.push_back(control);
 
-	control.iID = IDC_GROUP;
+	control.iID = IDC_GROUP_WIPE_METHOD;
 	control.Type = ResizableDialog::ControlType::Resize;
 	control.Constraint = ResizableDialog::ControlConstraint::X;
 	ControlList.push_back(control);
 
-	control.iID = IDC_GROUP;
+	control.iID = IDC_GROUP_WIPE_METHOD;
 	control.Type = ResizableDialog::ControlType::Move;
 	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	ControlList.push_back(control);

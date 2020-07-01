@@ -169,6 +169,8 @@ INT_PTR SearchDialog::OnInitDialog()
 	AllowDarkModeForCheckboxes({ IDC_CHECK_ARCHIVE, IDC_CHECK_HIDDEN, IDC_CHECK_READONLY,
 		IDC_CHECK_SYSTEM, IDC_CHECK_CASEINSENSITIVE, IDC_CHECK_USEREGULAREXPRESSIONS,
 		IDC_CHECK_SEARCHSUBFOLDERS });
+	AllowDarkModeForGroupBoxes({ IDC_GROUP_ATTRIBUTES, IDC_GROUP_SEARCH_TYPE });
+	AllowDarkModeForComboBoxes({ IDC_COMBO_NAME, IDC_COMBO_DIRECTORY });
 
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, true);
 
@@ -182,11 +184,11 @@ wil::unique_hicon SearchDialog::GetDialogIcon(int iconWidth, int iconHeight) con
 }
 
 void SearchDialog::GetResizableControlInformation(
-	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
+	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control> &ControlList)
 {
 	dsc = BaseDialog::DialogSizeConstraint::None;
 
-	ResizableDialog::Control_t control;
+	ResizableDialog::Control control;
 
 	control.iID = IDC_COMBO_NAME;
 	control.Type = ResizableDialog::ControlType::Resize;

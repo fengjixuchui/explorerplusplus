@@ -31,9 +31,9 @@ private:
 
 	WildcardSelectDialogPersistentSettings();
 
-	WildcardSelectDialogPersistentSettings(const WildcardSelectDialogPersistentSettings &);
+	WildcardSelectDialogPersistentSettings(const WildcardSelectDialogPersistentSettings &) = delete;
 	WildcardSelectDialogPersistentSettings &operator=(
-		const WildcardSelectDialogPersistentSettings &);
+		const WildcardSelectDialogPersistentSettings &) = delete;
 
 	void SaveExtraRegistrySettings(HKEY hKey) override;
 	void LoadExtraRegistrySettings(HKEY hKey) override;
@@ -57,7 +57,7 @@ protected:
 
 private:
 	void GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc,
-		std::list<ResizableDialog::Control_t> &controlList) override;
+		std::list<ResizableDialog::Control> &controlList) override;
 	void SaveState() override;
 
 	void OnOk();

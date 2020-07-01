@@ -157,14 +157,8 @@ INT_PTR SplitFileDialog::OnInitDialog()
 	SetDlgItemText(m_hDlg, IDC_SPLIT_STATIC_ELAPSEDTIME, _T("00:00:00"));
 
 	AllowDarkModeForControls({ IDC_SPLIT_BUTTON_OUTPUT });
-
-	auto &darkModeHelper = DarkModeHelper::GetInstance();
-
-	if (darkModeHelper.IsDarkModeEnabled())
-	{
-		darkModeHelper.AllowDarkModeForWindow(hComboBox, true);
-		SetWindowTheme(hComboBox, L"CFD", nullptr);
-	}
+	AllowDarkModeForGroupBoxes({ IDC_GROUP_FILE_INFORMATION, IDC_GROUP_SPLIT_INFORMATION });
+	AllowDarkModeForComboBoxes({ IDC_SPLIT_COMBOBOX_SIZES });
 
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, false);
 
@@ -288,9 +282,9 @@ void SplitFileDialog::SaveState()
 {
 	m_persistentSettings->SaveDialogPosition(m_hDlg);
 
-	GetWindowString(GetDlgItem(m_hDlg, IDC_SPLIT_EDIT_SIZE), m_persistentSettings->m_strSplitSize);
-	GetWindowString(
-		GetDlgItem(m_hDlg, IDC_SPLIT_COMBOBOX_SIZES), m_persistentSettings->m_strSplitGroup);
+	m_persistentSettings->m_strSplitSize = GetWindowString(GetDlgItem(m_hDlg, IDC_SPLIT_EDIT_SIZE));
+	m_persistentSettings->m_strSplitGroup =
+		GetWindowString(GetDlgItem(m_hDlg, IDC_SPLIT_COMBOBOX_SIZES));
 
 	m_persistentSettings->m_bStateSaved = TRUE;
 }
@@ -359,8 +353,7 @@ void SplitFileDialog::OnOk()
 			return;
 		}
 
-		std::wstring strOutputFilename;
-		GetWindowString(hOutputFilename, strOutputFilename);
+		std::wstring strOutputFilename = GetWindowString(hOutputFilename);
 
 		/* Now, check that the filename has a variable component. Without the
 		variable component, the filenames of all the split files would be exactly
@@ -397,8 +390,7 @@ void SplitFileDialog::OnOk()
 			return;
 		}
 
-		std::wstring strOutputDirectory;
-		GetWindowString(hEditOutputDirectory, strOutputDirectory);
+		std::wstring strOutputDirectory = GetWindowString(hEditOutputDirectory);
 
 		BOOL bTranslated;
 		UINT uSplitSize = GetDlgItemInt(m_hDlg, IDC_SPLIT_EDIT_SIZE, &bTranslated, FALSE);

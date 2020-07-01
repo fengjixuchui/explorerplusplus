@@ -9,6 +9,7 @@
 #include "../Helper/WindowSubclassWrapper.h"
 #include <wil/resource.h>
 
+class DarkModeGroupBox;
 __interface IExplorerplusplus;
 class TabContainer;
 
@@ -37,6 +38,9 @@ private:
 
 	PROPSHEETPAGE GeneratePropertySheetDefinition(const OptionsDialogSheetInfo &sheetInfo);
 
+	static int CALLBACK PropertySheetCallback(HWND dialog, UINT msg, LPARAM lParam);
+	static void OnPropertySheetInitialized(HWND dialog);
+
 	static LRESULT CALLBACK PropSheetProcStub(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 		UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 	LRESULT CALLBACK PropSheetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -53,6 +57,9 @@ private:
 	static INT_PTR CALLBACK DefaultSettingsProcStub(
 		HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	INT_PTR CALLBACK DefaultSettingsProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+	INT_PTR OnCtlColorDlg(HWND hwnd, HDC hdc);
+	INT_PTR OnCtlColor(HWND hwnd, HDC hdc);
 
 	void OnReplaceExplorerSettingChanged(HWND dialog,
 		DefaultFileManager::ReplaceExplorerMode updatedReplaceMode);
@@ -84,5 +91,6 @@ private:
 	wil::unique_hicon m_optionsDialogIcon;
 	wil::unique_hicon m_newTabDirectoryIcon;
 
+	std::vector<std::unique_ptr<DarkModeGroupBox>> m_darkModeGroupBoxes;
 	std::vector<std::unique_ptr<WindowSubclassWrapper>> m_windowSubclasses;
 };

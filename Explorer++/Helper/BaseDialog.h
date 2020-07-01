@@ -38,7 +38,7 @@ public:
 	virtual ~BaseDialog() = default;
 
 	INT_PTR ShowModalDialog();
-	HWND ShowModelessDialog(IModelessDialogNotification *pmdn = NULL);
+	HWND ShowModelessDialog(IModelessDialogNotification *pmdn = nullptr);
 
 protected:
 	BaseDialog(HINSTANCE hInstance, int iResource, HWND hParent, bool bResizable);
@@ -49,7 +49,7 @@ protected:
 	HINSTANCE GetInstance() const;
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const;
 
-	INT_PTR GetDefaultReturnValue(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+	INT_PTR GetDefaultReturnValue(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) override;
 
 	void AddTooltipForControl(int controlId, int stringResourceId);
 
@@ -64,7 +64,7 @@ private:
 	INT_PTR CALLBACK BaseDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 	virtual void GetResizableControlInformation(
-		DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &controlList);
+		DialogSizeConstraint &dsc, std::list<ResizableDialog::Control> &controlList);
 	virtual void SaveState();
 
 	const HINSTANCE m_hInstance;

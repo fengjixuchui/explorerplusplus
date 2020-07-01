@@ -187,11 +187,11 @@ wil::unique_hicon AddBookmarkDialog::GetDialogIcon(int iconWidth, int iconHeight
 }
 
 void AddBookmarkDialog::GetResizableControlInformation(
-	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList)
+	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control> &ControlList)
 {
 	dsc = BaseDialog::DialogSizeConstraint::None;
 
-	ResizableDialog::Control_t control;
+	ResizableDialog::Control control;
 
 	control.iID = IDC_BOOKMARK_NAME;
 	control.Type = ResizableDialog::ControlType::Resize;
@@ -290,12 +290,10 @@ INT_PTR AddBookmarkDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 void AddBookmarkDialog::OnOk()
 {
 	HWND hName = GetDlgItem(m_hDlg, IDC_BOOKMARK_NAME);
-	std::wstring name;
-	GetWindowString(hName, name);
+	std::wstring name = GetWindowString(hName);
 
 	HWND hLocation = GetDlgItem(m_hDlg, IDC_BOOKMARK_LOCATION);
-	std::wstring location;
-	GetWindowString(hLocation, location);
+	std::wstring location = GetWindowString(hLocation);
 
 	if (name.empty() || (m_bookmarkItem->IsBookmark() && location.empty()))
 	{
