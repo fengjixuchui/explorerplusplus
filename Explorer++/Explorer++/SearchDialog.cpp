@@ -15,6 +15,7 @@
 #include "../Helper/BaseDialog.h"
 #include "../Helper/ComboBox.h"
 #include "../Helper/Controls.h"
+#include "../Helper/DpiCompatibility.h"
 #include "../Helper/FileContextMenuManager.h"
 #include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
@@ -83,7 +84,7 @@ SearchDialog::~SearchDialog()
 
 INT_PTR SearchDialog::OnInitDialog()
 {
-	UINT dpi = m_dpiCompat.GetDpiForWindow(m_hDlg);
+	UINT dpi = DpiCompatibility::GetInstance().GetDpiForWindow(m_hDlg);
 	m_directoryIcon =
 		m_pexpp->GetIconResourceLoader()->LoadIconFromPNGForDpi(Icon::Folder, 16, 16, dpi);
 	SendMessage(GetDlgItem(m_hDlg, IDC_BUTTON_DIRECTORY), BM_SETIMAGE, IMAGE_ICON,
@@ -763,8 +764,16 @@ INT_PTR SearchDialog::OnNotify(NMHDR *pnmhdr)
 
 					if (hr == S_OK)
 					{
+						// The only reason this pidl is cloned at all is that ILFindLastID returns
+						// an unaligned pointer. Inserting that into the pidlItems vector then
+						// triggers a warning due to the underlying types having different
+						// __unaligned qualifiers. This only affects Itanium (which isn't
+						// supported), but cloning the pidl here is a simple way of producing an
+						// aligned version.
+						unique_pidl_child pidlItem(ILCloneChild(ILFindLastID(pidlFull.get())));
+
 						std::vector<PCITEMID_CHILD> pidlItems;
-						pidlItems.push_back(ILFindLastID(pidlFull.get()));
+						pidlItems.push_back(pidlItem.get());
 
 						unique_pidl_absolute pidlDirectory(ILCloneFull(pidlFull.get()));
 						ILRemoveLastID(pidlDirectory.get());
