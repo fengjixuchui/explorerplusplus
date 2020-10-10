@@ -14,7 +14,6 @@
 #include "ResourceHelper.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "ShellBrowser/ShellNavigationController.h"
-#include "TabContainer.h"
 #include "../Helper/DpiCompatibility.h"
 #include "../Helper/HeaderHelper.h"
 #include "../Helper/ListViewHelper.h"
@@ -40,8 +39,9 @@ BookmarkListView::BookmarkListView(HWND hListView, HMODULE resourceModule,
 	m_bookmarkContextMenu(bookmarkTree, resourceModule, expp)
 {
 	SetWindowTheme(hListView, L"Explorer", nullptr);
-	ListView_SetExtendedListViewStyleEx(hListView, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT,
-		LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT);
+	ListView_SetExtendedListViewStyleEx(hListView,
+		LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP,
+		LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);
 
 	auto &darkModeHelper = DarkModeHelper::GetInstance();
 
@@ -220,7 +220,7 @@ LRESULT CALLBACK BookmarkListView::WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, 
 						return CDRF_NOTIFYITEMDRAW;
 
 					case CDDS_ITEMPREPAINT:
-						SetTextColor(customDraw->hdc, DarkModeHelper::FOREGROUND_COLOR);
+						SetTextColor(customDraw->hdc, DarkModeHelper::TEXT_COLOR);
 						return CDRF_NEWFONT;
 					}
 				}

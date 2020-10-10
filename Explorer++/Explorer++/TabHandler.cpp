@@ -24,8 +24,8 @@ void Explorerplusplus::InitializeTabs()
 	/* The tab backing will hold the tab window. */
 	CreateTabBacking();
 
-	m_tabContainer = TabContainer::Create(
-		m_hTabBacking, this, this, &m_cachedIcons, &m_bookmarkTree, m_hLanguageModule, m_config);
+	m_tabContainer = TabContainer::Create(m_hTabBacking, this, this, &m_FileActionHandler,
+		&m_cachedIcons, &m_bookmarkTree, m_hLanguageModule, m_config);
 	m_tabContainer->tabCreatedSignal.AddObserver(
 		boost::bind(&Explorerplusplus::OnTabCreated, this, _1, _2), boost::signals2::at_front);
 	m_tabContainer->tabNavigationCompletedSignal.AddObserver(
@@ -96,7 +96,9 @@ HRESULT Explorerplusplus::OnNewTab()
 		if (WI_IsFlagSet(fileFindData.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
 		{
 			auto pidl = selectedTab.GetShellBrowser()->GetItemCompleteIdl(selectionIndex);
-			return m_tabContainer->CreateNewTab(pidl.get(), TabSettings(_selected = true));
+			FolderColumns cols = selectedTab.GetShellBrowser()->ExportAllColumns();
+			return m_tabContainer->CreateNewTab(
+				pidl.get(), TabSettings(_selected = true), nullptr, cols);
 		}
 	}
 

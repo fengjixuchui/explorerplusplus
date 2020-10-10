@@ -10,13 +10,13 @@
 #include "NavigatorInterface.h"
 #include "SignalWrapper.h"
 #include "SortModes.h"
-#include "TabNavigationInterface.h"
 #include "ViewModes.h"
 #include "../Helper/DropHandler.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
-#include "../Helper/WindowSubclassWrapper.h"
 #include "../ThirdParty/CTPL/cpl_stl.h"
+#include <boost/signals2.hpp>
+#include <wil/com.h>
 #include <wil/resource.h>
 #include <future>
 #include <list>
@@ -32,11 +32,15 @@
 struct BasicItemInfo_t;
 class CachedIcons;
 struct Config;
+class FileActionHandler;
 class IconFetcher;
 class IconResourceLoader;
+__interface IExplorerplusplus;
 struct PreservedFolderState;
 struct PreservedHistoryEntry;
 class ShellNavigationController;
+__interface TabNavigationInterface;
+class WindowSubclassWrapper;
 
 typedef struct
 {
@@ -57,14 +61,12 @@ typedef struct
 class ShellBrowser : public IDropTarget, public IDropFilesCallback, public NavigatorInterface
 {
 public:
-	static ShellBrowser *CreateNew(int id, HINSTANCE resourceInstance, HWND hOwner,
-		CachedIcons *cachedIcons, IconResourceLoader *iconResourceLoader, const Config *config,
-		TabNavigationInterface *tabNavigation, const FolderSettings &folderSettings,
-		std::optional<FolderColumns> initialColumns);
+	static ShellBrowser *CreateNew(int id, HWND hOwner, IExplorerplusplus *coreInterface,
+		TabNavigationInterface *tabNavigation, FileActionHandler *fileActionHandler,
+		const FolderSettings &folderSettings, std::optional<FolderColumns> initialColumns);
 
-	static ShellBrowser *CreateFromPreserved(int id, HINSTANCE resourceInstance, HWND hOwner,
-		CachedIcons *cachedIcons, IconResourceLoader *iconResourceLoader, const Config *config,
-		TabNavigationInterface *tabNavigation,
+	static ShellBrowser *CreateFromPreserved(int id, HWND hOwner, IExplorerplusplus *coreInterface,
+		TabNavigationInterface *tabNavigation, FileActionHandler *fileActionHandler,
 		const std::vector<std::unique_ptr<PreservedHistoryEntry>> &history, int currentEntry,
 		const PreservedFolderState &preservedFolderState);
 
@@ -145,15 +147,19 @@ public:
 	BOOL GetFilterCaseSensitive() const;
 	void SetFilterCaseSensitive(BOOL filterCaseSensitive);
 
+	bool TestListViewItemAttributes(int item, SFGAOF attributes) const;
+	HRESULT GetListViewSelectionAttributes(SFGAOF *attributes) const;
+
 	void SetFileAttributesForSelection();
 
 	int SelectFiles(const TCHAR *FileNamePattern);
 	void GetFolderInfo(FolderInfo_t *pFolderInfo);
 	int LocateFileItemIndex(const TCHAR *szFileName) const;
-	BOOL DeghostItem(int iItem);
-	BOOL GhostItem(int iItem);
 	BOOL InVirtualFolder() const;
 	BOOL CanCreate() const;
+	HRESULT CopySelectedItemToClipboard(bool copy);
+	void StartRenamingSelectedItems();
+	void DeleteSelectedItems(bool permanent);
 
 	BOOL GetShowInGroups() const;
 	void SetShowInGroups(BOOL bShowInGroups);
@@ -278,20 +284,18 @@ private:
 	static const int THUMBNAIL_ITEM_WIDTH = 120;
 	static const int THUMBNAIL_ITEM_HEIGHT = 120;
 
-	ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner, CachedIcons *cachedIcons,
-		IconResourceLoader *iconResourceLoader, const Config *config,
-		TabNavigationInterface *tabNavigation,
+	ShellBrowser(int id, HWND hOwner, IExplorerplusplus *coreInterface,
+		TabNavigationInterface *tabNavigation, FileActionHandler *fileActionHandler,
 		const std::vector<std::unique_ptr<PreservedHistoryEntry>> &history, int currentEntry,
 		const PreservedFolderState &preservedFolderState);
-	ShellBrowser(int id, HINSTANCE resourceInstance, HWND hOwner, CachedIcons *cachedIcons,
-		IconResourceLoader *iconResourceLoader, const Config *config,
-		TabNavigationInterface *tabNavigation, const FolderSettings &folderSettings,
-		std::optional<FolderColumns> initialColumns);
+	ShellBrowser(int id, HWND hOwner, IExplorerplusplus *coreInterface,
+		TabNavigationInterface *tabNavigation, FileActionHandler *fileActionHandler,
+		const FolderSettings &folderSettings, std::optional<FolderColumns> initialColumns);
 	~ShellBrowser();
 
 	HWND SetUpListView(HWND parent);
 	int GenerateUniqueItemId();
-	BOOL GhostItemInternal(int iItem, BOOL bGhost);
+	void MarkItemAsCut(int item, bool cut);
 	void DetermineFolderVirtual(PCIDLIST_ABSOLUTE pidlDirectory);
 	void VerifySortMode();
 
@@ -342,6 +346,12 @@ private:
 	void OnListViewItemChanged(const NMLISTVIEW *changeData);
 	void UpdateFileSelectionInfo(int internalIndex, BOOL selected);
 	void OnListViewKeyDown(const NMLVKEYDOWN *lvKeyDown);
+	std::vector<std::wstring> GetSelectedItems();
+
+	HRESULT GetListViewItemAttributes(int item, SFGAOF *attributes) const;
+
+	void StartRenamingSingleFile();
+	void StartRenamingMultipleFiles();
 
 	// Listview header context menu
 	void OnListViewHeaderRightClick(const POINTS &cursorPos);
@@ -351,6 +361,7 @@ private:
 	void OnColumnMenuItemSelected(
 		int menuItemId, const std::unordered_map<int, ColumnType> &menuItemMappings);
 
+	const ItemInfo_t &GetItemByIndex(int index) const;
 	ItemInfo_t &GetItemByIndex(int index);
 	int GetItemInternalIndex(int item) const;
 
@@ -449,6 +460,10 @@ private:
 	void SetTileViewInfo();
 	void SetTileViewItemInfo(int iItem, int iItemInternal);
 
+	void UpdateCurrentClipboardObject(wil::com_ptr<IDataObject> clipboardDataObject);
+	void OnClipboardUpdate();
+	void RestoreStateOfCutItems();
+
 	/* Drag and Drop support. */
 	HRESULT InitializeDragDropHelpers();
 	DWORD CheckItemLocations(IDataObject *pDataObject, int iDroppedItem);
@@ -457,6 +472,8 @@ private:
 	void ScrollListViewFromCursor(HWND hListView, const POINT *CursorPos);
 	void PositionDroppedItems();
 	void OnDropFile(const std::list<std::wstring> &PastedFileList, const POINT *ppt) override;
+
+	void OnApplicationShuttingDown();
 
 	/* Miscellaneous. */
 	BOOL CompareVirtualFolders(UINT uFolderCSIDL) const;
@@ -474,8 +491,10 @@ private:
 	std::unique_ptr<ShellNavigationController> m_navigationController;
 
 	TabNavigationInterface *m_tabNavigation;
+	FileActionHandler *m_fileActionHandler;
 
 	std::vector<std::unique_ptr<WindowSubclassWrapper>> m_windowSubclasses;
+	std::vector<boost::signals2::scoped_connection> m_connections;
 
 	// Each instance of this class will subclass the parent window. As
 	// they'll all use the same static procedure, it's important that
@@ -572,6 +591,9 @@ private:
 	int m_nActiveColumns;
 	bool m_PreviousSortColumnExists;
 	ColumnType m_previousSortColumn;
+
+	wil::com_ptr<IDataObject> m_clipboardDataObject;
+	std::vector<std::wstring> m_cutFileNames;
 
 	/* Drag and drop related data. */
 	IDragSourceHelper *m_pDragSourceHelper;

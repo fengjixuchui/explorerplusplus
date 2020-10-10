@@ -36,13 +36,33 @@ void DarkModeButton::DrawButtonText(const NMCUSTOMDRAW *customDraw, ButtonType b
 	std::wstring text = GetWindowString(customDraw->hdr.hwndFrom);
 	assert(!text.empty());
 
-	SetTextColor(customDraw->hdc, DarkModeHelper::FOREGROUND_COLOR);
+	COLORREF textColor;
 
-	UINT textFormat = DT_LEFT | DT_SINGLELINE | DT_VCENTER;
+	if (IsWindowEnabled(customDraw->hdr.hwndFrom))
+	{
+		textColor = DarkModeHelper::TEXT_COLOR;
+	}
+	else
+	{
+		textColor = DarkModeHelper::TEXT_COLOR_DISABLED;
+	}
+
+	SetTextColor(customDraw->hdc, textColor);
+
+	UINT textFormat = DT_LEFT;
 
 	if (!WI_IsFlagSet(customDraw->uItemState, CDIS_SHOWKEYBOARDCUES))
 	{
 		WI_SetFlag(textFormat, DT_HIDEPREFIX);
+	}
+
+	RECT finalTextRect = textRect;
+	DrawText(customDraw->hdc, text.c_str(), static_cast<int>(text.size()), &finalTextRect,
+		textFormat | DT_CALCRECT);
+
+	if (GetRectHeight(&finalTextRect) < GetRectHeight(&textRect))
+	{
+		textRect.top += (GetRectHeight(&textRect) - GetRectHeight(&finalTextRect)) / 2;
 	}
 
 	DrawText(customDraw->hdc, text.c_str(), static_cast<int>(text.size()), &textRect, textFormat);

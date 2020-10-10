@@ -21,9 +21,9 @@ BOOL Explorerplusplus::AnyItemsSelected() const
 			return TRUE;
 		}
 	}
-	else if (hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
-		if (TreeView_GetSelection(m_hTreeView) != nullptr)
+		if (TreeView_GetSelection(m_shellTreeView->GetHWND()) != nullptr)
 		{
 			return TRUE;
 		}
@@ -98,16 +98,17 @@ BOOL Explorerplusplus::TestItemAttributes(SFGAOF attributes) const
 
 HRESULT Explorerplusplus::GetSelectionAttributes(SFGAOF *pItemAttributes) const
 {
-	HWND	hFocus;
-	HRESULT	hr = E_FAIL;
+	HWND hFocus;
+	HRESULT hr = E_FAIL;
 
 	hFocus = GetFocus();
 
 	if (hFocus == m_hActiveListView)
 	{
-		hr = GetListViewSelectionAttributes(pItemAttributes);
+		const Tab &selectedTab = m_tabContainer->GetSelectedTab();
+		hr = selectedTab.GetShellBrowser()->GetListViewSelectionAttributes(pItemAttributes);
 	}
-	else if (hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		hr = GetTreeViewSelectionAttributes(pItemAttributes);
 	}
@@ -115,56 +116,10 @@ HRESULT Explorerplusplus::GetSelectionAttributes(SFGAOF *pItemAttributes) const
 	return hr;
 }
 
-BOOL Explorerplusplus::TestListViewItemAttributes(int item, SFGAOF attributes) const
-{
-	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
-
-	SFGAOF commonAttributes = attributes;
-	HRESULT hr = GetListViewItemAttributes(selectedTab, item, &commonAttributes);
-
-	if (SUCCEEDED(hr))
-	{
-		return (commonAttributes & attributes) == attributes;
-	}
-
-	return FALSE;
-}
-
-HRESULT Explorerplusplus::GetListViewSelectionAttributes(SFGAOF *pItemAttributes) const
-{
-	HRESULT hr = E_FAIL;
-
-	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
-
-	/* TODO: This should probably check all selected files. */
-	int iSelected = ListView_GetNextItem(selectedTab.GetShellBrowser()->GetListView(), -1, LVNI_SELECTED);
-
-	if (iSelected != -1)
-	{
-		hr = GetListViewItemAttributes(selectedTab, iSelected, pItemAttributes);
-	}
-
-	return hr;
-}
-
-HRESULT Explorerplusplus::GetListViewItemAttributes(const Tab &tab, int item, SFGAOF *pItemAttributes) const
-{
-	auto pidlComplete = tab.GetShellBrowser()->GetItemCompleteIdl(item);
-
-	if (!pidlComplete)
-	{
-		return E_FAIL;
-	}
-
-	HRESULT hr = GetItemAttributes(pidlComplete.get(), pItemAttributes);
-
-	return hr;
-}
-
 HRESULT Explorerplusplus::GetTreeViewSelectionAttributes(SFGAOF *pItemAttributes) const
 {
 	HRESULT hr = E_FAIL;
-	auto hItem = TreeView_GetSelection(m_hTreeView);
+	auto hItem = TreeView_GetSelection(m_shellTreeView->GetHWND());
 
 	if (hItem != nullptr)
 	{
@@ -199,9 +154,9 @@ BOOL Explorerplusplus::CanPaste() const
 	{
 		return bDataAvailable && CanCreate();
 	}
-	else if (hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
-		auto hItem = TreeView_GetSelection(m_hTreeView);
+		auto hItem = TreeView_GetSelection(m_shellTreeView->GetHWND());
 
 		if (hItem != nullptr)
 		{

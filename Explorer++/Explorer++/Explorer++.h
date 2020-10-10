@@ -59,12 +59,12 @@ class WindowSubclassWrapper;
 
 namespace NColorRuleHelper
 {
-struct ColorRule;
+	struct ColorRule;
 }
 
 namespace Plugins
 {
-class PluginManager;
+	class PluginManager;
 }
 
 class Explorerplusplus :
@@ -119,9 +119,6 @@ private:
 	// Represents the maximum number of icons that can be cached. This cache is
 	// shared between various components in the application.
 	static const int MAX_CACHED_ICONS = 1000;
-
-	// This is the same background color as used in the Explorer treeview.
-	static inline constexpr COLORREF TREE_VIEW_DARK_MODE_BACKGROUND_COLOR = RGB(25, 25, 25);
 
 	static inline constexpr COLORREF TAB_BAR_DARK_MODE_BACKGROUND_COLOR = RGB(25, 25, 25);
 
@@ -178,8 +175,6 @@ private:
 	int OnClose();
 	int OnDestroy();
 	void OnRightClick(NMHDR *nmhdr);
-	void OnDrawClipboard();
-	void OnChangeCBChain(WPARAM wParam, LPARAM lParam);
 	void OnSetFocus();
 	LRESULT OnDeviceChange(WPARAM wParam, LPARAM lParam);
 	LRESULT StatusBarMenuSelect(WPARAM wParam, LPARAM lParam);
@@ -244,15 +239,11 @@ private:
 
 	/* ListView private message handlers. */
 	void OnListViewDoubleClick(NMHDR *nmhdr);
-	void OnListViewFileRename();
-	void OnListViewFileRenameSingle();
-	void OnListViewFileRenameMultiple();
 	LRESULT OnListViewKeyDown(LPARAM lParam);
 	BOOL OnListViewItemChanging(const NMLISTVIEW *changeData);
 	HRESULT OnListViewBeginDrag(LPARAM lParam, DragType dragType);
 	BOOL OnListViewBeginLabelEdit(LPARAM lParam);
 	BOOL OnListViewEndLabelEdit(LPARAM lParam);
-	void OnListViewFileDelete(bool permanent);
 	void OnListViewRClick(POINT *pCursorPos);
 	void OnListViewBackgroundRClick(POINT *pCursorPos);
 	void OnListViewItemRClick(POINT *pCursorPos);
@@ -262,17 +253,11 @@ private:
 	void OnListViewPaste();
 
 	/* TreeView private message handlers. */
-	void OnTreeViewFileDelete(BOOL bPermanent);
 	void OnTreeViewRightClick(WPARAM wParam, LPARAM lParam);
 	void OnTreeViewSelChanged(LPARAM lParam);
-	int OnTreeViewBeginLabelEdit(LPARAM lParam);
-	int OnTreeViewEndLabelEdit(LPARAM lParam);
-	LRESULT OnTreeViewKeyDown(LPARAM lParam);
 	void OnTreeViewCopyItemPath() const;
-	void OnTreeViewCopy(BOOL bCopy);
 	void OnTreeViewSetFileAttributes() const;
 	void OnTreeViewCopyUniversalPaths() const;
-	void OnTreeViewPaste();
 
 	/* Holder window private message handlers. */
 	std::optional<LRESULT> OnHolderCtlColorStatic(HWND hwnd, HDC hdc);
@@ -357,8 +342,7 @@ private:
 	std::vector<Column_t> LoadColumnFromRegistry(HKEY hColumnsKey, const TCHAR *szKeyName);
 	void SaveColumnToRegistry(
 		HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns);
-	std::vector<ColumnWidth> LoadColumnWidthsFromRegistry(
-		HKEY hColumnsKey, const TCHAR *szKeyName);
+	std::vector<ColumnWidth> LoadColumnWidthsFromRegistry(HKEY hColumnsKey, const TCHAR *szKeyName);
 	void SaveColumnWidthsToRegistry(
 		HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns);
 	void LoadDefaultColumnsFromRegistry();
@@ -422,7 +406,6 @@ private:
 	void OpenItem(PCIDLIST_ABSOLUTE pidlItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow) override;
 	void OpenFolderItem(PCIDLIST_ABSOLUTE pidlItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow);
 	void OpenFileItem(PCIDLIST_ABSOLUTE pidlItem, const TCHAR *szParameters) override;
-	HRESULT OnListViewCopy(BOOL bCopy);
 
 	/* File context menu. */
 	void AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems,
@@ -444,12 +427,6 @@ private:
 	BOOL TestItemAttributes(SFGAOF attributes) const;
 	HRESULT GetSelectionAttributes(SFGAOF *pItemAttributes) const;
 
-	void BuildListViewFileSelectionList(
-		HWND hListView, std::list<std::wstring> *pFileSelectionList);
-	BOOL TestListViewItemAttributes(int item, SFGAOF attributes) const;
-	HRESULT GetListViewSelectionAttributes(SFGAOF *pItemAttributes) const;
-	HRESULT GetListViewItemAttributes(const Tab &tab, int item, SFGAOF *pItemAttributes) const;
-
 	HRESULT GetTreeViewSelectionAttributes(SFGAOF *pItemAttributes) const;
 
 	/* Display window. */
@@ -468,11 +445,8 @@ private:
 	HRESULT ExpandAndBrowsePath(const TCHAR *szPath);
 	HRESULT ExpandAndBrowsePath(const TCHAR *szPath, BOOL bOpenInNewTab, BOOL bSwitchToNewTab);
 
-	/* Filtering. */
-	void ToggleFilterStatus();
-
 	/* IExplorerplusplus methods. */
-	Config *GetConfig() const override;
+	const Config *GetConfig() const override;
 	HMODULE GetLanguageModule() const override;
 	HWND GetMainWindow() const override;
 	HWND GetActiveListView() const override;
@@ -503,6 +477,9 @@ private:
 	std::optional<int> OnRebarCustomDraw(NMHDR *nmhdr);
 	bool OnRebarEraseBackground(HDC hdc);
 
+	boost::signals2::connection AddApplicationShuttingDownObserver(
+		const ApplicationShuttingDownSignal::slot_type &observer) override;
+
 	/* Miscellaneous. */
 	void CreateStatusBar();
 	void InitializeDisplayWindow();
@@ -523,7 +500,6 @@ private:
 	HWND m_hMainRebar;
 	HWND m_hDisplayWindow;
 	HWND m_hTabWindowToolbar;
-	HWND m_hTreeView;
 	HWND m_hHolder;
 	HWND m_foldersToolbarParent;
 	HWND m_hFoldersToolbar;
@@ -538,9 +514,7 @@ private:
 
 	/** Internal state. **/
 	HWND m_hLastActiveWindow;
-	HWND m_hNextClipboardViewer;
 	std::wstring m_CurrentDirectory;
-	TCHAR m_OldTreeViewFileName[MAX_PATH];
 	bool m_bTreeViewRightClick;
 	bool m_bSelectingTreeViewDirectory;
 	bool m_bAttemptToolbarRestore;
@@ -564,6 +538,7 @@ private:
 	CachedIcons m_cachedIcons;
 
 	MainMenuPreShowSignal m_mainMenuPreShowSignal;
+	ApplicationShuttingDownSignal m_applicationShuttingDownSignal;
 
 	/* Tabs. */
 	TabContainer *m_tabContainer;
@@ -634,10 +609,6 @@ private:
 	std::list<DWFolderSize> m_DWFolderSizes;
 	int m_iDWFolderSizeUniqueId;
 
-	/* Copy/cut. */
-	IDataObject *m_pClipboardDataObject;
-	HTREEITEM m_hCutTreeViewItem;
-
 	/* Drag and drop. */
 	bool m_bDragging;
 	bool m_bDragCancelled;
@@ -646,18 +617,11 @@ private:
 	/* Rename support. */
 	bool m_bListViewRenaming;
 
-	/* Cut items data. */
-	std::list<std::wstring> m_CutFileNameList;
-	int m_iCutTabInternal;
-
 	/* Menu images. */
 	std::vector<wil::unique_hbitmap> m_menuImages;
 
 	/* Mousewheel. */
 	int m_zDeltaTotal;
-
-	/* TreeView middle click. */
-	HTREEITEM m_hTVMButtonItem;
 
 	bool m_blockNextListViewSelection;
 };
