@@ -71,13 +71,20 @@ LRESULT CALLBACK ShellBrowser::ListViewProc(HWND hwnd, UINT uMsg, WPARAM wParam,
 	{
 		POINT pt;
 		POINTSTOPOINT(pt, MAKEPOINTS(lParam));
-		OnListViewMButtonUp(&pt);
+		OnListViewMButtonUp(&pt, static_cast<UINT>(wParam));
 	}
 	break;
 
 	case WM_CLIPBOARDUPDATE:
 		OnClipboardUpdate();
 		return 0;
+
+	case WM_TIMER:
+		if (wParam == PROCESS_SHELL_CHANGES_TIMER_ID)
+		{
+			OnProcessShellChangeNotifications();
+		}
+		break;
 
 	case WM_NOTIFY:
 		if (reinterpret_cast<LPNMHDR>(lParam)->hwndFrom == ListView_GetHeader(m_hListView))
@@ -117,6 +124,10 @@ LRESULT CALLBACK ShellBrowser::ListViewProc(HWND hwnd, UINT uMsg, WPARAM wParam,
 	case WM_APP_INFO_TIP_READY:
 		ProcessInfoTipResult(static_cast<int>(wParam));
 		break;
+
+	case WM_APP_SHELL_NOTIFY:
+		OnShellNotify(wParam, lParam);
+		break;
 	}
 
 	return DefSubclassProc(hwnd, uMsg, wParam, lParam);
@@ -147,6 +158,10 @@ LRESULT CALLBACK ShellBrowser::ListViewParentProc(
 
 			case LVN_GETINFOTIP:
 				return OnListViewGetInfoTip(reinterpret_cast<NMLVGETINFOTIP *>(lParam));
+
+			case LVN_INSERTITEM:
+				OnListViewItemInserted(reinterpret_cast<NMLISTVIEW *>(lParam));
+				break;
 
 			case LVN_ITEMCHANGED:
 				OnListViewItemChanged(reinterpret_cast<NMLISTVIEW *>(lParam));
@@ -197,7 +212,7 @@ void ShellBrowser::OnListViewMButtonDown(const POINT *pt)
 	}
 }
 
-void ShellBrowser::OnListViewMButtonUp(const POINT *pt)
+void ShellBrowser::OnListViewMButtonUp(const POINT *pt, UINT keysDown)
 {
 	LV_HITTESTINFO ht;
 	ht.pt = *pt;
@@ -223,7 +238,14 @@ void ShellBrowser::OnListViewMButtonUp(const POINT *pt)
 		return;
 	}
 
-	m_tabNavigation->CreateNewTab(itemInfo.pidlComplete.get(), false);
+	bool switchToNewTab = m_config->openTabsInForeground;
+
+	if (WI_IsFlagSet(keysDown, MK_SHIFT))
+	{
+		switchToNewTab = !switchToNewTab;
+	}
+
+	m_tabNavigation->CreateNewTab(itemInfo.pidlComplete.get(), switchToNewTab);
 }
 
 void ShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
@@ -248,7 +270,18 @@ void ShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 	if (m_folderSettings.viewMode == +ViewMode::Thumbnails
 		&& (plvItem->mask & LVIF_IMAGE) == LVIF_IMAGE)
 	{
-		plvItem->iImage = GetIconThumbnail(internalIndex);
+		const ItemInfo_t &itemInfo = m_itemInfoMap.at(internalIndex);
+		auto cachedThumbnailIndex = GetCachedThumbnailIndex(itemInfo);
+
+		if (cachedThumbnailIndex)
+		{
+			plvItem->iImage = *cachedThumbnailIndex;
+		}
+		else
+		{
+			plvItem->iImage = GetIconThumbnail(internalIndex);
+		}
+
 		plvItem->mask |= LVIF_DI_SETITEM;
 
 		QueueThumbnailTask(internalIndex);
@@ -312,16 +345,7 @@ void ShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
 
 std::optional<int> ShellBrowser::GetCachedIconIndex(const ItemInfo_t &itemInfo)
 {
-	TCHAR filePath[MAX_PATH];
-	HRESULT hr = GetDisplayName(
-		itemInfo.pidlComplete.get(), filePath, SIZEOF_ARRAY(filePath), SHGDN_FORPARSING);
-
-	if (FAILED(hr))
-	{
-		return std::nullopt;
-	}
-
-	auto cachedItr = m_cachedIcons->findByPath(filePath);
+	auto cachedItr = m_cachedIcons->findByPath(itemInfo.parsingName);
 
 	if (cachedItr == m_cachedIcons->end())
 	{
@@ -478,6 +502,19 @@ void ShellBrowser::ProcessInfoTipResult(int infoTipResultId)
 	ListView_SetInfoTip(m_hListView, &infoTip);
 }
 
+void ShellBrowser::OnListViewItemInserted(const NMLISTVIEW *itemData)
+{
+	if (m_folderSettings.showInGroups)
+	{
+		auto groupId = GetItemGroupId(itemData->iItem);
+
+		if (groupId)
+		{
+			OnItemAddedToGroup(*groupId);
+		}
+	}
+}
+
 void ShellBrowser::OnListViewItemChanged(const NMLISTVIEW *changeData)
 {
 	if (changeData->uChanged != LVIF_STATE)
@@ -536,27 +573,27 @@ void ShellBrowser::UpdateFileSelectionInfo(int internalIndex, BOOL selected)
 	{
 		if (isFolder)
 		{
-			m_NumFoldersSelected++;
+			m_directoryState.numFoldersSelected++;
 		}
 		else
 		{
-			m_NumFilesSelected++;
+			m_directoryState.numFilesSelected++;
 		}
 
-		m_ulFileSelectionSize.QuadPart += ulFileSize.QuadPart;
+		m_directoryState.fileSelectionSize.QuadPart += ulFileSize.QuadPart;
 	}
 	else
 	{
 		if (isFolder)
 		{
-			m_NumFoldersSelected--;
+			m_directoryState.numFoldersSelected--;
 		}
 		else
 		{
-			m_NumFilesSelected--;
+			m_directoryState.numFilesSelected--;
 		}
 
-		m_ulFileSelectionSize.QuadPart -= ulFileSize.QuadPart;
+		m_directoryState.fileSelectionSize.QuadPart -= ulFileSize.QuadPart;
 	}
 }
 
@@ -597,17 +634,17 @@ void ShellBrowser::OnListViewKeyDown(const NMLVKEYDOWN *lvKeyDown)
 	case VK_BACK:
 		if (IsKeyDown(VK_CONTROL) && !IsKeyDown(VK_SHIFT) && !IsKeyDown(VK_MENU))
 		{
-			TCHAR szRoot[MAX_PATH];
-			HRESULT hr = GetDisplayName(m_directoryState.pidlDirectory.get(), szRoot,
-				SIZEOF_ARRAY(szRoot), SHGDN_FORPARSING);
+			TCHAR root[MAX_PATH];
+			HRESULT hr =
+				StringCchCopy(root, SIZEOF_ARRAY(root), m_directoryState.directory.c_str());
 
 			if (SUCCEEDED(hr))
 			{
-				BOOL bRes = PathStripToRoot(szRoot);
+				BOOL bRes = PathStripToRoot(root);
 
 				if (bRes)
 				{
-					m_navigationController->BrowseFolder(szRoot);
+					m_navigationController->BrowseFolder(root);
 				}
 			}
 		}
@@ -693,11 +730,6 @@ void ShellBrowser::ShowPropertiesForSelectedFiles() const
 		pidls.push_back(std::move(pidl));
 	}
 
-	if (rawPidls.empty())
-	{
-		return;
-	}
-
 	auto pidlDirectory = GetDirectoryIdl();
 	ShowMultipleFileProperties(
 		pidlDirectory.get(), rawPidls.data(), m_hOwner, static_cast<int>(rawPidls.size()));
@@ -709,7 +741,7 @@ void ShellBrowser::OnListViewHeaderRightClick(const POINTS &cursorPos)
 		LoadMenu(m_hResourceModule, MAKEINTRESOURCE(IDR_HEADER_MENU)));
 	HMENU headerMenu = GetSubMenu(headerPopupMenu.get(), 0);
 
-	auto commonColumns = GetColumnHeaderMenuList(m_CurDir);
+	auto commonColumns = GetColumnHeaderMenuList(m_directoryState.directory.c_str());
 
 	std::unordered_map<int, ColumnType> menuItemMappings;
 	int totalInserted = 0;
@@ -833,7 +865,7 @@ void ShellBrowser::OnShowMoreColumnsSelected()
 void ShellBrowser::OnColumnMenuItemSelected(
 	int menuItemId, const std::unordered_map<int, ColumnType> &menuItemMappings)
 {
-	auto currentColumns = ExportCurrentColumns();
+	auto currentColumns = GetCurrentColumns();
 
 	ColumnType columnType = menuItemMappings.at(menuItemId);
 	auto itr = std::find_if(
@@ -848,7 +880,7 @@ void ShellBrowser::OnColumnMenuItemSelected(
 
 	itr->bChecked = !itr->bChecked;
 
-	ImportColumns(currentColumns);
+	SetCurrentColumns(currentColumns);
 
 	// If it was the first column that was changed, need to refresh all columns.
 	if (menuItemId == 1)
@@ -868,9 +900,8 @@ void ShellBrowser::SetFileAttributesForSelection()
 
 		const ItemInfo_t &item = GetItemByIndex(index);
 		sfai.wfd = item.wfd;
-
-		GetDisplayName(item.pidlComplete.get(), sfai.szFullFileName,
-			static_cast<UINT>(std::size(sfai.szFullFileName)), SHGDN_FORPARSING);
+		StringCchCopy(
+			sfai.szFullFileName, SIZEOF_ARRAY(sfai.szFullFileName), item.parsingName.c_str());
 
 		sfaiList.push_back(sfai);
 	}
@@ -920,9 +951,7 @@ std::vector<std::wstring> ShellBrowser::GetSelectedItems()
 
 	while ((item = ListView_GetNextItem(m_hListView, item, LVNI_SELECTED)) != -1)
 	{
-		TCHAR fullFileName[MAX_PATH];
-		GetItemFullName(item, fullFileName, SIZEOF_ARRAY(fullFileName));
-		selectedFiles.emplace_back(fullFileName);
+		selectedFiles.push_back(GetItemFullName(item));
 	}
 
 	return selectedFiles;

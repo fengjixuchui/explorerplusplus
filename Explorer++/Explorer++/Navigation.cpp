@@ -20,6 +20,8 @@ Navigation::Navigation(IExplorerplusplus *expp) : m_expp(expp), m_tabContainer(n
 void Navigation::OnNavigateUp()
 {
 	Tab &tab = m_tabContainer->GetSelectedTab();
+	unique_pidl_absolute directory = tab.GetShellBrowser()->GetDirectoryIdl();
+
 	HRESULT hr = E_FAIL;
 	int resultingTabId = -1;
 
@@ -37,20 +39,15 @@ void Navigation::OnNavigateUp()
 
 		if (SUCCEEDED(hr))
 		{
-			hr = m_tabContainer->CreateNewTab(pidlParent.get(), TabSettings(_selected = true),
-				nullptr, std::nullopt, &resultingTabId);
+			m_tabContainer->CreateNewTab(pidlParent.get(), TabSettings(_selected = true), nullptr,
+				std::nullopt, &resultingTabId);
 		}
 	}
 
 	if (SUCCEEDED(hr))
 	{
 		const Tab &resultingTab = m_tabContainer->GetTab(resultingTabId);
-		std::wstring directory = resultingTab.GetShellBrowser()->GetDirectory();
-
-		TCHAR directoryFileName[MAX_PATH];
-		StringCchCopy(directoryFileName, std::size(directoryFileName), directory.c_str());
-		PathStripPath(directoryFileName);
-		resultingTab.GetShellBrowser()->SelectFiles(directoryFileName);
+		resultingTab.GetShellBrowser()->SelectItems({ directory.get() });
 	}
 }
 
@@ -68,13 +65,13 @@ HRESULT Navigation::BrowseFolderInCurrentTab(PCIDLIST_ABSOLUTE pidlDirectory)
 
 void Navigation::OpenDirectoryInNewWindow(PCIDLIST_ABSOLUTE pidlDirectory)
 {
-	TCHAR szPath[MAX_PATH];
-	TCHAR szParameters[512];
-
 	/* Create a new instance of this program, with the
 	specified path as an argument. */
-	GetDisplayName(pidlDirectory, szPath, SIZEOF_ARRAY(szPath), SHGDN_FORPARSING);
-	StringCchPrintf(szParameters, SIZEOF_ARRAY(szParameters), _T("\"%s\""), szPath);
+	std::wstring path;
+	GetDisplayName(pidlDirectory, SHGDN_FORPARSING, path);
+
+	TCHAR szParameters[512];
+	StringCchPrintf(szParameters, SIZEOF_ARRAY(szParameters), _T("\"%s\""), path.c_str());
 
 	ExecuteAndShowCurrentProcess(m_expp->GetMainWindow(), szParameters);
 }

@@ -6,6 +6,7 @@
 
 #include "Tab.h"
 #include "../Helper/Macros.h"
+#include <boost/signals2.hpp>
 #include <wil/resource.h>
 
 struct Config;
@@ -46,18 +47,22 @@ private:
 	void CreateTabProxy(int iTabId, BOOL bSwitchToNewTab);
 	void RegisterTab(HWND hTabProxy, const TCHAR *szDisplayName, BOOL bTabActive);
 	void RemoveTabProxy(int iTabId);
+	void DestroyTabProxy(TabProxyInfo &tabProxy);
 	void OnDwmSendIconicThumbnail(HWND tabProxy, const Tab &tab, int maxWidth, int maxHeight);
 	wil::unique_hbitmap CaptureTabScreenshot(const Tab &tab);
 	wil::unique_hbitmap GetTabLivePreviewBitmap(const Tab &tab);
 	void OnTabSelectionChanged(const Tab &tab);
+	void OnNavigationCommitted(const Tab &tab, PCIDLIST_ABSOLUTE pidl, bool addHistoryEntry);
 	void OnNavigationCompleted(const Tab &tab);
 	void SetTabProxyIcon(const Tab &tab);
 	void InvalidateTaskbarThumbnailBitmap(const Tab &tab);
 	void UpdateTaskbarThumbnailTitle(const Tab &tab);
+	void OnApplicationShuttingDown();
 
 	IExplorerplusplus *m_expp;
 	TabContainer *m_tabContainer;
 	HINSTANCE m_instance;
+	std::vector<boost::signals2::scoped_connection> m_connections;
 
 	ITaskbarList4 *m_pTaskbarList;
 	std::list<TabProxyInfo> m_TabProxyList;

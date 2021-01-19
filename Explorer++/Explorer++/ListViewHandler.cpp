@@ -56,8 +56,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(
 		break;
 
 	case WM_SETFOCUS:
-		m_hLastActiveWindow = ListView;
-		m_mainToolbar->UpdateToolbarButtonStates();
+		FocusChanged(WindowFocusSource::ListView);
 		break;
 
 	case WM_LBUTTONDBLCLK:
@@ -216,7 +215,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(
 
 			pnmHeader = (NMHEADER *) lParam;
 
-			auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
+			auto currentColumns = m_pActiveShellBrowser->GetCurrentColumns();
 
 			i = 0;
 			auto itr = currentColumns.begin();
@@ -253,7 +252,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(
 
 			currentColumns.insert(itr, column);
 
-			m_pActiveShellBrowser->ImportColumns(currentColumns);
+			m_pActiveShellBrowser->SetCurrentColumns(currentColumns);
 
 			Tab &tab = m_tabContainer->GetSelectedTab();
 			tab.GetShellBrowser()->GetNavigationController()->Refresh();
@@ -274,15 +273,14 @@ LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
 	switch (keyDown->wVKey)
 	{
 	case VK_RETURN:
-		if (IsKeyDown(VK_CONTROL) && !IsKeyDown(VK_SHIFT) && !IsKeyDown(VK_MENU))
+		if (IsKeyDown(VK_MENU))
 		{
-			/* Key press: Ctrl+Enter
-			Action: Open item in background tab. */
-			OpenAllSelectedItems(TRUE);
+			m_pActiveShellBrowser->ShowPropertiesForSelectedFiles();
 		}
 		else
 		{
-			OpenAllSelectedItems(FALSE);
+			OpenAllSelectedItems(
+				DetermineOpenDisposition(IsKeyDown(VK_CONTROL), IsKeyDown(VK_SHIFT)));
 		}
 		break;
 
@@ -342,156 +340,176 @@ int Explorerplusplus::DetermineListViewObjectIndex(HWND hListView)
 	return -1;
 }
 
-BOOL Explorerplusplus::OnListViewBeginLabelEdit(LPARAM lParam)
+BOOL Explorerplusplus::OnListViewBeginLabelEdit(const NMLVDISPINFO *dispInfo)
 {
 	if (!CanRename())
 	{
 		return TRUE;
 	}
 
-	/* Subclass the edit window. The only reason this is
-	done is so that when the listview item is put into
-	edit mode, any extension the file has will not be
-	selected along with the rest of the text. Although
-	selection works directly from here in Windows Vista,
-	it does not work in Windows XP. */
-	HWND hEdit = ListView_GetEditControl(m_hActiveListView);
+	HWND editControl = ListView_GetEditControl(m_hActiveListView);
 
-	if (hEdit == nullptr)
+	if (editControl == nullptr)
 	{
 		return TRUE;
 	}
 
-	ListViewEdit::CreateNew(hEdit, reinterpret_cast<NMLVDISPINFO *>(lParam)->item.iItem, this);
+	auto fileData = m_pActiveShellBrowser->GetItemFileFindData(dispInfo->item.iItem);
+	std::wstring editingName = m_pActiveShellBrowser->GetItemEditingName(dispInfo->item.iItem);
+
+	bool useEditingName = true;
+
+	// The editing name may differ from the display name. For example, the display name of the C:\
+	// drive item will be something like "Local Disk (C:)", while its editing name will be "Local
+	// Disk". Since the editing name is affected by the file name extensions setting in Explorer, it
+	// won't be used if:
+	//
+	// - Extensions are hidden in Explorer, but shown in Explorer++ (since the editing name would
+	//   contain no extension)
+	// - Extensions are shown in Explorer, but hidden in Explorer++ (since the editing name would
+	//   contain an extension). Note that this case is handled when editing is finished - if
+	//   extensions are hidden, the extension will be manually re-added when renaming an item.
+	if (!WI_IsFlagSet(fileData.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+	{
+		std::wstring displayName = m_pActiveShellBrowser->GetItemDisplayName(dispInfo->item.iItem);
+
+		if (m_config->globalFolderSettings.showExtensions
+			|| m_config->globalFolderSettings.hideLinkExtension)
+		{
+			auto *extension = PathFindExtension(displayName.c_str());
+
+			if (*extension != '\0'
+				&& lstrcmp((editingName + extension).c_str(), displayName.c_str()) == 0)
+			{
+				useEditingName = false;
+			}
+		}
+		else
+		{
+			auto *extension = PathFindExtension(editingName.c_str());
+
+			if (*extension != '\0'
+				&& lstrcmp((displayName + extension).c_str(), editingName.c_str()) == 0)
+			{
+				useEditingName = false;
+			}
+		}
+	}
+
+	// Note that the necessary text is set in the edit control, rather than the listview. This is
+	// for the following two reasons:
+	//
+	// 1. Setting the listview item text after the edit control has already been created won't
+	// change the text in the control
+	// 2. Even if setting the listview item text did change the edit control text, the text would
+	// need to be reverted if the user canceled editing. Setting the edit control text means there's
+	// nothing that needs to be changed if editing is canceled.
+	if (useEditingName)
+	{
+		SetWindowText(editControl, editingName.c_str());
+	}
+
+	ListViewEdit::CreateNew(editControl, dispInfo->item.iItem, this);
 
 	m_bListViewRenaming = true;
 
 	return FALSE;
 }
 
-BOOL Explorerplusplus::OnListViewEndLabelEdit(LPARAM lParam)
+BOOL Explorerplusplus::OnListViewEndLabelEdit(const NMLVDISPINFO *dispInfo)
 {
-	NMLVDISPINFO *pdi = nullptr;
-	LVITEM *pItem = nullptr;
-	TCHAR newFileName[MAX_PATH + 1];
-	TCHAR oldFileName[MAX_PATH + 1];
-	TCHAR oldName[MAX_PATH];
-	DWORD dwAttributes;
-	int ret;
-
-	pdi = (NMLVDISPINFO *) lParam;
-	pItem = &pdi->item;
-
 	m_bListViewRenaming = false;
 
-	/* Did the user cancel the editing? */
-	if (pItem->pszText == nullptr)
-		return FALSE;
-
-	/* Is the new filename empty? */
-	if (lstrcmp(pItem->pszText, EMPTY_STRING) == 0)
-		return FALSE;
-
-	/*
-	Deny file names ending with a dot, as they are just
-	synonyms for the same file without any dot(s).
-	For example:
-	C:\Hello.txt
-	C:\Hello.txt....
-	refer to exactly the same file.
-
-	Taken from the web site referenced below:
-	"Do not end a file or directory name with a trailing
-	space or a period. Although the underlying file system
-	may support such names, the operating system does not.
-	However, it is acceptable to start a name with a period."
-	*/
-	if (pItem->pszText[lstrlen(pItem->pszText) - 1] == '.')
-		return FALSE;
-
-	/*
-	The following characters are NOT allowed
-	within a file name:
-	\/:*?"<>|
-
-	See: http://msdn.microsoft.com/en-us/library/aa365247.aspx
-	*/
-	if (StrChr(pItem->pszText, '\\') != nullptr || StrChr(pItem->pszText, '/') != nullptr
-		|| StrChr(pItem->pszText, ':') != nullptr || StrChr(pItem->pszText, '*') != nullptr
-		|| StrChr(pItem->pszText, '?') != nullptr || StrChr(pItem->pszText, '"') != nullptr
-		|| StrChr(pItem->pszText, '<') != nullptr || StrChr(pItem->pszText, '>') != nullptr
-		|| StrChr(pItem->pszText, '|') != nullptr)
+	// Did the user cancel editing?
+	if (dispInfo->item.pszText == nullptr)
 	{
-		std::wstring error = ResourceHelper::LoadString(m_hLanguageModule, IDS_ERR_FILENAMEINVALID);
-		std::wstring title =
-			ResourceHelper::LoadString(m_hLanguageModule, IDS_ERR_FILENAMEINVALID_MSGTITLE);
-
-		MessageBox(m_hContainer, error.c_str(), title.c_str(), MB_ICONERROR);
-
-		return 0;
+		return FALSE;
 	}
 
-	std::wstring currentDirectory = m_pActiveShellBrowser->GetDirectory();
-	StringCchCopy(newFileName, SIZEOF_ARRAY(newFileName), currentDirectory.c_str());
-	StringCchCopy(oldFileName, SIZEOF_ARRAY(oldFileName), currentDirectory.c_str());
+	std::wstring newFilename = dispInfo->item.pszText;
 
-	m_pActiveShellBrowser->GetItemDisplayName(pItem->iItem, SIZEOF_ARRAY(oldName), oldName);
-	PathAppend(oldFileName, oldName);
-
-	BOOL bRes = PathAppend(newFileName, pItem->pszText);
-
-	if (!bRes)
+	if (newFilename.empty())
 	{
-		return 0;
+		return FALSE;
 	}
 
-	dwAttributes = m_pActiveShellBrowser->GetItemFileFindData(pItem->iItem).dwFileAttributes;
+	std::wstring editingName = m_pActiveShellBrowser->GetItemEditingName(dispInfo->item.iItem);
 
-	if ((dwAttributes & FILE_ATTRIBUTE_DIRECTORY) != FILE_ATTRIBUTE_DIRECTORY)
+	if (newFilename == editingName)
 	{
-		BOOL bExtensionHidden = FALSE;
+		return FALSE;
+	}
 
-		bExtensionHidden = (!m_config->globalFolderSettings.showExtensions)
+	auto fileData = m_pActiveShellBrowser->GetItemFileFindData(dispInfo->item.iItem);
+
+	if (!WI_IsFlagSet(fileData.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+	{
+		std::wstring filename = m_pActiveShellBrowser->GetItemName(dispInfo->item.iItem);
+		auto *extension = PathFindExtension(filename.c_str());
+
+		bool extensionHidden = !m_config->globalFolderSettings.showExtensions
 			|| (m_config->globalFolderSettings.hideLinkExtension
-				&& lstrcmpi(PathFindExtension(oldName), _T(".lnk")) == 0);
+				&& lstrcmpi(extension, _T(".lnk")) == 0);
 
-		/* If file extensions are turned off, the new filename
-		will be incorrect (i.e. it will be missing the extension).
-		Therefore, append the extension manually if it is turned
-		off. */
-		if (bExtensionHidden)
+		// If file extensions are turned off, the new filename will be incorrect (i.e. it will be
+		// missing the extension). Therefore, append the extension manually if it is turned off.
+		if (extensionHidden && *extension != '\0')
 		{
-			TCHAR *szExt = nullptr;
-
-			szExt = PathFindExtension(oldName);
-
-			if (*szExt == '.')
-				StringCchCat(newFileName, SIZEOF_ARRAY(newFileName), szExt);
+			newFilename += extension;
 		}
 	}
 
-	if (lstrcmp(oldFileName, newFileName) == 0)
-		return FALSE;
+	auto pidl = m_pActiveShellBrowser->GetItemCompleteIdl(dispInfo->item.iItem);
 
-	FileActionHandler::RenamedItem_t renamedItem;
-	renamedItem.strOldFilename = oldFileName;
-	renamedItem.strNewFilename = newFileName;
+	wil::com_ptr_nothrow<IShellFolder> parent;
+	PCITEMID_CHILD child;
+	HRESULT hr = SHBindToParent(pidl.get(), IID_PPV_ARGS(&parent), &child);
 
-	TrimStringRight(renamedItem.strNewFilename, _T(" "));
-
-	std::list<FileActionHandler::RenamedItem_t> renamedItemList;
-	renamedItemList.push_back(renamedItem);
-	ret = m_FileActionHandler.RenameFiles(renamedItemList);
-
-	/* If the file was not renamed, show an error message. */
-	if (!ret)
+	if (FAILED(hr))
 	{
-		std::wstring error = ResourceHelper::LoadString(m_hLanguageModule, IDS_FILERENAMEERROR);
-		MessageBox(
-			m_hContainer, error.c_str(), NExplorerplusplus::APP_NAME, MB_ICONWARNING | MB_OK);
+		return FALSE;
 	}
 
-	return ret;
+	SHGDNF flags = SHGDN_INFOLDER;
+
+	// As with GetDisplayNameOf(), the behavior of SetNameOf() is influenced by whether or not file
+	// extensions are displayed in Explorer. If extensions are displayed and the SHGDN_INFOLDER name
+	// is set, then the name should contain an extension. On the other hand, if extensions aren't
+	// displayed and the SHGDN_INFOLDER name is set, then the name shouldn't contain an extension.
+	// Given that extensions can be independently hidden and shown in Explorer++, this behavior is
+	// undesirable and incompatible.
+	// For example, if extensions are hidden in Explorer, but shown in Explorer++, then it wouldn't
+	// be possible to change a file's extension. When setting the SHGDN_INFOLDER name, the original
+	// extension would always be re-added by the shell.
+	// Therefore, if a file is being edited, the parsing name (which will always contain an
+	// extension) will be updated.
+	if (!m_pActiveShellBrowser->InVirtualFolder()
+		&& !WI_IsFlagSet(fileData.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+	{
+		flags |= SHGDN_FORPARSING;
+	}
+
+	unique_pidl_child newChild;
+	hr = parent->SetNameOf(m_pActiveShellBrowser->GetListView(), child, newFilename.c_str(), flags,
+		wil::out_param(newChild));
+
+	if (FAILED(hr))
+	{
+		return FALSE;
+	}
+
+	hr = parent->CompareIDs(0, child, newChild.get());
+
+	// It's possible for the rename operation to succeed, but for the item name to remain unchanged.
+	// For example, if one or more '.' characters are appended to the end of the item name, the
+	// rename operation will succeed, but the name won't actually change. In those sorts of cases,
+	// the name the user entered should be removed.
+	if (HRESULT_CODE(hr) == 0)
+	{
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 void Explorerplusplus::OnListViewRClick(POINT *pCursorPos)
@@ -553,7 +571,7 @@ void Explorerplusplus::OnListViewBackgroundRClick(POINT *pCursorPos)
 	unique_pidl_absolute pidlParent(ILCloneFull(pidlDirectory.get()));
 	ILRemoveLastID(pidlParent.get());
 
-	wil::com_ptr<IShellFolder> pShellFolder;
+	wil::com_ptr_nothrow<IShellFolder> pShellFolder;
 	HRESULT hr = BindToIdl(pidlParent.get(), IID_PPV_ARGS(&pShellFolder));
 
 	if (FAILED(hr))
@@ -561,7 +579,7 @@ void Explorerplusplus::OnListViewBackgroundRClick(POINT *pCursorPos)
 		return;
 	}
 
-	wil::com_ptr<IDataObject> pDataObject;
+	wil::com_ptr_nothrow<IDataObject> pDataObject;
 	PCUITEMID_CHILD pidlChildFolder = ILFindLastID(pidlDirectory.get());
 	hr =
 		GetUIObjectOf(pShellFolder.get(), nullptr, 1, &pidlChildFolder, IID_PPV_ARGS(&pDataObject));
@@ -678,13 +696,8 @@ HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam, DragType dragType)
 		rawPidls.push_back(pidl.get());
 		pidls.push_back(std::move(pidl));
 
-		TCHAR szFullFilename[MAX_PATH];
-
-		m_pActiveShellBrowser->GetItemFullName(item, szFullFilename, SIZEOF_ARRAY(szFullFilename));
-
-		std::wstring stringFilename(szFullFilename);
-
-		filenameList.push_back(stringFilename);
+		std::wstring fullFilename = m_pActiveShellBrowser->GetItemFullName(item);
+		filenameList.push_back(fullFilename);
 	}
 
 	hr = CoCreateInstance(
@@ -780,19 +793,10 @@ void Explorerplusplus::OnListViewDoubleClick(NMHDR *nmhdr)
 
 				ShowMultipleFileProperties(pidlDirectory.get(), items.data(), m_hContainer, 1);
 			}
-			else if (IsKeyDown(VK_CONTROL))
-			{
-				/* Open the item in a new tab. */
-				OpenListViewItem(ht.iItem, TRUE, FALSE);
-			}
-			else if (IsKeyDown(VK_SHIFT))
-			{
-				/* Open the item in a new window. */
-				OpenListViewItem(ht.iItem, FALSE, TRUE);
-			}
 			else
 			{
-				OpenListViewItem(ht.iItem, FALSE, FALSE);
+				OpenListViewItem(
+					ht.iItem, DetermineOpenDisposition(IsKeyDown(VK_CONTROL), IsKeyDown(VK_SHIFT)));
 			}
 		}
 	}
@@ -810,10 +814,9 @@ void Explorerplusplus::OnListViewCopyItemPath() const
 
 	while ((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
 	{
-		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
+		std::wstring fullFilename = m_pActiveShellBrowser->GetItemFullName(iItem);
 
-		strItemPaths += szFullFilename + std::wstring(_T("\r\n"));
+		strItemPaths += fullFilename + std::wstring(_T("\r\n"));
 	}
 
 	strItemPaths = strItemPaths.substr(0, strItemPaths.size() - 2);
@@ -834,14 +837,13 @@ void Explorerplusplus::OnListViewCopyUniversalPaths() const
 
 	while ((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
 	{
-		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
+		std::wstring fullFilename = m_pActiveShellBrowser->GetItemFullName(iItem);
 
 		TCHAR szBuffer[1024];
 
 		DWORD dwBufferSize = SIZEOF_ARRAY(szBuffer);
 		auto *puni = reinterpret_cast<UNIVERSAL_NAME_INFO *>(&szBuffer);
-		DWORD dwRet = WNetGetUniversalName(szFullFilename, UNIVERSAL_NAME_INFO_LEVEL,
+		DWORD dwRet = WNetGetUniversalName(fullFilename.c_str(), UNIVERSAL_NAME_INFO_LEVEL,
 			reinterpret_cast<LPVOID>(puni), &dwBufferSize);
 
 		if (dwRet == NO_ERROR)
@@ -850,7 +852,7 @@ void Explorerplusplus::OnListViewCopyUniversalPaths() const
 		}
 		else
 		{
-			strUniversalPaths += szFullFilename + std::wstring(_T("\r\n"));
+			strUniversalPaths += fullFilename + std::wstring(_T("\r\n"));
 		}
 	}
 
@@ -881,7 +883,8 @@ void Explorerplusplus::OnListViewPaste()
 		Files are copied asynchronously, so a change of directory
 		will cause the destination directory to change in the
 		middle of the copy operation. */
-		StringCchCopy(szDestination, SIZEOF_ARRAY(szDestination), m_CurrentDirectory.c_str());
+		StringCchCopy(szDestination, SIZEOF_ARRAY(szDestination),
+			m_pActiveShellBrowser->GetDirectory().c_str());
 
 		/* Also, the string must be double NULL terminated. */
 		szDestination[lstrlen(szDestination) + 1] = '\0';
@@ -898,9 +901,6 @@ void Explorerplusplus::OnListViewPaste()
 
 int Explorerplusplus::HighlightSimilarFiles(HWND ListView) const
 {
-	TCHAR fullFileName[MAX_PATH];
-	TCHAR testFile[MAX_PATH];
-	HRESULT hr;
 	BOOL bSimilarTypes;
 	int iSelected;
 	int nItems;
@@ -912,34 +912,31 @@ int Explorerplusplus::HighlightSimilarFiles(HWND ListView) const
 	if (iSelected == -1)
 		return -1;
 
-	hr = m_pActiveShellBrowser->GetItemFullName(iSelected, testFile, SIZEOF_ARRAY(testFile));
+	std::wstring testFile = m_pActiveShellBrowser->GetItemFullName(iSelected);
 
-	if (SUCCEEDED(hr))
+	nItems = ListView_GetItemCount(ListView);
+
+	for (i = 0; i < nItems; i++)
 	{
-		nItems = ListView_GetItemCount(ListView);
+		std::wstring fullFileName = m_pActiveShellBrowser->GetItemFullName(i);
 
-		for (i = 0; i < nItems; i++)
+		bSimilarTypes = CompareFileTypes(fullFileName.c_str(), testFile.c_str());
+
+		if (bSimilarTypes)
 		{
-			m_pActiveShellBrowser->GetItemFullName(i, fullFileName, SIZEOF_ARRAY(fullFileName));
-
-			bSimilarTypes = CompareFileTypes(fullFileName, testFile);
-
-			if (bSimilarTypes)
-			{
-				ListViewHelper::SelectItem(ListView, i, TRUE);
-				nSimilar++;
-			}
-			else
-			{
-				ListViewHelper::SelectItem(ListView, i, FALSE);
-			}
+			ListViewHelper::SelectItem(ListView, i, TRUE);
+			nSimilar++;
+		}
+		else
+		{
+			ListViewHelper::SelectItem(ListView, i, FALSE);
 		}
 	}
 
 	return nSimilar;
 }
 
-void Explorerplusplus::OpenAllSelectedItems(BOOL bOpenInNewTab)
+void Explorerplusplus::OpenAllSelectedItems(OpenFolderDisposition openFolderDisposition)
 {
 	BOOL bSeenDirectory = FALSE;
 	DWORD dwAttributes;
@@ -957,22 +954,54 @@ void Explorerplusplus::OpenAllSelectedItems(BOOL bOpenInNewTab)
 		}
 		else
 		{
-			OpenListViewItem(iItem, FALSE, FALSE);
+			OpenListViewItem(iItem);
 		}
 	}
 
 	if (bSeenDirectory)
-		OpenListViewItem(iFolderItem, bOpenInNewTab, FALSE);
+	{
+		OpenListViewItem(iFolderItem, openFolderDisposition);
+	}
 }
 
-void Explorerplusplus::OpenListViewItem(int iItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow)
+void Explorerplusplus::OpenListViewItem(int index, OpenFolderDisposition openFolderDisposition)
 {
-	auto pidl = m_pActiveShellBrowser->GetDirectoryIdl();
-	auto ridl = m_pActiveShellBrowser->GetItemChildIdl(iItem);
+	auto pidlComplete = m_pActiveShellBrowser->GetItemCompleteIdl(index);
+	OpenItem(pidlComplete.get(), openFolderDisposition);
+}
 
-	if (ridl != nullptr)
+OpenFolderDisposition Explorerplusplus::DetermineOpenDisposition(
+	bool isCtrlKeyDown, bool isShiftKeyDown)
+{
+	if (isCtrlKeyDown && !isShiftKeyDown)
 	{
-		unique_pidl_absolute pidlComplete(ILCombine(pidl.get(), ridl.get()));
-		OpenItem(pidlComplete.get(), bOpenInNewTab, bOpenInNewWindow);
+		if (m_config->openTabsInForeground)
+		{
+			return OpenFolderDisposition::ForegroundTab;
+		}
+		else
+		{
+			return OpenFolderDisposition::BackgroundTab;
+		}
+	}
+	else if (!isCtrlKeyDown && isShiftKeyDown)
+	{
+		return OpenFolderDisposition::NewWindow;
+	}
+	else if (isCtrlKeyDown && isShiftKeyDown)
+	{
+		// Ctrl + Shift inverts the usual behavior.
+		if (m_config->openTabsInForeground)
+		{
+			return OpenFolderDisposition::BackgroundTab;
+		}
+		else
+		{
+			return OpenFolderDisposition::ForegroundTab;
+		}
+	}
+	else
+	{
+		return OpenFolderDisposition::CurrentTab;
 	}
 }

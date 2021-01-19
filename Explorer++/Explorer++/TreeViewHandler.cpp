@@ -97,11 +97,14 @@ void Explorerplusplus::CreateFolderControls()
 		UpdateTreeViewSelection();
 	});
 
-	m_tabContainer->tabNavigationCompletedSignal.AddObserver([this](const Tab &tab) {
-		UNREFERENCED_PARAMETER(tab);
+	m_tabContainer->tabNavigationCommittedSignal.AddObserver(
+		[this](const Tab &tab, PCIDLIST_ABSOLUTE pidl, bool addHistoryEntry) {
+			UNREFERENCED_PARAMETER(tab);
+			UNREFERENCED_PARAMETER(pidl);
+			UNREFERENCED_PARAMETER(addHistoryEntry);
 
-		UpdateTreeViewSelection();
-	});
+			UpdateTreeViewSelection();
+		});
 
 	m_tabContainer->tabSelectedSignal.AddObserver([this](const Tab &tab) {
 		UNREFERENCED_PARAMETER(tab);
@@ -150,8 +153,7 @@ LRESULT CALLBACK Explorerplusplus::TreeViewSubclass(
 	switch (uMsg)
 	{
 	case WM_SETFOCUS:
-		m_mainToolbar->UpdateToolbarButtonStates();
-		m_hLastActiveWindow = m_shellTreeView->GetHWND();
+		FocusChanged(WindowFocusSource::TreeView);
 		break;
 
 	case WM_MOUSEWHEEL:
@@ -245,18 +247,17 @@ void Explorerplusplus::OnTreeViewCopyItemPath() const
 	{
 		auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
-		TCHAR szFullFileName[MAX_PATH];
-		GetDisplayName(pidl.get(), szFullFileName, SIZEOF_ARRAY(szFullFileName), SHGDN_FORPARSING);
+		std::wstring fullFileName;
+		GetDisplayName(pidl.get(), SHGDN_FORPARSING, fullFileName);
 
 		BulkClipboardWriter clipboardWriter;
-		clipboardWriter.WriteText(szFullFileName);
+		clipboardWriter.WriteText(fullFileName);
 	}
 }
 
 void Explorerplusplus::OnTreeViewCopyUniversalPaths() const
 {
 	HTREEITEM hItem;
-	TCHAR szFullFileName[MAX_PATH];
 	UNIVERSAL_NAME_INFO uni;
 	DWORD dwBufferSize;
 	DWORD dwRet;
@@ -267,11 +268,12 @@ void Explorerplusplus::OnTreeViewCopyUniversalPaths() const
 	{
 		auto pidl = m_shellTreeView->GetItemPidl(hItem);
 
-		GetDisplayName(pidl.get(), szFullFileName, SIZEOF_ARRAY(szFullFileName), SHGDN_FORPARSING);
+		std::wstring fullFileName;
+		GetDisplayName(pidl.get(), SHGDN_FORPARSING, fullFileName);
 
 		dwBufferSize = sizeof(uni);
 		dwRet = WNetGetUniversalName(
-			szFullFileName, UNIVERSAL_NAME_INFO_LEVEL, (void **) &uni, &dwBufferSize);
+			fullFileName.c_str(), UNIVERSAL_NAME_INFO_LEVEL, (void **) &uni, &dwBufferSize);
 
 		BulkClipboardWriter clipboardWriter;
 
@@ -281,7 +283,7 @@ void Explorerplusplus::OnTreeViewCopyUniversalPaths() const
 		}
 		else
 		{
-			clipboardWriter.WriteText(szFullFileName);
+			clipboardWriter.WriteText(fullFileName);
 		}
 	}
 }
@@ -292,7 +294,7 @@ void Explorerplusplus::OnTreeViewHolderWindowTimer()
 	auto pidlCurrentDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
 
 	if (!m_bSelectingTreeViewDirectory && !m_bTreeViewRightClick
-		&& !CompareIdls(pidlDirectory.get(), pidlCurrentDirectory.get()))
+		&& !ArePidlsEquivalent(pidlDirectory.get(), pidlCurrentDirectory.get()))
 	{
 		Tab &selectedTab = m_tabContainer->GetSelectedTab();
 		selectedTab.GetShellBrowser()->GetNavigationController()->BrowseFolder(pidlDirectory.get());
@@ -451,11 +453,14 @@ void Explorerplusplus::OnTreeViewSetFileAttributes() const
 	NSetFileAttributesDialogExternal::SetFileAttributesInfo sfai;
 
 	auto pidlItem = m_shellTreeView->GetItemPidl(hItem);
-	HRESULT hr = GetDisplayName(
-		pidlItem.get(), sfai.szFullFileName, SIZEOF_ARRAY(sfai.szFullFileName), SHGDN_FORPARSING);
+
+	std::wstring fullFileName;
+	HRESULT hr = GetDisplayName(pidlItem.get(), SHGDN_FORPARSING, fullFileName);
 
 	if (hr == S_OK)
 	{
+		StringCchCopy(sfai.szFullFileName, SIZEOF_ARRAY(sfai.szFullFileName), fullFileName.c_str());
+
 		HANDLE hFindFile = FindFirstFile(sfai.szFullFileName, &sfai.wfd);
 
 		if (hFindFile != INVALID_HANDLE_VALUE)
@@ -473,39 +478,25 @@ void Explorerplusplus::OnTreeViewSetFileAttributes() const
 
 void Explorerplusplus::UpdateTreeViewSelection()
 {
-	HTREEITEM hItem;
-	TCHAR szDirectory[MAX_PATH];
-	TCHAR szRoot[MAX_PATH];
-	UINT uDriveType;
-	BOOL bNetworkPath = FALSE;
-
 	if (!m_InitializationFinished.get() || !m_config->synchronizeTreeview || !m_config->showFolders)
 	{
 		return;
 	}
 
-	auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
-
-	GetDisplayName(pidlDirectory.get(), szDirectory, SIZEOF_ARRAY(szDirectory), SHGDN_FORPARSING);
-
-	if (PathIsUNC(szDirectory))
+	// When locating a folder in the treeview, each of the parent folders has to be enumerated. UNC
+	// paths are contained within the Network folder and that folder can take a significant amount
+	// of time to enumerate (e.g. 30 seconds).
+	// Therefore, locating a UNC path can take a non-trivial amount of time, as the Network folder
+	// will have to be enumerated first. As that work is all done on the main thread, the
+	// application will hang while the enumeration completes, something that's especially noticeable
+	// on startup.
+	// Note that mapped drives don't have that specific issue, as they're contained within the This
+	// PC folder. However, there is still the general problem that each parent folder has to be
+	// enumerated and all the work is done on the main thread.
+	if (!PathIsUNC(m_pActiveShellBrowser->GetDirectory().c_str()))
 	{
-		bNetworkPath = TRUE;
-	}
-	else
-	{
-		StringCchCopy(szRoot, SIZEOF_ARRAY(szRoot), szDirectory);
-		PathStripToRoot(szRoot);
-		uDriveType = GetDriveType(szRoot);
-
-		bNetworkPath = (uDriveType == DRIVE_REMOTE);
-	}
-
-	/* To improve performance, do not automatically sync the
-	treeview with network or UNC paths. */
-	if (!bNetworkPath)
-	{
-		hItem = m_shellTreeView->LocateItem(pidlDirectory.get());
+		HTREEITEM hItem =
+			m_shellTreeView->LocateItem(m_pActiveShellBrowser->GetDirectoryIdl().get());
 
 		if (hItem != nullptr)
 		{
@@ -519,8 +510,7 @@ void Explorerplusplus::UpdateTreeViewSelection()
 				m_bSelectingTreeViewDirectory = true;
 			}
 
-			SendMessage(
-				m_shellTreeView->GetHWND(), TVM_SELECTITEM, (WPARAM) TVGN_CARET, (LPARAM) hItem);
+			SendMessage(m_shellTreeView->GetHWND(), TVM_SELECTITEM, TVGN_CARET, (LPARAM) hItem);
 		}
 	}
 }

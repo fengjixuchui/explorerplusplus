@@ -142,11 +142,9 @@ void WildcardSelectDialog::SelectItems(TCHAR *szPattern)
 
 	for (int i = 0; i < nItems; i++)
 	{
-		TCHAR szFilename[MAX_PATH];
-		m_pexpp->GetActiveShellBrowser()->GetItemDisplayName(
-			i, SIZEOF_ARRAY(szFilename), szFilename);
+		std::wstring filename = m_pexpp->GetActiveShellBrowser()->GetItemName(i);
 
-		if (CheckWildcardMatch(szPattern, szFilename, FALSE) == 1)
+		if (CheckWildcardMatch(szPattern, filename.c_str(), FALSE) == 1)
 		{
 			ListViewHelper::SelectItem(hListView, i, m_bSelect);
 		}
@@ -188,14 +186,14 @@ WildcardSelectDialogPersistentSettings &WildcardSelectDialogPersistentSettings::
 
 void WildcardSelectDialogPersistentSettings::SaveExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::SaveStringListToRegistry(hKey, SETTING_PATTERN_LIST, m_PatternList);
-	NRegistrySettings::SaveStringToRegistry(hKey, SETTING_CURRENT_TEXT, m_szPattern);
+	RegistrySettings::SaveStringList(hKey, SETTING_PATTERN_LIST, m_PatternList);
+	RegistrySettings::SaveString(hKey, SETTING_CURRENT_TEXT, m_szPattern);
 }
 
 void WildcardSelectDialogPersistentSettings::LoadExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::ReadStringListFromRegistry(hKey, SETTING_PATTERN_LIST, m_PatternList);
-	NRegistrySettings::ReadStringFromRegistry(
+	RegistrySettings::ReadStringList(hKey, SETTING_PATTERN_LIST, m_PatternList);
+	RegistrySettings::ReadString(
 		hKey, SETTING_CURRENT_TEXT, m_szPattern, SIZEOF_ARRAY(m_szPattern));
 }
 

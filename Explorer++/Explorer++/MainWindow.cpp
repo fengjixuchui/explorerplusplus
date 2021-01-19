@@ -31,8 +31,8 @@ MainWindow::MainWindow(
 	m_expp->AddTabsInitializedObserver([this] {
 		m_connections.push_back(m_expp->GetTabContainer()->tabSelectedSignal.AddObserver(
 			boost::bind(&MainWindow::OnTabSelected, this, _1)));
-		m_connections.push_back(m_expp->GetTabContainer()->tabNavigationCompletedSignal.AddObserver(
-			boost::bind(&MainWindow::OnNavigationCompleted, this, _1)));
+		m_connections.push_back(m_expp->GetTabContainer()->tabNavigationCommittedSignal.AddObserver(
+			boost::bind(&MainWindow::OnNavigationCommitted, this, _1, _2, _3)));
 	});
 
 	m_connections.push_back(m_config->showFullTitlePath.addObserver(
@@ -43,8 +43,11 @@ MainWindow::MainWindow(
 		boost::bind(&MainWindow::OnShowPrivilegeLevelInTitleBarUpdated, this, _1)));
 }
 
-void MainWindow::OnNavigationCompleted(const Tab &tab)
+void MainWindow::OnNavigationCommitted(const Tab &tab, PCIDLIST_ABSOLUTE pidl, bool addHistoryEntry)
 {
+	UNREFERENCED_PARAMETER(pidl);
+	UNREFERENCED_PARAMETER(addHistoryEntry);
+
 	if (m_expp->GetTabContainer()->IsTabSelected(tab))
 	{
 		UpdateWindowText();
@@ -84,27 +87,25 @@ void MainWindow::UpdateWindowText()
 	const Tab &tab = m_expp->GetTabContainer()->GetSelectedTab();
 	auto pidlDirectory = tab.GetShellBrowser()->GetDirectoryIdl();
 
-	TCHAR szFolderDisplayName[MAX_PATH];
+	std::wstring folderDisplayName;
 
 	/* Don't show full paths for virtual folders (as only the folders
 	GUID will be shown). */
 	if (m_config->showFullTitlePath.get() && !tab.GetShellBrowser()->InVirtualFolder())
 	{
-		GetDisplayName(pidlDirectory.get(), szFolderDisplayName, SIZEOF_ARRAY(szFolderDisplayName),
-			SHGDN_FORPARSING);
+		GetDisplayName(pidlDirectory.get(), SHGDN_FORPARSING, folderDisplayName);
 	}
 	else
 	{
-		GetDisplayName(pidlDirectory.get(), szFolderDisplayName, SIZEOF_ARRAY(szFolderDisplayName),
-			SHGDN_NORMAL);
+		GetDisplayName(pidlDirectory.get(), SHGDN_NORMAL, folderDisplayName);
 	}
 
 	TCHAR szTitle[512];
 
 	TCHAR szTemp[64];
 	LoadString(m_instance, IDS_MAIN_WINDOW_TITLE, szTemp, SIZEOF_ARRAY(szTemp));
-	StringCchPrintf(
-		szTitle, SIZEOF_ARRAY(szTitle), szTemp, szFolderDisplayName, NExplorerplusplus::APP_NAME);
+	StringCchPrintf(szTitle, SIZEOF_ARRAY(szTitle), szTemp, folderDisplayName.c_str(),
+		NExplorerplusplus::APP_NAME);
 
 	if (m_config->showUserNameInTitleBar.get() || m_config->showPrivilegeLevelInTitleBar.get())
 	{

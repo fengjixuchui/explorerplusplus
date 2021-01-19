@@ -16,20 +16,18 @@
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
 #include "../Helper/StringHelper.h"
-#include <boost/scope_exit.hpp>
+#include "../Helper/WindowHelper.h"
+#include <wil/resource.h>
 #include <regex>
-
-#pragma warning(                                                                                   \
-	disable : 4459) // declaration of 'boost_scope_exit_aux_args' hides global declaration
 
 namespace NMergeFilesDialog
 {
-const int WM_APP_SETTOTALMERGECOUNT = WM_APP + 1;
-const int WM_APP_SETCURRENTMERGECOUNT = WM_APP + 2;
-const int WM_APP_MERGINGFINISHED = WM_APP + 3;
-const int WM_APP_OUTPUTFILEINVALID = WM_APP + 4;
+	const int WM_APP_SETTOTALMERGECOUNT = WM_APP + 1;
+	const int WM_APP_SETCURRENTMERGECOUNT = WM_APP + 2;
+	const int WM_APP_MERGINGFINISHED = WM_APP + 3;
+	const int WM_APP_OUTPUTFILEINVALID = WM_APP + 4;
 
-DWORD WINAPI MergeFilesThread(LPVOID pParam);
+	DWORD WINAPI MergeFilesThread(LPVOID pParam);
 }
 
 const TCHAR MergeFilesDialogPersistentSettings::SETTINGS_KEY[] = _T("MergeFiles");
@@ -373,10 +371,9 @@ void MergeFilesDialog::OnOk()
 			return;
 		}
 
-		TCHAR szOutputFileName[MAX_PATH];
-		GetWindowText(hOutputFileName, szOutputFileName, SIZEOF_ARRAY(szOutputFileName));
+		std::wstring outputFileName = GetWindowString(hOutputFileName);
 
-		m_pMergeFiles = new MergeFiles(m_hDlg, szOutputFileName, m_FullFilenameList);
+		m_pMergeFiles = new MergeFiles(m_hDlg, outputFileName, m_FullFilenameList);
 
 		SendDlgItemMessage(m_hDlg, IDC_MERGE_PROGRESS, PBM_SETPOS, 0, 0);
 
@@ -421,29 +418,23 @@ void MergeFilesDialog::OnChangeOutputDirectory()
 	TCHAR szTitle[128];
 	LoadString(GetInstance(), IDS_MERGE_SELECTDESTINATION, szTitle, SIZEOF_ARRAY(szTitle));
 
-	PIDLIST_ABSOLUTE pidl;
-	BOOL bSucceeded = NFileOperations::CreateBrowseDialog(m_hDlg, szTitle, &pidl);
+	unique_pidl_absolute pidl;
+	BOOL bSucceeded = NFileOperations::CreateBrowseDialog(m_hDlg, szTitle, wil::out_param(pidl));
 
 	if (!bSucceeded)
 	{
 		return;
 	}
 
-	BOOST_SCOPE_EXIT(pidl)
-	{
-		CoTaskMemFree(pidl);
-	}
-	BOOST_SCOPE_EXIT_END
-
-	TCHAR parsingName[MAX_PATH];
-	HRESULT hr = GetDisplayName(pidl, parsingName, SIZEOF_ARRAY(parsingName), SHGDN_FORPARSING);
+	std::wstring parsingName;
+	HRESULT hr = GetDisplayName(pidl.get(), SHGDN_FORPARSING, parsingName);
 
 	if (FAILED(hr))
 	{
 		return;
 	}
 
-	SetDlgItemText(m_hDlg, IDC_MERGE_EDIT_FILENAME, parsingName);
+	SetDlgItemText(m_hDlg, IDC_MERGE_EDIT_FILENAME, parsingName.c_str());
 }
 
 void MergeFilesDialog::OnMove(bool bUp)

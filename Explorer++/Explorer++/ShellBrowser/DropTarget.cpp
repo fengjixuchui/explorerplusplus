@@ -31,7 +31,7 @@ HRESULT _stdcall ShellBrowser::DragEnter(
 	m_bDeselectDropFolder = FALSE;
 	m_iDropFolder = -1;
 
-	if (m_bVirtualFolder && !m_bDragging)
+	if (m_directoryState.virtualFolder && !m_bDragging)
 	{
 		m_bDataAccept = FALSE;
 		*pdwEffect = DROPEFFECT_NONE;
@@ -375,7 +375,7 @@ void ShellBrowser::OnDropFile(const std::list<std::wstring> &PastedFileList, con
 				droppedFile.szFileName, SIZEOF_ARRAY(droppedFile.szFileName), strFilename.c_str());
 			PathStripPath(droppedFile.szFileName);
 
-			m_DroppedFileNameList.push_back(droppedFile);
+			m_droppedFileNameList.push_back(droppedFile);
 		}
 	}
 }

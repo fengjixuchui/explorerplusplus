@@ -451,6 +451,9 @@
     <ClCompile Include="DarkModeButton.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="ShellBrowser\Filtering.cpp">
+      <Filter>ShellBrowser</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ApplicationToolbar.h">
@@ -926,9 +929,6 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="res\Folder Empty.bmp">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="res\Navigation Start.wav">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="res\No Preview Available.bmp">

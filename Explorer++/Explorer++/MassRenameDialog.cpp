@@ -23,7 +23,7 @@
 #include "../Helper/Macros.h"
 #include "../Helper/RegistrySettings.h"
 #include "../Helper/XMLSettings.h"
-#include <boost/algorithm/string.hpp>
+#include <boost/locale.hpp>
 #include <iomanip>
 #include <list>
 #include <regex>
@@ -383,13 +383,13 @@ void MassRenameDialog::ProcessFileName(const std::wstring &strTarget,
 	while ((iPos = strOutput.find(_T("/L"))) != std::wstring::npos)
 	{
 		strOutput.replace(iPos, 2, strFilename);
-		boost::to_lower(strOutput);
+		strOutput = boost::locale::to_lower(strOutput);
 	}
 
 	while ((iPos = strOutput.find(_T("/U"))) != std::wstring::npos)
 	{
 		strOutput.replace(iPos, 2, strFilename);
-		boost::to_upper(strOutput);
+		strOutput = boost::locale::to_upper(strOutput);
 	}
 }
 
@@ -408,15 +408,15 @@ MassRenameDialogPersistentSettings &MassRenameDialogPersistentSettings::GetInsta
 
 void MassRenameDialogPersistentSettings::SaveExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_COLUMN_WIDTH_1, m_iColumnWidth1);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_COLUMN_WIDTH_2, m_iColumnWidth2);
+	RegistrySettings::SaveDword(hKey, SETTING_COLUMN_WIDTH_1, m_iColumnWidth1);
+	RegistrySettings::SaveDword(hKey, SETTING_COLUMN_WIDTH_2, m_iColumnWidth2);
 }
 
 void MassRenameDialogPersistentSettings::LoadExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::ReadDwordFromRegistry(
+	RegistrySettings::ReadDword(
 		hKey, SETTING_COLUMN_WIDTH_1, reinterpret_cast<DWORD *>(&m_iColumnWidth1));
-	NRegistrySettings::ReadDwordFromRegistry(
+	RegistrySettings::ReadDword(
 		hKey, SETTING_COLUMN_WIDTH_2, reinterpret_cast<DWORD *>(&m_iColumnWidth2));
 }
 

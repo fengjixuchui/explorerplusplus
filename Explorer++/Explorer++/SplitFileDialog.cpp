@@ -17,23 +17,20 @@
 #include "../Helper/StringHelper.h"
 #include "../Helper/WindowHelper.h"
 #include "../Helper/XMLSettings.h"
-#include <boost/scope_exit.hpp>
+#include <wil/resource.h>
 #include <comdef.h>
 #include <unordered_map>
 
-#pragma warning(                                                                                   \
-	disable : 4459) // declaration of 'boost_scope_exit_aux_args' hides global declaration
-
 namespace NSplitFileDialog
 {
-const int WM_APP_SETTOTALSPLITCOUNT = WM_APP + 1;
-const int WM_APP_SETCURRENTSPLITCOUNT = WM_APP + 2;
-const int WM_APP_SPLITFINISHED = WM_APP + 3;
-const int WM_APP_INPUTFILEINVALID = WM_APP + 4;
+	const int WM_APP_SETTOTALSPLITCOUNT = WM_APP + 1;
+	const int WM_APP_SETCURRENTSPLITCOUNT = WM_APP + 2;
+	const int WM_APP_SPLITFINISHED = WM_APP + 3;
+	const int WM_APP_INPUTFILEINVALID = WM_APP + 4;
 
-const TCHAR COUNTER_PATTERN[] = _T("/N");
+	const TCHAR COUNTER_PATTERN[] = _T("/N");
 
-DWORD WINAPI SplitFileThreadProcStub(LPVOID pParam);
+	DWORD WINAPI SplitFileThreadProcStub(LPVOID pParam);
 }
 
 const TCHAR SplitFileDialogPersistentSettings::SETTINGS_KEY[] = _T("SplitFile");
@@ -487,29 +484,23 @@ void SplitFileDialog::OnChangeOutputDirectory()
 	TCHAR szTitle[128];
 	LoadString(GetInstance(), IDS_SPLITFILEDIALOG_DIRECTORYTITLE, szTitle, SIZEOF_ARRAY(szTitle));
 
-	PIDLIST_ABSOLUTE pidl;
-	BOOL bSucceeded = NFileOperations::CreateBrowseDialog(m_hDlg, szTitle, &pidl);
+	unique_pidl_absolute pidl;
+	BOOL bSucceeded = NFileOperations::CreateBrowseDialog(m_hDlg, szTitle, wil::out_param(pidl));
 
 	if (!bSucceeded)
 	{
 		return;
 	}
 
-	BOOST_SCOPE_EXIT(pidl)
-	{
-		CoTaskMemFree(pidl);
-	}
-	BOOST_SCOPE_EXIT_END
-
-	TCHAR parsingName[MAX_PATH];
-	HRESULT hr = GetDisplayName(pidl, parsingName, SIZEOF_ARRAY(parsingName), SHGDN_FORPARSING);
+	std::wstring parsingName;
+	HRESULT hr = GetDisplayName(pidl.get(), SHGDN_FORPARSING, parsingName);
 
 	if (FAILED(hr))
 	{
 		return;
 	}
 
-	SetDlgItemText(m_hDlg, IDC_SPLIT_EDIT_OUTPUT, parsingName);
+	SetDlgItemText(m_hDlg, IDC_SPLIT_EDIT_OUTPUT, parsingName.c_str());
 }
 
 void SplitFileDialog::OnSplitFinished()
@@ -685,14 +676,14 @@ SplitFileDialogPersistentSettings &SplitFileDialogPersistentSettings::GetInstanc
 
 void SplitFileDialogPersistentSettings::SaveExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::SaveStringToRegistry(hKey, SETTING_SIZE, m_strSplitSize.c_str());
-	NRegistrySettings::SaveStringToRegistry(hKey, SETTING_SIZE_GROUP, m_strSplitGroup.c_str());
+	RegistrySettings::SaveString(hKey, SETTING_SIZE, m_strSplitSize.c_str());
+	RegistrySettings::SaveString(hKey, SETTING_SIZE_GROUP, m_strSplitGroup.c_str());
 }
 
 void SplitFileDialogPersistentSettings::LoadExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::ReadStringFromRegistry(hKey, SETTING_SIZE, m_strSplitSize);
-	NRegistrySettings::ReadStringFromRegistry(hKey, SETTING_SIZE_GROUP, m_strSplitGroup);
+	RegistrySettings::ReadString(hKey, SETTING_SIZE, m_strSplitSize);
+	RegistrySettings::ReadString(hKey, SETTING_SIZE_GROUP, m_strSplitGroup);
 }
 
 void SplitFileDialogPersistentSettings::SaveExtraXMLSettings(

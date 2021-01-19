@@ -147,18 +147,6 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 		OnDisplayWindowResized(wParam);
 		break;
 
-	case WM_USER_STARTEDBROWSING:
-		OnStartedBrowsing((int)wParam,(TCHAR *)lParam);
-		break;
-
-	case WM_USER_NEWITEMINSERTED:
-		OnShellNewItemCreated(lParam);
-		break;
-
-	case WM_USER_DIRECTORYMODIFIED:
-		OnDirectoryModified((int)wParam);
-		break;
-
 	// See https://github.com/derceg/explorerplusplus/issues/169.
 	/*case WM_APP_ASSOCCHANGED:
 		OnAssocChanged();
@@ -172,7 +160,7 @@ LRESULT CALLBACK Explorerplusplus::WindowProcedure(HWND hwnd,UINT Msg,WPARAM wPa
 
 			GetClientRect(m_hContainer,&rc);
 
-			SendMessage(m_hContainer,WM_SIZE,SIZE_RESTORED,(LPARAM)MAKELPARAM(rc.right,rc.bottom));
+			SendMessage(m_hContainer,WM_SIZE,SIZE_RESTORED,MAKELPARAM(rc.right,rc.bottom));
 		}
 		break;
 
@@ -355,17 +343,17 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 
 	case ToolbarButton::OpenCommandPrompt:
 	case IDM_FILE_OPENCOMMANDPROMPT:
-		StartCommandPrompt(m_CurrentDirectory, false);
+		StartCommandPrompt(m_pActiveShellBrowser->GetDirectory(), false);
 		break;
 
 	case IDM_FILE_OPENCOMMANDPROMPTADMINISTRATOR:
-		StartCommandPrompt(m_CurrentDirectory, true);
+		StartCommandPrompt(m_pActiveShellBrowser->GetDirectory(), true);
 		break;
 
 	case IDM_FILE_COPYFOLDERPATH:
 	{
 		BulkClipboardWriter clipboardWriter;
-		clipboardWriter.WriteText(m_CurrentDirectory);
+		clipboardWriter.WriteText(m_pActiveShellBrowser->GetDirectory());
 	}
 		break;
 
@@ -429,11 +417,11 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		break;
 
 	case IDM_EDIT_PASTESHORTCUT:
-		PasteLinksToClipboardFiles(m_CurrentDirectory.c_str());
+		PasteLinksToClipboardFiles(m_pActiveShellBrowser->GetDirectory().c_str());
 		break;
 
 	case IDM_EDIT_PASTEHARDLINK:
-		PasteHardLinks(m_CurrentDirectory.c_str());
+		PasteHardLinks(m_pActiveShellBrowser->GetDirectory().c_str());
 		break;
 
 	case IDM_EDIT_COPYTOFOLDER:
@@ -1119,7 +1107,7 @@ LRESULT Explorerplusplus::HandleMenuOrAccelerator(HWND hwnd, WPARAM wParam)
 		/* Dump the columns from the current tab, and save
 		them as the default columns for the appropriate folder
 		type.. */
-		auto currentColumns = m_pActiveShellBrowser->ExportCurrentColumns();
+		auto currentColumns = m_pActiveShellBrowser->GetCurrentColumns();
 		auto pidl = m_pActiveShellBrowser->GetDirectoryIdl();
 
 		unique_pidl_absolute pidlDrives;
@@ -1407,7 +1395,8 @@ LRESULT Explorerplusplus::HandleControlNotification(HWND hwnd, WPARAM wParam)
 	switch (HIWORD(wParam))
 	{
 	case CBN_DROPDOWN:
-		AddPathsToComboBoxEx(m_addressBar->GetHWND(), m_CurrentDirectory.c_str());
+		AddPathsToComboBoxEx(
+			m_addressBar->GetHWND(), m_pActiveShellBrowser->GetDirectory().c_str());
 		break;
 	}
 
@@ -1452,10 +1441,10 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 			break;
 
 		case LVN_BEGINLABELEDIT:
-			return OnListViewBeginLabelEdit(lParam);
+			return OnListViewBeginLabelEdit(reinterpret_cast<NMLVDISPINFO *>(lParam));
 
 		case LVN_ENDLABELEDIT:
-			return OnListViewEndLabelEdit(lParam);
+			return OnListViewEndLabelEdit(reinterpret_cast<NMLVDISPINFO *>(lParam));
 
 		case LVN_DELETEALLITEMS:
 			// Respond to the notification in order to speed up calls to ListView_DeleteAllItems

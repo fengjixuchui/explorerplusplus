@@ -27,15 +27,15 @@
 
 namespace NSearchDialog
 {
-const int WM_APP_SEARCHITEMFOUND = WM_APP + 1;
-const int WM_APP_SEARCHFINISHED = WM_APP + 2;
-const int WM_APP_SEARCHCHANGEDDIRECTORY = WM_APP + 3;
-const int WM_APP_REGULAREXPRESSIONINVALID = WM_APP + 4;
+	const int WM_APP_SEARCHITEMFOUND = WM_APP + 1;
+	const int WM_APP_SEARCHFINISHED = WM_APP + 2;
+	const int WM_APP_SEARCHCHANGEDDIRECTORY = WM_APP + 3;
+	const int WM_APP_REGULAREXPRESSIONINVALID = WM_APP + 4;
 
-int CALLBACK SortResultsStub(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
+	int CALLBACK SortResultsStub(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 
-DWORD WINAPI SearchThread(LPVOID pParam);
-int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData);
+	DWORD WINAPI SearchThread(LPVOID pParam);
+	int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData);
 }
 
 const TCHAR SearchDialogPersistentSettings::SETTINGS_KEY[] = _T("Search");
@@ -272,7 +272,6 @@ INT_PTR SearchDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 		BROWSEINFO bi;
 		TCHAR szDirectory[MAX_PATH];
 		TCHAR szDisplayName[MAX_PATH];
-		TCHAR szParsingPath[MAX_PATH];
 		TCHAR szTitle[256];
 
 		LoadString(GetInstance(), IDS_SEARCHDIALOG_TITLE, szTitle, SIZEOF_ARRAY(szTitle));
@@ -290,9 +289,9 @@ INT_PTR SearchDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 
 		if (pidl != nullptr)
 		{
-			GetDisplayName(
-				pidl.get(), szParsingPath, SIZEOF_ARRAY(szParsingPath), SHGDN_FORPARSING);
-			SetDlgItemText(m_hDlg, IDC_COMBO_DIRECTORY, szParsingPath);
+			std::wstring parsingPath;
+			GetDisplayName(pidl.get(), SHGDN_FORPARSING, parsingPath);
+			SetDlgItemText(m_hDlg, IDC_COMBO_DIRECTORY, parsingPath.c_str());
 		}
 	}
 	break;
@@ -658,7 +657,7 @@ BOOL SearchDialog::HandleShellMenuItem(PCIDLIST_ABSOLUTE pidlParent,
 		for (auto pidlItem : pidlItems)
 		{
 			unique_pidl_absolute pidlComplete(ILCombine(pidlParent, pidlItem));
-			m_pexpp->OpenItem(pidlComplete.get(), FALSE, FALSE);
+			m_pexpp->OpenItem(pidlComplete.get());
 		}
 
 		return TRUE;
@@ -676,12 +675,8 @@ void SearchDialog::HandleCustomMenuItem(
 	{
 		m_tabContainer->CreateNewTab(pidlParent, TabSettings(_selected = true));
 
-		TCHAR szFilename[MAX_PATH];
 		unique_pidl_absolute pidlComplete(ILCombine(pidlParent, pidlItems.front()));
-		GetDisplayName(pidlComplete.get(), szFilename, SIZEOF_ARRAY(szFilename),
-			SHGDN_INFOLDER | SHGDN_FORPARSING);
-
-		m_pexpp->GetActiveShellBrowser()->SelectFiles(szFilename);
+		m_pexpp->GetActiveShellBrowser()->SelectItems({ pidlComplete.get() });
 	}
 	break;
 	}
@@ -720,7 +715,7 @@ INT_PTR SearchDialog::OnNotify(NMHDR *pnmhdr)
 
 					if (hr == S_OK)
 					{
-						m_pexpp->OpenItem(pidlFull.get(), FALSE, FALSE);
+						m_pexpp->OpenItem(pidlFull.get());
 					}
 				}
 			}
@@ -943,36 +938,36 @@ INT_PTR SearchDialog::OnTimer(int iTimerID)
 
 	while (i < nItems)
 	{
-		TCHAR szFullFileName[MAX_PATH];
-		TCHAR szDirectory[MAX_PATH];
-		TCHAR szFileName[MAX_PATH];
 		LVITEM lvItem;
 		SHFILEINFO shfi;
 		int iIndex;
 
 		PIDLIST_ABSOLUTE pidl = *itr;
 
-		GetDisplayName(pidl, szDirectory, SIZEOF_ARRAY(szDirectory), SHGDN_FORPARSING);
-		PathRemoveFileSpec(szDirectory);
+		std::wstring fullFileName;
+		GetDisplayName(pidl, SHGDN_FORPARSING, fullFileName);
 
-		GetDisplayName(pidl, szFullFileName, SIZEOF_ARRAY(szFullFileName), SHGDN_FORPARSING);
-		GetDisplayName(
-			pidl, szFileName, SIZEOF_ARRAY(szFileName), SHGDN_INFOLDER | SHGDN_FORPARSING);
+		TCHAR directory[MAX_PATH];
+		StringCchCopy(directory, SIZEOF_ARRAY(directory), fullFileName.c_str());
+		PathRemoveFileSpec(directory);
+
+		std::wstring fileName;
+		GetDisplayName(pidl, SHGDN_INFOLDER | SHGDN_FORPARSING, fileName);
 
 		SHGetFileInfo((LPCWSTR) pidl, 0, &shfi, sizeof(shfi), SHGFI_PIDL | SHGFI_SYSICONINDEX);
 
 		m_SearchItemsMapInternal.insert(
-			std::unordered_map<int, std::wstring>::value_type(m_iInternalIndex, szFullFileName));
+			std::unordered_map<int, std::wstring>::value_type(m_iInternalIndex, fullFileName));
 
 		lvItem.mask = LVIF_IMAGE | LVIF_TEXT | LVIF_PARAM;
-		lvItem.pszText = szFileName;
+		lvItem.pszText = fileName.data();
 		lvItem.iItem = nListViewItems + i;
 		lvItem.iSubItem = 0;
 		lvItem.iImage = shfi.iIcon;
 		lvItem.lParam = m_iInternalIndex++;
 		iIndex = ListView_InsertItem(hListView, &lvItem);
 
-		ListView_SetItemText(hListView, iIndex, 1, szDirectory);
+		ListView_SetItemText(hListView, iIndex, 1, directory);
 
 		CoTaskMemFree(pidl);
 
@@ -1287,66 +1282,59 @@ SearchDialogPersistentSettings &SearchDialogPersistentSettings::GetInstance()
 
 void SearchDialogPersistentSettings::SaveExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_COLUMN_WIDTH_1, m_iColumnWidth1);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_COLUMN_WIDTH_2, m_iColumnWidth2);
-	NRegistrySettings::SaveStringToRegistry(hKey, SETTING_SEARCH_DIRECTORY_TEXT, m_szSearchPattern);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_SEARCH_SUB_FOLDERS, m_bSearchSubFolders);
-	NRegistrySettings::SaveDwordToRegistry(
-		hKey, SETTING_USE_REGULAR_EXPRESSIONS, m_bUseRegularExpressions);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_CASE_INSENSITIVE, m_bCaseInsensitive);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_ARCHIVE, m_bArchive);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_HIDDEN, m_bHidden);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_READ_ONLY, m_bReadOnly);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_SYSTEM, m_bSystem);
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_SORT_MODE, static_cast<DWORD>(m_SortMode));
-	NRegistrySettings::SaveDwordToRegistry(hKey, SETTING_SORT_ASCENDING, m_bSortAscending);
+	RegistrySettings::SaveDword(hKey, SETTING_COLUMN_WIDTH_1, m_iColumnWidth1);
+	RegistrySettings::SaveDword(hKey, SETTING_COLUMN_WIDTH_2, m_iColumnWidth2);
+	RegistrySettings::SaveString(hKey, SETTING_SEARCH_DIRECTORY_TEXT, m_szSearchPattern);
+	RegistrySettings::SaveDword(hKey, SETTING_SEARCH_SUB_FOLDERS, m_bSearchSubFolders);
+	RegistrySettings::SaveDword(hKey, SETTING_USE_REGULAR_EXPRESSIONS, m_bUseRegularExpressions);
+	RegistrySettings::SaveDword(hKey, SETTING_CASE_INSENSITIVE, m_bCaseInsensitive);
+	RegistrySettings::SaveDword(hKey, SETTING_ARCHIVE, m_bArchive);
+	RegistrySettings::SaveDword(hKey, SETTING_HIDDEN, m_bHidden);
+	RegistrySettings::SaveDword(hKey, SETTING_READ_ONLY, m_bReadOnly);
+	RegistrySettings::SaveDword(hKey, SETTING_SYSTEM, m_bSystem);
+	RegistrySettings::SaveDword(hKey, SETTING_SORT_MODE, static_cast<DWORD>(m_SortMode));
+	RegistrySettings::SaveDword(hKey, SETTING_SORT_ASCENDING, m_bSortAscending);
 
 	std::list<std::wstring> searchDirectoriesList;
 	CircularBufferToList(m_searchDirectories, searchDirectoriesList);
-	NRegistrySettings::SaveStringListToRegistry(
-		hKey, SETTING_DIRECTORY_LIST, searchDirectoriesList);
+	RegistrySettings::SaveStringList(hKey, SETTING_DIRECTORY_LIST, searchDirectoriesList);
 
 	std::list<std::wstring> searchPatternList;
 	CircularBufferToList(m_searchPatterns, searchPatternList);
-	NRegistrySettings::SaveStringListToRegistry(hKey, SETTING_PATTERN_LIST, searchPatternList);
+	RegistrySettings::SaveStringList(hKey, SETTING_PATTERN_LIST, searchPatternList);
 }
 
 void SearchDialogPersistentSettings::LoadExtraRegistrySettings(HKEY hKey)
 {
-	NRegistrySettings::ReadDwordFromRegistry(
+	RegistrySettings::ReadDword(
 		hKey, SETTING_COLUMN_WIDTH_1, reinterpret_cast<LPDWORD>(&m_iColumnWidth1));
-	NRegistrySettings::ReadDwordFromRegistry(
+	RegistrySettings::ReadDword(
 		hKey, SETTING_COLUMN_WIDTH_2, reinterpret_cast<LPDWORD>(&m_iColumnWidth2));
-	NRegistrySettings::ReadStringFromRegistry(
+	RegistrySettings::ReadString(
 		hKey, SETTING_SEARCH_DIRECTORY_TEXT, m_szSearchPattern, SIZEOF_ARRAY(m_szSearchPattern));
-	NRegistrySettings::ReadDwordFromRegistry(
+	RegistrySettings::ReadDword(
 		hKey, SETTING_SEARCH_SUB_FOLDERS, reinterpret_cast<LPDWORD>(&m_bSearchSubFolders));
-	NRegistrySettings::ReadDwordFromRegistry(hKey, SETTING_USE_REGULAR_EXPRESSIONS,
+	RegistrySettings::ReadDword(hKey, SETTING_USE_REGULAR_EXPRESSIONS,
 		reinterpret_cast<LPDWORD>(&m_bUseRegularExpressions));
-	NRegistrySettings::ReadDwordFromRegistry(
+	RegistrySettings::ReadDword(
 		hKey, SETTING_CASE_INSENSITIVE, reinterpret_cast<LPDWORD>(&m_bCaseInsensitive));
-	NRegistrySettings::ReadDwordFromRegistry(
-		hKey, SETTING_ARCHIVE, reinterpret_cast<LPDWORD>(&m_bArchive));
-	NRegistrySettings::ReadDwordFromRegistry(
-		hKey, SETTING_HIDDEN, reinterpret_cast<LPDWORD>(&m_bHidden));
-	NRegistrySettings::ReadDwordFromRegistry(
-		hKey, SETTING_READ_ONLY, reinterpret_cast<LPDWORD>(&m_bReadOnly));
-	NRegistrySettings::ReadDwordFromRegistry(
-		hKey, SETTING_SYSTEM, reinterpret_cast<LPDWORD>(&m_bSystem));
-	NRegistrySettings::ReadDwordFromRegistry(
+	RegistrySettings::ReadDword(hKey, SETTING_ARCHIVE, reinterpret_cast<LPDWORD>(&m_bArchive));
+	RegistrySettings::ReadDword(hKey, SETTING_HIDDEN, reinterpret_cast<LPDWORD>(&m_bHidden));
+	RegistrySettings::ReadDword(hKey, SETTING_READ_ONLY, reinterpret_cast<LPDWORD>(&m_bReadOnly));
+	RegistrySettings::ReadDword(hKey, SETTING_SYSTEM, reinterpret_cast<LPDWORD>(&m_bSystem));
+	RegistrySettings::ReadDword(
 		hKey, SETTING_SORT_ASCENDING, reinterpret_cast<LPDWORD>(&m_bSortAscending));
 
 	DWORD value;
-	NRegistrySettings::ReadDwordFromRegistry(hKey, SETTING_SORT_MODE, &value);
+	RegistrySettings::ReadDword(hKey, SETTING_SORT_MODE, &value);
 	m_SortMode = static_cast<SortMode>(value);
 
 	std::list<std::wstring> searchDirectoriesList;
-	NRegistrySettings::ReadStringListFromRegistry(
-		hKey, SETTING_DIRECTORY_LIST, searchDirectoriesList);
+	RegistrySettings::ReadStringList(hKey, SETTING_DIRECTORY_LIST, searchDirectoriesList);
 	ListToCircularBuffer(searchDirectoriesList, m_searchDirectories);
 
 	std::list<std::wstring> searchPatternList;
-	NRegistrySettings::ReadStringListFromRegistry(hKey, SETTING_PATTERN_LIST, searchPatternList);
+	RegistrySettings::ReadStringList(hKey, SETTING_PATTERN_LIST, searchPatternList);
 	ListToCircularBuffer(searchPatternList, m_searchPatterns);
 }
 

@@ -44,7 +44,7 @@ void Explorerplusplus::UpdateDisplayWindowForZeroFiles(const Tab &tab)
 	unique_pidl_absolute pidlComputer;
 	SHGetFolderLocation(nullptr, CSIDL_DRIVES, nullptr, 0, wil::out_param(pidlComputer));
 
-	if (CompareIdls(pidlDirectory.get(), pidlComputer.get()))
+	if (ArePidlsEquivalent(pidlDirectory.get(), pidlComputer.get()))
 	{
 		TCHAR szDisplay[512];
 		DWORD dwSize = SIZEOF_ARRAY(szDisplay);
@@ -79,10 +79,9 @@ void Explorerplusplus::UpdateDisplayWindowForZeroFiles(const Tab &tab)
 	else
 	{
 		/* Folder name. */
-		TCHAR szFolderName[MAX_PATH];
-		GetDisplayName(
-			currentDirectory.c_str(), szFolderName, SIZEOF_ARRAY(szFolderName), SHGDN_INFOLDER);
-		DisplayWindow_BufferText(m_hDisplayWindow, szFolderName);
+		std::wstring folderName;
+		GetDisplayName(currentDirectory.c_str(), SHGDN_INFOLDER, folderName);
+		DisplayWindow_BufferText(m_hDisplayWindow, folderName.c_str());
 
 		/* Folder type. */
 		SHFILEINFO shfi;
@@ -96,10 +95,8 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 {
 	WIN32_FIND_DATA wfd;
 	SHFILEINFO shfi;
-	TCHAR szFullItemName[MAX_PATH];
 	TCHAR szFileDate[256];
 	TCHAR szDisplayDate[512];
-	TCHAR szDisplayName[MAX_PATH];
 	TCHAR szDateModified[256];
 	int iSelected;
 
@@ -107,25 +104,20 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 
 	if (iSelected != -1)
 	{
-		tab.GetShellBrowser()->GetItemDisplayName(
-			iSelected, SIZEOF_ARRAY(szDisplayName), szDisplayName);
+		std::wstring filename = tab.GetShellBrowser()->GetItemName(iSelected);
 
 		/* File name. */
-		DisplayWindow_BufferText(m_hDisplayWindow, szDisplayName);
+		DisplayWindow_BufferText(m_hDisplayWindow, filename.c_str());
 
-		tab.GetShellBrowser()->GetItemFullName(
-			iSelected, szFullItemName, SIZEOF_ARRAY(szFullItemName));
+		std::wstring fullItemName = tab.GetShellBrowser()->GetItemFullName(iSelected);
 
 		if (!tab.GetShellBrowser()->InVirtualFolder())
 		{
 			DWORD dwAttributes;
 
-			tab.GetShellBrowser()->GetItemFullName(
-				iSelected, szFullItemName, SIZEOF_ARRAY(szFullItemName));
-
 			wfd = tab.GetShellBrowser()->GetItemFileFindData(iSelected);
 
-			dwAttributes = GetFileAttributes(szFullItemName);
+			dwAttributes = GetFileAttributes(fullItemName.c_str());
 
 			if (((dwAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
 				&& m_config->globalFolderSettings.showFolderSizes)
@@ -152,7 +144,7 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 
 						pfs->pfnCallback = FolderSizeCallbackStub;
 
-						StringCchCopy(pfs->szPath, SIZEOF_ARRAY(pfs->szPath), szFullItemName);
+						StringCchCopy(pfs->szPath, SIZEOF_ARRAY(pfs->szPath), fullItemName.c_str());
 
 						LoadString(m_hLanguageModule, IDS_GENERAL_TOTALSIZE, szTotalSize,
 							SIZEOF_ARRAY(szTotalSize));
@@ -182,7 +174,7 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 			}
 			else
 			{
-				SHGetFileInfo(szFullItemName, wfd.dwFileAttributes, &shfi, sizeof(shfi),
+				SHGetFileInfo(fullItemName.c_str(), wfd.dwFileAttributes, &shfi, sizeof(shfi),
 					SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES);
 
 				DisplayWindow_BufferText(m_hDisplayWindow, shfi.szTypeName);
@@ -200,7 +192,7 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 			/* File (modified) date. */
 			DisplayWindow_BufferText(m_hDisplayWindow, szDisplayDate);
 
-			if (IsImage(szFullItemName))
+			if (IsImage(fullItemName.c_str()))
 			{
 				TCHAR szOutput[256];
 				TCHAR szTemp[64];
@@ -208,7 +200,7 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 				UINT uHeight;
 				Gdiplus::Image *pimg = nullptr;
 
-				pimg = new Gdiplus::Image(szFullItemName, FALSE);
+				pimg = new Gdiplus::Image(fullItemName.c_str(), FALSE);
 
 				if (pimg->GetLastStatus() == Gdiplus::Ok)
 				{
@@ -312,7 +304,7 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 			if (((dwAttributes & FILE_ATTRIBUTE_DIRECTORY) != FILE_ATTRIBUTE_DIRECTORY)
 				&& m_config->showFilePreviews && m_config->showDisplayWindow)
 			{
-				DisplayWindow_SetThumbnailFile(m_hDisplayWindow, szFullItemName, TRUE);
+				DisplayWindow_SetThumbnailFile(m_hDisplayWindow, fullItemName.c_str(), TRUE);
 			}
 			else
 			{
@@ -321,17 +313,14 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 		}
 		else
 		{
-			tab.GetShellBrowser()->GetItemFullName(
-				iSelected, szFullItemName, SIZEOF_ARRAY(szFullItemName));
-
-			if (PathIsRoot(szFullItemName))
+			if (PathIsRoot(fullItemName.c_str()))
 			{
 				TCHAR szMsg[64];
 				TCHAR szTemp[64];
 				ULARGE_INTEGER ulTotalNumberOfBytes;
 				ULARGE_INTEGER ulTotalNumberOfFreeBytes;
-				BOOL bRet = GetDiskFreeSpaceEx(
-					szFullItemName, nullptr, &ulTotalNumberOfBytes, &ulTotalNumberOfFreeBytes);
+				BOOL bRet = GetDiskFreeSpaceEx(fullItemName.c_str(), nullptr, &ulTotalNumberOfBytes,
+					&ulTotalNumberOfFreeBytes);
 
 				if (bRet)
 				{
@@ -350,8 +339,8 @@ void Explorerplusplus::UpdateDisplayWindowForOneFile(const Tab &tab)
 				}
 
 				TCHAR szFileSystem[MAX_PATH + 1];
-				bRet = GetVolumeInformation(szFullItemName, nullptr, 0, nullptr, nullptr, nullptr,
-					szFileSystem, SIZEOF_ARRAY(szFileSystem));
+				bRet = GetVolumeInformation(fullItemName.c_str(), nullptr, 0, nullptr, nullptr,
+					nullptr, szFileSystem, SIZEOF_ARRAY(szFileSystem));
 
 				if (bRet)
 				{

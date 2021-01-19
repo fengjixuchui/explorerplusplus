@@ -199,7 +199,8 @@ void Explorerplusplus::CreateMainControls()
 		}
 
 		m_ToolbarInformation[i].cbSize = sizeof(REBARBANDINFO);
-		SendMessage(m_hMainRebar, RB_INSERTBAND, (WPARAM) -1, (LPARAM) &m_ToolbarInformation[i]);
+		SendMessage(m_hMainRebar, RB_INSERTBAND, static_cast<WPARAM>(-1),
+			(LPARAM) &m_ToolbarInformation[i]);
 	}
 }
 
@@ -294,7 +295,7 @@ boost::signals2::connection Explorerplusplus::AddToolbarContextMenuObserver(
 
 void Explorerplusplus::CreateAddressBar()
 {
-	m_addressBar = AddressBar::Create(m_hMainRebar, this, m_mainToolbar);
+	m_addressBar = AddressBar::Create(m_hMainRebar, this);
 }
 
 void Explorerplusplus::CreateMainToolbar()

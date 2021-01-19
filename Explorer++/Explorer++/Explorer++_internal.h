@@ -23,9 +23,9 @@ namespace NExplorerplusplus
 
 	const TCHAR LOG_FILENAME[] = _T("Explorer++.log");
 
-	/* Command line arguments supplied to the program
-	for each jump list task. */
+	// Internal command line arguments.
 	const TCHAR JUMPLIST_TASK_NEWTAB_ARGUMENT[] = _T("--open-new-tab");
+	const TCHAR APPLICATION_CRASHED_ARGUMENT[] = _T("--application-crashed");
 
 	const TCHAR LANGUAGE_DLL_FILENAME_PATTERN[] = _T("Explorer++*.dll");
 }
@@ -63,5 +63,6 @@ extern TCHAR g_szLang[32];
 extern HACCEL g_hAccl;
 
 extern bool g_enablePlugins;
+extern bool g_registerForShellNotifications;
 
 BOOL TestConfigFileInternal(void);

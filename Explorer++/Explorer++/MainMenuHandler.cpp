@@ -54,9 +54,8 @@ void Explorerplusplus::OnMergeFiles()
 
 	while ((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
 	{
-		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
-		fullFilenameList.emplace_back(szFullFilename);
+		std::wstring fullFilename = m_pActiveShellBrowser->GetItemFullName(iItem);
+		fullFilenameList.push_back(fullFilename);
 	}
 
 	MergeFilesDialog mergeFilesDialog(m_hLanguageModule, m_hContainer, this, currentDirectory,
@@ -70,11 +69,9 @@ void Explorerplusplus::OnSplitFile()
 
 	if (iSelected != -1)
 	{
-		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->GetItemFullName(
-			iSelected, szFullFilename, SIZEOF_ARRAY(szFullFilename));
+		std::wstring fullFilename = m_pActiveShellBrowser->GetItemFullName(iSelected);
 
-		SplitFileDialog splitFileDialog(m_hLanguageModule, m_hContainer, this, szFullFilename);
+		SplitFileDialog splitFileDialog(m_hLanguageModule, m_hContainer, this, fullFilename);
 		splitFileDialog.ShowModalDialog();
 	}
 }
@@ -86,9 +83,8 @@ void Explorerplusplus::OnDestroyFiles()
 
 	while ((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
 	{
-		TCHAR szFullFilename[MAX_PATH];
-		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFilename, SIZEOF_ARRAY(szFullFilename));
-		fullFilenameList.emplace_back(szFullFilename);
+		std::wstring fullFilename = m_pActiveShellBrowser->GetItemFullName(iItem);
+		fullFilenameList.push_back(fullFilename);
 	}
 
 	DestroyFilesDialog destroyFilesDialog(m_hLanguageModule, m_hContainer, fullFilenameList,
@@ -204,12 +200,15 @@ void Explorerplusplus::OnSaveDirectoryListing() const
 	LoadString(m_hLanguageModule, IDS_GENERAL_DIRECTORY_LISTING_FILENAME, fileName,
 		SIZEOF_ARRAY(fileName));
 	StringCchCat(fileName, SIZEOF_ARRAY(fileName), _T(".txt"));
-	BOOL bSaveNameRetrieved = GetFileNameFromUser(
-		m_hContainer, fileName, SIZEOF_ARRAY(fileName), m_CurrentDirectory.c_str());
+
+	std::wstring directory = m_pActiveShellBrowser->GetDirectory();
+
+	BOOL bSaveNameRetrieved =
+		GetFileNameFromUser(m_hContainer, fileName, SIZEOF_ARRAY(fileName), directory.c_str());
 
 	if (bSaveNameRetrieved)
 	{
-		NFileOperations::SaveDirectoryListing(m_CurrentDirectory, fileName);
+		NFileOperations::SaveDirectoryListing(directory, fileName);
 	}
 }
 
@@ -217,7 +216,7 @@ void Explorerplusplus::OnCreateNewFolder()
 {
 	auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
 
-	wil::com_ptr<IShellItem> directoryShellItem;
+	wil::com_ptr_nothrow<IShellItem> directoryShellItem;
 	HRESULT hr = SHCreateItemFromIDList(pidlDirectory.get(), IID_PPV_ARGS(&directoryShellItem));
 
 	if (FAILED(hr))
@@ -250,7 +249,6 @@ void Explorerplusplus::OnCreateNewFolder()
 
 void Explorerplusplus::OnResolveLink()
 {
-	TCHAR shortcutFileName[MAX_PATH];
 	TCHAR szFullFileName[MAX_PATH];
 	TCHAR szPath[MAX_PATH];
 	HRESULT hr;
@@ -260,11 +258,10 @@ void Explorerplusplus::OnResolveLink()
 
 	if (iItem != -1)
 	{
-		m_pActiveShellBrowser->GetItemFullName(
-			iItem, shortcutFileName, SIZEOF_ARRAY(shortcutFileName));
+		std::wstring shortcutFileName = m_pActiveShellBrowser->GetItemFullName(iItem);
 
-		hr = NFileOperations::ResolveLink(
-			m_hContainer, 0, shortcutFileName, szFullFileName, SIZEOF_ARRAY(szFullFileName));
+		hr = NFileOperations::ResolveLink(m_hContainer, 0, shortcutFileName.c_str(), szFullFileName,
+			SIZEOF_ARRAY(szFullFileName));
 
 		if (hr == S_OK)
 		{
@@ -272,17 +269,24 @@ void Explorerplusplus::OnResolveLink()
 			StringCchCopy(szPath, SIZEOF_ARRAY(szPath), szFullFileName);
 			PathRemoveFileSpec(szPath);
 
-			hr = m_tabContainer->CreateNewTab(szPath, TabSettings(_selected = true));
+			int newTabId;
+			m_tabContainer->CreateNewTab(
+				szPath, TabSettings(_selected = true), nullptr, std::nullopt, &newTabId);
 
-			if (SUCCEEDED(hr))
+			Tab &tab = m_tabContainer->GetTab(newTabId);
+
+			if (tab.GetShellBrowser()->GetDirectory() == szPath)
 			{
-				/* Strip off the path, and select the shortcut target
-				in the listview. */
-				PathStripPath(szFullFileName);
-				m_pActiveShellBrowser->SelectFiles(szFullFileName);
+				unique_pidl_absolute pidl;
+				hr = CreateSimplePidl(szFullFileName, wil::out_param(pidl));
 
-				SetFocus(m_hActiveListView);
+				if (SUCCEEDED(hr))
+				{
+					m_pActiveShellBrowser->SelectItems({ pidl.get() });
+				}
 			}
+
+			SetFocus(m_hActiveListView);
 		}
 	}
 }

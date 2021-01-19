@@ -68,12 +68,17 @@ void TaskbarThumbnails::Initialize()
 
 	m_tabContainer->tabCreatedSignal.AddObserver(
 		boost::bind(&TaskbarThumbnails::CreateTabProxy, this, _1, _2));
+	m_tabContainer->tabNavigationCommittedSignal.AddObserver(
+		boost::bind(&TaskbarThumbnails::OnNavigationCommitted, this, _1, _2, _3));
 	m_tabContainer->tabNavigationCompletedSignal.AddObserver(
 		boost::bind(&TaskbarThumbnails::OnNavigationCompleted, this, _1));
 	m_tabContainer->tabSelectedSignal.AddObserver(
 		boost::bind(&TaskbarThumbnails::OnTabSelectionChanged, this, _1));
 	m_tabContainer->tabRemovedSignal.AddObserver(
 		boost::bind(&TaskbarThumbnails::RemoveTabProxy, this, _1));
+
+	m_connections.push_back(m_expp->AddApplicationShuttingDownObserver(
+		std::bind(&TaskbarThumbnails::OnApplicationShuttingDown, this)));
 }
 
 LRESULT CALLBACK TaskbarThumbnails::MainWndProcStub(
@@ -228,27 +233,37 @@ void TaskbarThumbnails::CreateTabProxy(int iTabId, BOOL bSwitchToNewTab)
 
 void TaskbarThumbnails::RemoveTabProxy(int iTabId)
 {
-	if (m_bTaskbarInitialised)
+	if (!m_bTaskbarInitialised)
 	{
-		for (auto itr = m_TabProxyList.begin(); itr != m_TabProxyList.end(); itr++)
-		{
-			if (itr->iTabId == iTabId)
-			{
-				m_pTaskbarList->UnregisterTab(itr->hProxy);
-
-				auto *ptp =
-					reinterpret_cast<TabProxy *>(GetWindowLongPtr(itr->hProxy, GWLP_USERDATA));
-				DestroyWindow(itr->hProxy);
-				delete ptp;
-
-				UnregisterClass(reinterpret_cast<LPCWSTR>(MAKEWORD(itr->atomClass, 0)),
-					GetModuleHandle(nullptr));
-
-				m_TabProxyList.erase(itr);
-				break;
-			}
-		}
+		return;
 	}
+
+	auto tabProxy = std::find_if(m_TabProxyList.begin(), m_TabProxyList.end(),
+		[iTabId](const TabProxyInfo &currentTabProxy) {
+			return currentTabProxy.iTabId == iTabId;
+		});
+
+	if (tabProxy == m_TabProxyList.end())
+	{
+		assert(false);
+		return;
+	}
+
+	DestroyTabProxy(*tabProxy);
+
+	m_TabProxyList.erase(tabProxy);
+}
+
+void TaskbarThumbnails::DestroyTabProxy(TabProxyInfo &tabProxy)
+{
+	m_pTaskbarList->UnregisterTab(tabProxy.hProxy);
+
+	auto *ptp = reinterpret_cast<TabProxy *>(GetWindowLongPtr(tabProxy.hProxy, GWLP_USERDATA));
+	DestroyWindow(tabProxy.hProxy);
+	delete ptp;
+
+	UnregisterClass(
+		reinterpret_cast<LPCWSTR>(MAKEWORD(tabProxy.atomClass, 0)), GetModuleHandle(nullptr));
 }
 
 void TaskbarThumbnails::InvalidateTaskbarThumbnailBitmap(const Tab &tab)
@@ -624,11 +639,20 @@ void TaskbarThumbnails::OnTabSelectionChanged(const Tab &tab)
 	}
 }
 
-void TaskbarThumbnails::OnNavigationCompleted(const Tab &tab)
+void TaskbarThumbnails::OnNavigationCommitted(
+	const Tab &tab, PCIDLIST_ABSOLUTE pidl, bool addHistoryEntry)
 {
+	UNREFERENCED_PARAMETER(pidl);
+	UNREFERENCED_PARAMETER(addHistoryEntry);
+
 	InvalidateTaskbarThumbnailBitmap(tab);
 	SetTabProxyIcon(tab);
 	UpdateTaskbarThumbnailTitle(tab);
+}
+
+void TaskbarThumbnails::OnNavigationCompleted(const Tab &tab)
+{
+	InvalidateTaskbarThumbnailBitmap(tab);
 }
 
 void TaskbarThumbnails::UpdateTaskbarThumbnailTitle(const Tab &tab)
@@ -674,4 +698,14 @@ void TaskbarThumbnails::SetTabProxyIcon(const Tab &tab)
 			break;
 		}
 	}
+}
+
+void TaskbarThumbnails::OnApplicationShuttingDown()
+{
+	for (auto &tabProxy : m_TabProxyList)
+	{
+		DestroyTabProxy(tabProxy);
+	}
+
+	m_TabProxyList.clear();
 }

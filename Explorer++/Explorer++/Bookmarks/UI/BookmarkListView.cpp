@@ -538,7 +538,8 @@ void BookmarkListView::OnDblClk(const NMITEMACTIVATE *itemActivate)
 	}
 	else
 	{
-		BookmarkHelper::OpenBookmarkItemInNewTab(bookmarkItem, m_expp);
+		BookmarkHelper::OpenBookmarkItemInNewTab(
+			bookmarkItem, m_expp, m_expp->GetConfig()->openTabsInForeground);
 	}
 }
 
@@ -839,7 +840,7 @@ void BookmarkListView::OnKeyDown(const NMLVKEYDOWN *keyDown)
 
 void BookmarkListView::OnBeginDrag()
 {
-	wil::com_ptr<IDropSource> dropSource;
+	wil::com_ptr_nothrow<IDropSource> dropSource;
 	HRESULT hr = CreateDropSource(&dropSource, DragType::LeftClick);
 
 	if (FAILED(hr))
@@ -864,7 +865,7 @@ void BookmarkListView::OnBeginDrag()
 
 	auto dataObject = BookmarkDataExchange::CreateDataObject(bookmarkItems);
 
-	wil::com_ptr<IDragSourceHelper> dragSourceHelper;
+	wil::com_ptr_nothrow<IDragSourceHelper> dragSourceHelper;
 	hr = CoCreateInstance(
 		CLSID_DragDropHelper, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&dragSourceHelper));
 
@@ -914,9 +915,13 @@ void BookmarkListView::OnEnterPressed()
 	}
 	else
 	{
+		bool switchToNewTab = m_expp->GetConfig()->openTabsInForeground;
+
 		for (BookmarkItem *bookmarkItem : bookmarkItems)
 		{
-			BookmarkHelper::OpenBookmarkItemInNewTab(bookmarkItem, m_expp);
+			BookmarkHelper::OpenBookmarkItemInNewTab(bookmarkItem, m_expp, switchToNewTab);
+
+			switchToNewTab = false;
 		}
 	}
 }
